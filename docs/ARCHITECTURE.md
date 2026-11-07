@@ -869,7 +869,10 @@ agent path/name, task and status; unrelated threads and child prose stay hidden.
 Automatic approval-review lifecycle and rationale use the same activity items. Every agent's turn
 renders through `AgentTurn.tsx` (DECISIONS 2026-11-06): delivery events and Ambio chat parts become
 `WorkItem`s that stream into the reply card while the agent works, then fold into a "Worked for …"
-disclosure (with usage and the run's output) above the answer. Worktree handoffs distinguish the shared project root
+disclosure (with usage and the run's output) above the answer. Within the stream the agent's messages
+lead and each run of thinking and tool calls between them is one `stepsSummary` line that opens to
+every step. Drivers keep prose whole (`prose()` in `agentDrivers.ts`, a 64,000-character runaway guard)
+and clip only one-line tool labels, at 1,000 characters. Worktree handoffs distinguish the shared project root
 reported by MCP from the checkout in which the agent must edit.
 Driver events are `text`, `tool`, `error` and `thinking`; the turn shows the
 latest few while it works. Thinking comes from Claude Code's `thinking` blocks

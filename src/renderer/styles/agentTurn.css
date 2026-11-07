@@ -10,7 +10,6 @@
 .ambio-inbox .ambio-turn__work > li { overflow: visible; color: #27332f; font: 13px/1.56 var(--font-ui, sans-serif); white-space: normal; text-overflow: clip; }
 .ambio-turn__work > li > p { margin: 0; }
 .ambio-turn__work .ambio-inbox__prose p:last-child { margin-bottom: 0; }
-.ambio-inbox .ambio-turn__work > li[data-kind='thinking'] { padding-left: 9px; border-left: 2px solid #d1d8ce; color: #66756d; font-size: 12px; font-style: italic; white-space: pre-wrap; }
 .ambio-inbox .ambio-turn__work > li[data-kind='error'] { color: #8c3b22; font-size: 12px; }
 .ambio-turn__work > li[data-kind='sent'] small { margin-right: 7px; color: #6b8478; font: 700 9px var(--font-mono, monospace); letter-spacing: .06em; text-transform: uppercase; }
 .ambio-inbox .ambio-turn__work > li[data-kind='sent'] { justify-self: end; max-width: 85%; padding: 3px 9px; border: 1px solid #c3cfc6; background: #e9eee8; color: #2f4c40; font-size: 12px; font-weight: 500; }
@@ -18,12 +17,27 @@
 .ambio-inbox .ambio-turn__work > li[data-live='true']::after { content: none; }
 .ambio-turn__work > li[data-live='true'] .ambio-inbox__prose > :last-child::after { content: '▍'; margin-left: 1px; color: #548b75; animation: ambio-inbox-caret 1s steps(2) infinite; }
 
-/* A tool call: one quiet line, its output a click away. */
-.ambio-turn__tool { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; color: #4b5f55; font: 11px/1.5 var(--font-mono, monospace); }
-.ambio-turn__tool-state { width: 6px; height: 6px; flex: none; border-radius: 50%; background: #8fb09f; }
+/* A run of steps between messages: one quiet line that opens to every step in full. */
+.ambio-turn__steps { margin: 1px 0; }
+.ambio-inbox .ambio-turn__steps-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 2px 0; color: #66756d; font: 500 12px var(--font-ui, sans-serif); text-align: left; }
+.ambio-inbox .ambio-turn__steps-toggle:hover:not(:disabled) { color: #2f6a5d; }
+.ambio-turn__steps-toggle > svg { flex: none; transition: transform .12s; }
+.ambio-turn__steps[data-open='true'] .ambio-turn__steps-toggle > svg { transform: rotate(90deg); }
+.ambio-turn__steps-toggle:focus-visible { outline: 2px solid #69a799; outline-offset: 2px; }
+.ambio-turn__step-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; margin: 5px 0 4px 3px; padding: 2px 0 2px 11px; border-left: 2px solid #d1d8ce; list-style: none; }
+.ambio-turn__step-list[hidden] { display: none; }
+.ambio-turn__step-list > li { min-width: 0; }
+
+/* Thinking is named as thinking, quieter than anything the agent says. */
+.ambio-turn__thinking > span { display: block; margin-bottom: 1px; color: #7c8a83; font: 700 9px var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
+.ambio-turn__thinking > p { margin: 0; color: #66756d; font: italic 12px/1.55 var(--font-ui, sans-serif); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* A tool call: what it was and what it acted on, in full, wrapping as needed. */
+.ambio-turn__tool { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; color: #4b5f55; font: 11px/1.55 var(--font-mono, monospace); }
+.ambio-turn__tool-state { align-self: center; width: 6px; height: 6px; flex: none; border-radius: 50%; background: #8fb09f; }
 .ambio-turn__tool-state[data-status='running'], .ambio-turn__tool-state[data-status='waiting'] { background: #5ca877; animation: ambio-turn-pulse 1.4s ease-in-out infinite; }
 .ambio-turn__tool-state:is([data-status='failed'], [data-status='declined'], [data-status='error']) { background: #c47a5c; }
-.ambio-turn__badge { flex: none; padding: 0 5px; border: 1px solid #d0d0d0; border-radius: 3px; background: #eaeaea; color: #494949; font: 700 9px/1.6 var(--font-mono, monospace); letter-spacing: .05em; text-transform: uppercase; }
+.ambio-turn__badge { flex: none; align-self: center; padding: 0 5px; border: 1px solid #d0d0d0; border-radius: 3px; background: #eaeaea; color: #494949; font: 700 9px/1.6 var(--font-mono, monospace); letter-spacing: .05em; text-transform: uppercase; }
 .ambio-turn__badge[data-badge='ambio'] { background: #e0f0e6; color: #1e6648; border-color: #b7dcbe; }
 .ambio-turn__badge[data-badge='read'] { background: #e4edf5; color: #1d527a; border-color: #bad2e6; }
 .ambio-turn__badge[data-badge='list'] { background: #eef2f5; color: #365063; border-color: #ccd8e0; }
@@ -32,16 +46,16 @@
 .ambio-turn__badge[data-badge='edit'] { background: #fcf0e4; color: #8a4816; border-color: #ecc9a4; }
 .ambio-turn__badge[data-badge='web'] { background: #e6f2f2; color: #1f5f61; border-color: #b9dcdc; }
 .ambio-turn__badge[data-badge='agent'] { background: #f3eef4; color: #5d3a66; border-color: #dccbe0; }
-.ambio-turn__subagent { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; border-right: 1px solid #d6cfd9; color: #7a6a80; font-style: italic; }
-.ambio-turn__tool-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #2f463c; font-weight: 600; }
-.ambio-turn__target { flex: 0 100 auto; color: #66756d; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ambio-turn__subagent { padding-right: 8px; border-right: 1px solid #d6cfd9; color: #7a6a80; font-style: italic; }
+.ambio-turn__tool-name { color: #2f463c; font-weight: 600; overflow-wrap: anywhere; }
+.ambio-turn__target { min-width: 0; color: #66756d; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ambio-turn__tool small { flex: none; color: #8a968f; font-size: 10px; }
 .ambio-turn__more { flex: none; margin-left: auto; padding-left: 8px; color: #5c7d6f; font: 600 10px var(--font-ui, sans-serif); }
 .ambio-turn__work details[open] .ambio-turn__more { color: #2f6a5d; }
 .ambio-turn__work details > summary { display: block; list-style: none; cursor: pointer; }
 .ambio-turn__work details > summary::-webkit-details-marker { display: none; }
 .ambio-turn__work details > summary:hover .ambio-turn__tool-name { text-decoration: underline; text-underline-offset: 2px; }
-.ambio-turn__work details > pre { margin: 4px 0 2px 12px; padding: 7px 9px; max-height: 220px; overflow: auto; border-left: 2px solid #d1d8ce; background: #ecede5; white-space: pre-wrap; overflow-wrap: anywhere; font: 10.5px/1.5 var(--font-mono, monospace); }
+.ambio-turn__work details > pre { margin: 4px 0 2px; padding: 7px 9px; max-height: 320px; overflow: auto; border-left: 2px solid #d1d8ce; background: #ecede5; white-space: pre-wrap; overflow-wrap: anywhere; font: 10.5px/1.5 var(--font-mono, monospace); }
 
 /* Once answered, the work is one line above the answer. */
 .ambio-turn__fold { margin: -2px 0 8px; padding-bottom: 6px; border-bottom: 1px dashed #d1d8ce; }

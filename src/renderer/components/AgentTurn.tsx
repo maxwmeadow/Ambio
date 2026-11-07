@@ -3,7 +3,7 @@ import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../../shared/agen
 import type { ChatPart } from '../../shared/agentChat'
 import { AgentMessageContent } from './AgentMessageContent'
 import { InboxIcon } from './InboxIcon'
-import { projectPath, statusLabel, toolRow } from './agentActivity'
+import { projectPath, statusLabel, stepsSummary, toolRow } from './agentActivity'
 import '../styles/agentTurn.css'
 
 /**
@@ -43,18 +43,60 @@ export function elapsed(ms: number): string {
   return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`
 }
 
-/** What the agent said and did, in order, styled like the conversation around it. */
-export function AgentWork({ items, rootPath }: { items: WorkItem[]; rootPath?: string }) {
+/** A run of steps between two things the agent said: its thinking and tool calls. */
+type WorkBlock = { kind: 'said'; item: WorkItem } | { kind: 'steps'; key: string; items: WorkItem[] }
+
+function workBlocks(items: WorkItem[]): WorkBlock[] {
+  const blocks: WorkBlock[] = []
+  for (const item of items) {
+    const last = blocks.at(-1)
+    if (item.kind === 'thinking' || item.kind === 'tool') {
+      if (last?.kind === 'steps') last.items.push(item)
+      else blocks.push({ kind: 'steps', key: `steps:${item.key}`, items: [item] })
+    } else blocks.push({ kind: 'said', item })
+  }
+  return blocks
+}
+
+/**
+ * What the agent said and did, in order. What it says to the person stays in
+ * front; the steps between (thinking, tool calls) fold into one line each run
+ * that opens to show every one in full. While it works, the run under way is
+ * open so the person can follow it.
+ */
+export function AgentWork({ items, rootPath, working }: { items: WorkItem[]; rootPath?: string; working?: boolean }) {
   if (!items.length) return null
+  const blocks = workBlocks(items)
   return <ol className="ambio-inbox__activity ambio-turn__work" aria-label="What the agent is doing">
-    {items.map(item => <li key={item.key} data-kind={item.kind} data-live={item.live ? 'true' : undefined}>
-      {item.kind === 'text' ? <AgentMessageContent text={item.text} />
-        : item.kind === 'thinking' ? <p>{item.text}</p>
-          : item.kind === 'sent' ? <p><small>You</small>{item.text}</p>
-            : item.kind === 'error' ? <p>{projectPath(item.text, rootPath)}</p>
-              : <ToolLine item={item} rootPath={rootPath} />}
-    </li>)}
+    {blocks.map((block, index) => block.kind === 'steps'
+      ? <li key={block.key} data-kind="steps"><AgentSteps items={block.items} rootPath={rootPath} current={!!working && index === blocks.length - 1} /></li>
+      : <li key={block.item.key} data-kind={block.item.kind} data-live={block.item.live ? 'true' : undefined}>
+        {block.item.kind === 'text' ? <AgentMessageContent text={block.item.text} />
+          : block.item.kind === 'sent' ? <p><small>You</small>{block.item.text}</p>
+            : <p>{projectPath(block.item.text, rootPath)}</p>}
+      </li>)}
   </ol>
+}
+
+/** One run of steps: a summary line, and every step in full beneath it. */
+function AgentSteps({ items, rootPath, current }: { items: WorkItem[]; rootPath?: string; current: boolean }) {
+  // Follows the turn (open while it is the run under way) until the person opens or closes it.
+  const [chosen, setChosen] = useState<boolean | null>(null)
+  const open = chosen ?? current
+  return <div className="ambio-turn__steps" data-open={open ? 'true' : undefined} data-current={current ? 'true' : undefined}>
+    <button type="button" className="ambio-turn__steps-toggle" aria-expanded={open} onClick={() => setChosen(!open)}>
+      {current && <span className="ambio-turn__pulse" aria-hidden="true" />}
+      <span>{stepsSummary(items)}</span>
+      <InboxIcon name="chevron" size={11} />
+    </button>
+    <ol className="ambio-turn__step-list" hidden={!open}>
+      {items.map(item => <li key={item.key} data-kind={item.kind}>
+        {item.kind === 'thinking'
+          ? <div className="ambio-turn__thinking"><span>Thinking</span><p>{item.text}</p></div>
+          : <ToolLine item={item} rootPath={rootPath} />}
+      </li>)}
+    </ol>
+  </div>
 }
 
 function ToolLine({ item, rootPath }: { item: WorkItem; rootPath?: string }) {
@@ -118,7 +160,7 @@ export function AgentTurnCard({ agent, working, startedAt, lastAt, items, rootPa
     {folded
       ? (work.length > 0 || footer) && <details className="ambio-turn__fold"><summary>{summary}</summary><AgentWork items={work} rootPath={rootPath} />{footer && <div className="ambio-turn__footer">{footer}</div>}</details>
       : <>
-        <AgentWork items={work} rootPath={rootPath} />
+        <AgentWork items={work} rootPath={rootPath} working={working} />
         {working && !work.length && <p className="ambio-turn__starting">Starting…</p>}
         {working && lastAt && now - lastAt > 60000 && <p className="ambio-turn__quiet">Nothing new for {elapsed(now - lastAt)}. Long commands and background tasks can take a while; Stop if it should be done by now.</p>}
         {status && <p className="ambio-inbox__turn-status" data-state="ended">{status}</p>}

@@ -74,8 +74,11 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     await expect.poll(() => fs.existsSync(path.join(root, 'fixture.txt'))).toBe(true)
     // The tool call's update replaced it in place, with its change behind one expandable diff.
     const activity = panel.getByRole('list', { name: 'What the agent is doing' })
-    await expect(activity.getByRole('listitem').filter({ hasText: 'Edit fixture.txt' })).toHaveCount(1)
-    await expect(activity.getByRole('listitem').filter({ hasText: 'Edit fixture.txt' })).toContainText('done')
+    // Steps between the agent's messages fold into one line each; opened, every step shows in full.
+    for (const toggle of await activity.locator('.ambio-turn__steps-toggle[aria-expanded="false"]').all()) await toggle.click()
+    const edit = activity.locator('.ambio-turn__step-list > li').filter({ hasText: 'Edit fixture.txt' })
+    await expect(edit).toHaveCount(1)
+    await expect(edit).toContainText('done')
     await activity.getByText('View changes').click()
     await expect(activity.locator('pre')).toContainText('+approved')
     await expect(textbox).toBeEnabled()

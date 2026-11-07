@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { projectPath, statusLabel, toolRow } from './agentActivity.ts'
+import { projectPath, statusLabel, stepsSummary, toolRow } from './agentActivity.ts'
 
 test('every agent\'s tool rows get the badge for what the tool does', () => {
   // Claude Code, Codex and an ACP agent name the same kinds of tool differently.
@@ -45,4 +45,17 @@ test('the project\'s own paths read as they do in the project, whichever slashes
 test('statuses read the same for every agent', () => {
   assert.deepEqual(['inProgress', 'in_progress', 'pending', 'completed', 'failed', 'declined', 'cancelled'].map(statusLabel),
     ['running', 'running', 'waiting', 'done', 'failed', 'declined', 'cancelled'])
+})
+
+test('a run of steps is summed up in words, without separators', () => {
+  const thinking = { kind: 'thinking', text: 'Looking around' }
+  const tool = (text, status) => ({ kind: 'tool', text, ...(status ? { status } : {}) })
+  assert.equal(stepsSummary([thinking]), 'Thought')
+  assert.equal(stepsSummary([tool('Bash · npm test')]), 'Ran a command')
+  assert.equal(stepsSummary([thinking, tool('Bash · npm test'), tool('Shell · ls'), tool('Read · src/a.ts'), tool('Read · src/b.ts')]), 'Thought, ran 2 commands and read 2 files')
+  // Repeated verbs are said once.
+  assert.equal(stepsSummary([tool('Auto review · approved'), tool('Subagent · Main agent · spawnAgent → Reviewer')]), 'Used a tool and a subagent')
+  assert.equal(stepsSummary([tool('Ambio · get_inbox · 5ac8'), tool('Ambio · get_architecture · overview')]), 'Used Ambio 2 times')
+  assert.equal(stepsSummary([tool('Bash · npm test', 'failed')]), 'Ran a command, one failed')
+  assert.doesNotMatch(stepsSummary([thinking, tool('Edit · a.ts'), tool('Grep · TODO')]), /·/)
 })

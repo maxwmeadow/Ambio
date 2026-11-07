@@ -1,5 +1,5 @@
 import type { DeliveryEvent, DeliveryUsage } from '../src/shared/agentDelivery.ts'
-import { thinkingEvents, type TurnMode } from './agentDrivers.ts'
+import { prose, thinkingEvents, type TurnMode } from './agentDrivers.ts'
 
 /**
  * One turn of a conversation with an agent that speaks the Agent Client
@@ -233,7 +233,7 @@ export class AcpClient {
       const params = message.params ?? {}
       const kind = params.toolCall?.kind ?? this.toolKinds.get(params.toolCall?.toolCallId)
       const options: Array<{ optionId: string; kind?: string }> = Array.isArray(params.options) ? params.options : []
-      const title = clip(String(params.toolCall?.title ?? (this.toolTitles.get(params.toolCall?.toolCallId) || kind)), 120)
+      const title = clip(String(params.toolCall?.title ?? (this.toolTitles.get(params.toolCall?.toolCallId) || kind)), 1000)
       const answer = (optionId: string | undefined) => {
         if (!this.closed) this.turn.send(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { outcome: optionId && !this.cancelled ? { outcome: 'selected', optionId } : { outcome: 'cancelled' } } }))
       }
@@ -261,13 +261,13 @@ export class AcpClient {
   private flushText(): void {
     this.flushThought()
     clearTimeout(this.textTimer); this.textTimer = undefined
-    if (this.text.trim()) this.turn.onEvent({ ...(this.textId ? { id: this.textId } : {}), kind: 'text', text: clip(this.text, 1200) })
+    if (this.text.trim()) this.turn.onEvent({ ...(this.textId ? { id: this.textId } : {}), kind: 'text', text: prose(this.text) })
     this.text = ''; this.textId = ''
   }
 
   private writeLive(): void {
     this.textTimer = undefined
-    if (this.text.trim() && !this.closed) this.turn.onEvent({ id: this.textId, kind: 'text', text: this.text.replace(/\s+/g, ' ').trim().slice(-1200), live: true })
+    if (this.text.trim() && !this.closed) this.turn.onEvent({ id: this.textId, kind: 'text', text: prose(this.text), live: true })
   }
 
   private addUsage(reported: unknown): void {
@@ -286,10 +286,10 @@ export class AcpClient {
   private reportTool(update: any, first: boolean): void {
     const id = typeof update.toolCallId === 'string' && update.toolCallId ? update.toolCallId : undefined
     const prior = id ? this.tools.get(id) : undefined
-    const where = Array.isArray(update.locations) && update.locations[0]?.path ? ` · ${clip(String(update.locations[0].path), 120)}` : ''
+    const where = Array.isArray(update.locations) && update.locations[0]?.path ? ` · ${clip(String(update.locations[0].path), 1000)}` : ''
     // The label the call started with stays; agy's updates retitle it with a full path.
-    const label = prior?.text ?? (first ? `${clip(String(update.title ?? update.name ?? update.kind ?? 'tool'), 160)}${where}`
-      : clip(String(update.title ?? this.toolTitles.get(id ?? '') ?? 'Tool result'), 160))
+    const label = prior?.text ?? (first ? `${clip(String(update.title ?? update.name ?? update.kind ?? 'tool'), 1000)}${where}`
+      : clip(String(update.title ?? this.toolTitles.get(id ?? '') ?? 'Tool result'), 1000))
     const event: Omit<DeliveryEvent, 'at'> = {
       ...prior, ...(id ? { id } : {}), kind: update.status === 'failed' ? 'error' : 'tool', text: label,
       ...(typeof update.status === 'string' ? { status: update.status } : {}), ...acpToolDetail(update.content, update.rawOutput),

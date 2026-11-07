@@ -80,3 +80,35 @@ export function toolRow(text: string, rootPath?: string): ToolRow {
 export function statusLabel(status: string): string {
   return ({ inProgress: 'running', in_progress: 'running', pending: 'waiting', completed: 'done', failed: 'failed', declined: 'declined' } as Record<string, string>)[status] ?? status
 }
+
+const plural = (count: number, one: string, many: string) => count === 1 ? one : many.replace('#', String(count))
+
+/** A run of steps in a few words, the way a person would sum it up: "Thought, ran 3 commands and read 2 files". */
+export function stepsSummary(items: Array<{ kind: string; text: string; status?: string }>): string {
+  const counts = new Map<string, number>()
+  let thought = false
+  for (const item of items) {
+    if (item.kind === 'thinking') { thought = true; continue }
+    const badge = toolRow(item.text).badge
+    counts.set(badge, (counts.get(badge) ?? 0) + 1)
+  }
+  const parts = [
+    thought ? 'thought' : '',
+    ...[...counts].map(([badge, count]) => ({
+      Run: plural(count, 'ran a command', 'ran # commands'),
+      Read: plural(count, 'read a file', 'read # files'),
+      Edit: plural(count, 'edited a file', 'edited # files'),
+      Search: plural(count, 'searched once', 'searched # times'),
+      List: plural(count, 'listed a folder', 'listed # folders'),
+      Web: plural(count, 'fetched a page', 'fetched # pages'),
+      Agent: plural(count, 'used a subagent', 'used # subagents'),
+      Ambio: plural(count, 'used Ambio', 'used Ambio # times'),
+      Tool: plural(count, 'used a tool', 'used # tools'),
+    } as Record<string, string>)[badge] ?? ''),
+  ].filter(Boolean)
+    // "used a tool and a subagent", not "used a tool and used a subagent".
+    .map((part, index, all) => index > 0 && part.startsWith('used ') && all[index - 1].startsWith('used ') ? part.slice(5) : part)
+  const failed = items.filter(item => item.status && /fail|declin|error/i.test(item.status)).length
+  const said = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0] ?? 'Worked'
+  return `${said.charAt(0).toUpperCase()}${said.slice(1)}${failed ? `, ${plural(failed, 'one failed', '# failed')}` : ''}`
+}

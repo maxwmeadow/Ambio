@@ -5,7 +5,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { spawn } from 'node:child_process'
 import { DeliveryRunner, chatDeepLink, deliveryPlan, deliveryTargets, findDeliveryCli } from './agentDelivery.ts'
-import { agentDriver, codexSandbox, turnMode } from './agentDrivers.ts'
+import { agentDriver, codexSandbox, thoughts, turnMode } from './agentDrivers.ts'
 
 const mcp = { command: 'C:\\Ambio Install\\archd.exe', args: ['mcp-run', 'runtime', 'entry'] }
 const HOSTS = ['claude-code', 'codex', 'copilot-cli', 'cursor-cli', 'antigravity-cli', 'grok', 'muse']
@@ -580,4 +580,17 @@ test('direct driver plans retain the finite mapping credential and request bindi
     assert.match(serialized, /scoped-token/)
     assert.match(serialized, /AMBIO_RUN_MESSAGE_ID/)
   }
+})
+
+test('what an agent says and thinks reaches the conversation whole', () => {
+  const claude = agentDriver('claude-code')
+  const long = `${'Every word of this answer matters. '.repeat(80)}The end.`
+  const said = claude.read(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: `${long}\n\n- one\n- two` }] } }))
+  // Long replies keep their last words and their markdown line breaks.
+  assert.equal(said.events[0].text, `${long.trim()}\n\n- one\n- two`)
+  // Long reasoning is not cut short; wrapped lines join, paragraphs stay apart.
+  const reasoning = `${'I should read the store first. '.repeat(30)}\nthen its tests.\n\nNext, the migrations.`
+  const [thought] = thoughts(reasoning)
+  assert.match(thought, /then its tests\.\n\nNext, the migrations\.$/)
+  assert.doesNotMatch(thought, /…/)
 })

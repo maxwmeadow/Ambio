@@ -241,13 +241,15 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   const where = worktreeOffered && mode === 'build' ? delivery.where : 'here'
   const chatVersion = chat.snapshot ? `${chat.snapshot.conversation.state}:${chat.snapshot.approvals.length}:${chat.snapshot.questions.length}:${chat.snapshot.messages.map(message => `${message.id}:${message.parts.map(part => `${part.text.length}${part.state ?? ''}`).join(',')}`).join('|')}` : ''
   const messageVersion = shown.map(message => `${message.id}:${message.status}:${message.reply?.createdAt ?? ''}:${message.review?.id ?? ''}:${message.sessions?.map(session => `${session.id}:${session.endedAt}:${session.notes.length}`).join(',') ?? ''}`).join('|')
+  // A turn under way grows as its agent works; the view follows it while the person is at the bottom.
+  const workVersion = Object.entries(delivery.events).map(([key, events]) => `${key}:${events.length}:${events.at(-1)?.text.length ?? 0}:${events.at(-1)?.status ?? ''}`).join('|')
   useLayoutEffect(() => {
     const el = history.current
     if (!el) return
     if (olderAnchor.current) { el.scrollTop = olderAnchor.current.top + el.scrollHeight - olderAnchor.current.height; olderAnchor.current = null }
     else if (nearBottom.current) latest()
     else setUnseen(true)
-  }, [isOpen, messageVersion, chatVersion, caseTarget?.id, caseFile?.messages.length, caseFile?.messages.map(message => message.deliveredAt).join()])
+  }, [isOpen, messageVersion, chatVersion, workVersion, caseTarget?.id, caseFile?.messages.length, caseFile?.messages.map(message => message.deliveredAt).join()])
   // Opening another conversation starts at its latest turn.
   useLayoutEffect(() => { latest() }, [currentThreadId])
   useLayoutEffect(() => {

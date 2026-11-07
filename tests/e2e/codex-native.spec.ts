@@ -113,6 +113,12 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     await expect(subagentCall).toContainText('explorer')
     await expect(inbox.locator('.ambio-turn').last()).toContainText('finished without replying')
     await page.screenshot({ path: 'test-results/codex-native-auto-subagent.png' })
+    // The steps between messages are one line; opened, every step shows whole.
+    const steps = inbox.locator('.ambio-turn').last().locator('.ambio-turn__steps-toggle').last()
+    await expect(steps).toHaveText('Ran a command, used a tool and a subagent')
+    await steps.click()
+    await expect(inbox.locator('.ambio-turn').last().locator('.ambio-turn__step-list').last()).toBeVisible()
+    await inbox.locator('.ambio-turn').last().screenshot({ path: 'test-results/codex-native-steps.png' })
     // Structured questions use the shared card for choices and the user's own words.
     setMode('question')
     await composer.fill('Ask me which color to use'); await send.click()

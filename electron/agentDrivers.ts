@@ -125,6 +125,17 @@ function clip(text: string, max = 400): string {
   return flat.length > max ? `${flat.slice(0, max)}…` : flat
 }
 
+/**
+ * What an agent says or thinks, kept whole as it wrote it (line breaks carry
+ * its markdown) for the conversation to show in full. The cap only guards
+ * against a runaway stream; nothing a person reads is cut short.
+ */
+export const PROSE_MAX = 64000
+export function prose(text: string, max = PROSE_MAX): string {
+  const kept = text.trim()
+  return kept.length > max ? `${kept.slice(0, max)}\n…` : kept
+}
+
 /** Output or a diff kept as written (line breaks matter), cut to a size. */
 function keep(text: string, max: number): string {
   const kept = text.replace(/\s+$/, '')
@@ -170,7 +181,7 @@ function toolTarget(input: unknown): string {
     // What an Ambio tool was asked to do (edit_systems abort_session, get_architecture files).
     'op', 'scope',
   ]) {
-    if (typeof args[key] === 'string' && args[key]) return clip(args[key] as string, 120)
+    if (typeof args[key] === 'string' && args[key]) return clip(args[key] as string, 1000)
   }
   return ''
 }
@@ -335,7 +346,7 @@ const claudeCode: AgentDriver = {
       return {
         sessionId,
         events: message.message.content.flatMap((block: any) => {
-          if (block?.type === 'text' && block.text?.trim()) return [{ kind: 'text' as const, text: clip(block.text, 1200) }]
+          if (block?.type === 'text' && block.text?.trim()) return [{ kind: 'text' as const, text: prose(block.text) }]
           // A thinking block carries its text when the model shows it; some leave it empty.
           if (block?.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim()) return thinkingEvents(block.thinking)
           if (block?.type === 'tool_use') return [claudeToolUse(block, false)]
@@ -343,16 +354,16 @@ const claudeCode: AgentDriver = {
         }),
       }
     }
-    if (message.type === 'result') return { sessionId, ended: true, ...(claudeUsage(message.usage) ? { usage: claudeUsage(message.usage) } : {}), events: message.is_error ? [{ kind: 'error', text: clip(String(message.result || message.subtype || 'The run ended with an error.')) }] : [] }
+    if (message.type === 'result') return { sessionId, ended: true, ...(claudeUsage(message.usage) ? { usage: claudeUsage(message.usage) } : {}), events: message.is_error ? [{ kind: 'error', text: prose(String(message.result || message.subtype || 'The run ended with an error.')) }] : [] }
     return { sessionId, events: [] }
   },
 }
 
 /**
- * An agent's reasoning as quiet lines, one per section: markdown emphasis and
- * line breaks dropped. A line that is only bold text starts a section (Codex's
- * summaries are a run of such headings, each with or without a paragraph), and
- * the heading is set apart from what follows it rather than run into it.
+ * An agent's reasoning, one entry per section, each whole: markdown emphasis
+ * dropped, paragraphs kept. A line that is only bold text starts a section
+ * (Codex's summaries are a run of such headings, each with or without a
+ * paragraph), and the heading is set apart from what follows it.
  */
 export function thoughts(text: unknown): string[] {
   const sections: { heading: string, body: string[] }[] = []
@@ -362,13 +373,15 @@ export function thoughts(text: unknown): string[] {
     else if (line.trim()) {
       if (!sections.length) sections.push({ heading: '', body: [] })
       sections[sections.length - 1].body.push(line)
-    }
+    } else if (sections.at(-1)?.body.at(-1)) sections[sections.length - 1].body.push('')
   }
   const flat = (part: string) => part.replace(/\*\*/g, '').replace(/\s+/g, ' ').trim()
+  // Wrapped lines are one sentence; a blank line starts a new paragraph.
+  const paragraphs = (body: string[]) => body.join('\n').split(/\n\s*\n/).map(flat).filter(Boolean).join('\n\n')
   return sections
-    .map(({ heading, body }) => [flat(heading), flat(body.join(' '))].filter(Boolean).join(' — '))
+    .map(({ heading, body }) => [flat(heading), paragraphs(body)].filter(Boolean).join(' — '))
     .filter(Boolean)
-    .map(line => clip(line, 400))
+    .map(line => prose(line))
 }
 
 /** Reasoning as thinking events, one per section. */
@@ -439,15 +452,15 @@ const codex: AgentDriver = {
     const message = parse(line)
     if (!message) return NOTHING
     if (message.type === 'thread.started' && typeof message.thread_id === 'string') return { sessionId: message.thread_id, events: [] }
-    if (message.type === 'turn.failed' || message.type === 'error') return { events: [{ kind: 'error', text: clip(String(message.error?.message ?? message.message ?? 'The turn failed.')) }] }
+    if (message.type === 'turn.failed' || message.type === 'error') return { events: [{ kind: 'error', text: prose(String(message.error?.message ?? message.message ?? 'The turn failed.')) }] }
     const item = message.type === 'item.completed' || message.type === 'item.started' ? message.item : undefined
     if (!item) return NOTHING
     const finished = message.type === 'item.completed'
-    if (item.type === 'agent_message' && finished && item.text?.trim()) return { events: [{ kind: 'text', text: clip(item.text, 1200) }] }
+    if (item.type === 'agent_message' && finished && item.text?.trim()) return { events: [{ kind: 'text', text: prose(item.text) }] }
     if (item.type === 'reasoning' && finished && item.text?.trim()) return { events: thinkingEvents(item.text) }
-    if (item.type === 'command_execution' && !finished) return { events: [{ kind: 'tool', text: `Shell · ${clip(String(item.command ?? ''), 120)}` }] }
+    if (item.type === 'command_execution' && !finished) return { events: [{ kind: 'tool', text: `Shell · ${clip(String(item.command ?? ''), 1000)}` }] }
     if (item.type === 'mcp_tool_call' && !finished) return { events: [{ kind: 'tool', text: `${item.server === 'ambio' ? 'Ambio' : item.server ?? 'MCP'} · ${item.tool ?? 'tool'}` }] }
-    if (item.type === 'file_change' && finished && Array.isArray(item.changes)) return { events: [{ kind: 'tool', text: `Edit · ${clip(item.changes.map((change: any) => change?.path).filter(Boolean).join(', '), 160)}` }] }
+    if (item.type === 'file_change' && finished && Array.isArray(item.changes)) return { events: [{ kind: 'tool', text: `Edit · ${clip(item.changes.map((change: any) => change?.path).filter(Boolean).join(', '), 1000)}` }] }
     return NOTHING
   },
   // In code mode a script that only works on data in memory prints nothing on
@@ -481,7 +494,7 @@ const copilotCli: AgentDriver = {
     }
   },
   read(line) {
-    return line.trim() ? { events: [{ kind: 'text', text: clip(line, 600) }] } : NOTHING
+    return line.trim() ? { events: [{ kind: 'text', text: prose(line) }] } : NOTHING
   },
 }
 
@@ -513,7 +526,7 @@ const cursorCli: AgentDriver = {
     if (message.type === 'assistant') {
       const content = message.message?.content
       const text = Array.isArray(content) ? content.map((block: any) => block?.text ?? '').join('') : typeof content === 'string' ? content : ''
-      return { sessionId, events: text.trim() ? [{ kind: 'text', text: clip(text, 1200) }] : [] }
+      return { sessionId, events: text.trim() ? [{ kind: 'text', text: prose(text) }] : [] }
     }
     if (message.type === 'thinking') {
       const key = sessionId ?? ''
@@ -528,7 +541,7 @@ const cursorCli: AgentDriver = {
       const name = Object.keys(call)[0] ?? 'tool'
       return { sessionId, events: [{ kind: 'tool', text: [name.replace(/ToolCall$/, ''), toolTarget(call[name]?.args)].filter(Boolean).join(' · ') }] }
     }
-    if (message.type === 'result' && message.is_error) return { sessionId, events: [{ kind: 'error', text: clip(String(message.result ?? 'The run ended with an error.')) }] }
+    if (message.type === 'result' && message.is_error) return { sessionId, events: [{ kind: 'error', text: prose(String(message.result ?? 'The run ended with an error.')) }] }
     return { sessionId, events: [] }
   },
 }
@@ -574,7 +587,7 @@ const antigravityCli: AgentDriver = {
     if (!message) {
       if (/required the "[a-z_]+" permission/i.test(line)) return antigravityRefusal(line)
       if (/flag provided but not defined: -output-format/i.test(line)) return { events: [{ kind: 'error', text: 'This Antigravity CLI is too old to report its progress. Update it (agy update) and send again.' }] }
-      return line.trim() ? { events: [{ kind: 'text', text: clip(line, 600) }] } : NOTHING
+      return line.trim() ? { events: [{ kind: 'text', text: prose(line) }] } : NOTHING
     }
     // agy 1.4: {"event": name, [name]: payload}; earlier builds put the payload at the top.
     const event = String(message.event ?? message.type ?? '')
@@ -585,11 +598,11 @@ const antigravityCli: AgentDriver = {
     if (event === 'init') return { sessionId, events: [] }
     if (event === 'result') {
       const failed = typeof payload.status === 'string' && !['SUCCESS', 'RUNNING', 'WAITING'].includes(payload.status)
-      return { sessionId, events: failed ? [{ kind: 'error', text: clip(String(payload.error ?? `The run ended ${payload.status}.`)) }] : [] }
+      return { sessionId, events: failed ? [{ kind: 'error', text: prose(String(payload.error ?? `The run ended ${payload.status}.`)) }] : [] }
     }
     if (message.error && !event) {
       const errText = typeof message.error === 'string' ? message.error : JSON.stringify(message.error)
-      return { sessionId, events: [{ kind: 'error', text: clip(errText, 600) }] }
+      return { sessionId, events: [{ kind: 'error', text: prose(errText) }] }
     }
     if (event !== 'step_update') return { sessionId, events: [] }
     const kind = String(payload.step_type ?? payload.type ?? '')
@@ -611,8 +624,8 @@ const antigravityCli: AgentDriver = {
         }
       }
       if (!target && parameters && typeof parameters === 'object') {
-        const command = typeof parameters.CommandLine === 'string' ? clip(parameters.CommandLine, 120)
-          : typeof parameters.command === 'string' ? clip(parameters.command, 120) : ''
+        const command = typeof parameters.CommandLine === 'string' ? clip(parameters.CommandLine, 1000)
+          : typeof parameters.command === 'string' ? clip(parameters.command, 1000) : ''
         target = command || toolTarget(parameters)
       }
       return { sessionId, events: [{ kind: 'tool', text: [name, target].filter(Boolean).join(' · ') }] }
@@ -629,7 +642,7 @@ const antigravityCli: AgentDriver = {
       if (!/^done$/i.test(state) && !whole) return { sessionId, events: [] }
       const text = whole || antigravityText.get(key) || ''
       antigravityText.delete(key)
-      return { sessionId, events: text.trim() ? [{ kind: 'text', text: clip(text, 1200) }] : [] }
+      return { sessionId, events: text.trim() ? [{ kind: 'text', text: prose(text) }] : [] }
     }
     // Other steps (waiting on a background task, a subagent, a search) are said by their kind.
     if (kind && kind !== 'user_input' && beginning && state) return { sessionId, events: [{ kind: 'tool', text: kind.replace(/_/g, ' ') }] }
@@ -666,7 +679,7 @@ const DRIVERS: Record<string, AgentDriver> = {
     plan: turn => ({ args: ['--sandbox', turn.mode === 'build' ? 'off' : 'read-only', 'agent', '--no-leader', ...modelFlag(turn), 'stdio'] }),
     readError: line => /bwrap.*(?:failed|not found)|could not apply.*sandbox|Refusing to start.*(?:unprotected|protections missing)/i.test(line)
       ? { events: [{ kind: 'error', text: 'Grok could not start its read-only sandbox. On Linux, install bubblewrap and enable the user namespaces it needs. Fix the sandbox setup, then try again; Ambio has kept read-only protection enabled.' }] }
-      : /error:|not signed in|authentication required/i.test(line) ? { events: [{ kind: 'error', text: clip(line, 1200) }] } : NOTHING,
+      : /error:|not signed in|authentication required/i.test(line) ? { events: [{ kind: 'error', text: prose(line) }] } : NOTHING,
     read: () => NOTHING,
   },
   muse: {

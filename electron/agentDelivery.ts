@@ -7,7 +7,7 @@ import { StringDecoder } from 'node:string_decoder'
 import { detectEditors } from './fileAccess.ts'
 import { processStartIdentity, resolveNodeCommand } from './platformPaths.ts'
 import { CLI_CLIENTS, currentClientId, type AgentAccess, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../src/shared/agentDelivery.ts'
-import { DRIVER_CLI_NAMES, agentDriver, type AgentDriver, type DriverPlan, type TurnMode } from './agentDrivers.ts'
+import { DRIVER_CLI_NAMES, PROSE_MAX, agentDriver, prose, type AgentDriver, type DriverPlan, type TurnMode } from './agentDrivers.ts'
 import { AcpClient, type AcpTurn } from './acpClient.ts'
 import { MuseClient, type MuseTurn } from './museClient.ts'
 import { CodexAppServer, type CodexAppServerTurn } from './codexAppServer.ts'
@@ -608,7 +608,7 @@ export class DeliveryRunner {
       let writingTimer: ReturnType<typeof setTimeout> | undefined
       const flushWriting = () => {
         clearTimeout(writingTimer); writingTimer = undefined
-        if (writing.trim()) report({ id: writingId, kind: 'text', text: writing.replace(/\s+/g, ' ').trim().slice(-1200), live: true })
+        if (writing.trim()) report({ id: writingId, kind: 'text', text: prose(writing), live: true })
       }
       const understand = (chunk: Buffer) => {
         if (!input.driver && !protocol) return
@@ -624,7 +624,7 @@ export class DeliveryRunner {
           if (read.usage) { run.usage = read.usage; this.save(run) }
           if (read.partial && !superseded) {
             writingId ||= `live:${++writings}`
-            writing = `${writing}${read.partial}`.slice(-4000)
+            writing = `${writing}${read.partial}`.slice(0, PROSE_MAX)
             writingTimer ??= setTimeout(flushWriting, 250)
           }
           // A whole message replaces the text that was arriving piece by piece.
@@ -633,7 +633,7 @@ export class DeliveryRunner {
             clearTimeout(writingTimer); writingTimer = undefined
             const whole = events.findIndex(event => event.kind === 'text')
             if (whole >= 0) events = events.map((event, index) => index === whole ? { ...event, id: writingId } : event)
-            else if (writing.trim()) report({ id: writingId, kind: 'text', text: writing.replace(/\s+/g, ' ').trim().slice(-1200) })
+            else if (writing.trim()) report({ id: writingId, kind: 'text', text: prose(writing) })
             writing = ''; writingId = ''
           }
           // A streaming host ends a stopped turn as an error; Stop already says what happened.
