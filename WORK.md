@@ -259,6 +259,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `canvas-pan-load-flake` canvas-pan's "floor mouse camera pan" timed out in `waitForFunction(canvasViewportSettled)` (line 64) in a full e2e run on 2026-11-07 after `codex/stabilize-e2e-main` merged, but passed 12/12 alone (`--repeat-each=3`). Settling under full-suite load still needs a bound the test can rely on. (2026-11-07)
 - ⬜ `investigation-case-hydration` `loadCase` checks replay only before fetching; its response can overwrite a newer case, a switched project or an entered replay. Add response-generation/context guards with recovery tests when revisiting live-case hydration. (2026-11-03)
 
 - ⬜ `investigation-feedback-retry` Feedback POSTs currently allocate a new message ID on each retry. Add a client idempotency key before claiming send-once behavior through lost acknowledgements/restarts; the existing queue already consumes each stored message once. (2026-11-03)
