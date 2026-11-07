@@ -1,10 +1,18 @@
 const fs = require('node:fs')
 const readline = require('node:readline')
+const version = '0.162.1'
+if (process.argv.includes('--version')) {
+  fs.writeSync(1, `codex-cli ${version}\n`)
+  process.exit(0)
+}
 const send = value => process.stdout.write(JSON.stringify(value) + '\n')
 const session = 'codex-fixture-thread'
 let turn = '', nextTurn = 0
 let captured
-const capture = () => fs.writeFileSync('captured-codex.json', JSON.stringify(captured))
+const capture = () => {
+  fs.writeFileSync('captured-codex.tmp', JSON.stringify(captured))
+  fs.renameSync('captured-codex.tmp', 'captured-codex.json')
+}
 const mode = () => { try { return JSON.parse(fs.readFileSync('codex-fixture-mode.json', 'utf8')).mode } catch { return 'complete' } }
 const notify = (method, params) => send({ method, params: { threadId: session, turnId: turn, ...params } })
 const complete = (status = 'completed') => {
@@ -15,7 +23,7 @@ const complete = (status = 'completed') => {
 readline.createInterface({ input: process.stdin }).on('line', line => {
   const m = JSON.parse(line)
   const reply = result => send({ id: m.id, result })
-  if (m.method === 'initialize') return reply({ userAgent: 'codex/0.162.1' })
+  if (m.method === 'initialize') return reply({ userAgent: `codex/${version}` })
   if (m.method === 'model/list') return reply({ data: [{ model: 'fixture', displayName: 'Fixture model' }], nextCursor: null })
   if (m.method === 'thread/start' || m.method === 'thread/resume') {
     captured = { args: process.argv.slice(2), cwd: process.cwd(), workspace: process.env.AMBIO_WORKSPACE_ID, setup: m.params, resumed: m.method === 'thread/resume', corrections: [] }

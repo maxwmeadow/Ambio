@@ -266,26 +266,28 @@ test('a branch is reviewed as architecture, from the branch menu', async () => {
 
 test('branch marks survive compact file presentation on a larger Floor', async () => {
   await launch(PARALLEL)
-  await page.evaluate(() => {
+  const canvasRoot = page.locator('[data-ambio-canvas]').first()
+  const backgroundCount = 60
+  const expectedNodeCount = Number(await canvasRoot.getAttribute('data-canonical-node-count')) + backgroundCount
+  await page.evaluate(backgroundCount => {
     const graph = (window as any).__ambioGraphStore
     const state = graph.getState()
-    const systems = Array.from({ length: 60 }, (_, i) => ({ ...state.systems[0],
+    const systems = Array.from({ length: backgroundCount }, (_, i) => ({ ...state.systems[0],
       id: `background-${i}`, name: `Background ${i}`, parentId: null, depth: 0 }))
     graph.setState({ systems: [...state.systems, ...systems], floorLayouts: [...state.floorLayouts,
       ...systems.map((system, i) => ({ workspaceId: 'demo', nodeId: system.id, nodeType: 'system',
-        parentNodeId: null, parentNodeType: null, containmentKind: 'root', positionX: 100000 + i * 1000,
-        positionY: 0, width: 620, height: 420, scale: 1, interiorScale: 1, updatedAt: 1 }))] })
+        parentNodeId: null, parentNodeType: null, containmentKind: 'root', positionX: 10000 + (i % 10) * 1000,
+        positionY: Math.floor(i / 10) * 900, width: 620, height: 420, scale: 1, interiorScale: 1, updatedAt: 1 }))] })
     if (!graph.getState().expandedSystemIds.has('sys_canvas')) graph.getState().toggleSystemExpanded('sys_canvas')
-  })
-  // The injected systems make the app fit the whole Floor first; a camera set
-  // before that animation finishes is overridden.
+  }, backgroundCount)
+  await expect(canvasRoot).toHaveAttribute('data-canonical-node-count', String(expectedNodeCount))
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
   // Frame Canvas Renderer at a zoom where its files show but their detail
   // never reveals (below DETAIL_REVEAL_EFFECTIVE_ZOOM), so file_store is a
   // compact card for as long as the camera stays here. Arriving by a search
   // flight would pass through rich detail, and a card is never demoted while
   // on screen, so whether it was compact depended on timing.
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
     const element = document.querySelector('.react-flow') as any
     const key = Object.keys(element).find(key => key.startsWith('__reactFiber$'))!
     let root = element[key]
@@ -300,7 +302,9 @@ test('branch marks survive compact file presentation on a larger Floor', async (
         const zoom = 0.95
         const cx = system.internals.positionAbsolute.x + (system.measured?.width ?? 0) / 2
         const cy = system.internals.positionAbsolute.y + (system.measured?.height ?? 0) / 2
-        void state.panZoom.setViewport({ x: state.width / 2 - cx * zoom, y: state.height / 2 - cy * zoom, zoom }, { duration: 0 })
+        // Match explicit navigation so automatic fits yield.
+        element.dispatchEvent(new Event('ambio:camera-navigation', { bubbles: true }))
+        await state.panZoom.setViewport({ x: state.width / 2 - cx * zoom, y: state.height / 2 - cy * zoom, zoom }, { duration: 0 })
         return
       }
       if (fiber.child) pending.push(fiber.child)
@@ -311,7 +315,7 @@ test('branch marks survive compact file presentation on a larger Floor', async (
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
   expect(await page.evaluate(() => (document.querySelector('.react-flow__viewport') as HTMLElement).style.transform)).toContain('scale(0.95)')
   const sibling = page.locator('.react-flow__node[data-id="file_store"]')
-  await expect(sibling.locator('[data-render-tier]')).toBeAttached()
+  await expect(sibling.locator('[data-render-tier]')).toHaveAttribute('data-render-tier', 'identity')
   await expect(sibling.locator('.ambio-branch-overlay-mark')).toHaveAttribute('title', 'Deleted on codex/retry-checkout')
   // Wheel navigation preserves focus. Culling an editor must finish its usual
   // blur commit before removing the input, rather than silently losing a draft.

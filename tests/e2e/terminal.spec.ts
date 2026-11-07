@@ -1,8 +1,11 @@
-import { _electron as electron, expect, test } from '@playwright/test'
+import { _electron as electron, expect, test, type Locator } from '@playwright/test'
 import { existsSync, readFileSync, realpathSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { skipAgentGuides } from './agentGuides'
+
+// The sidebar slides using a transform. Read its layout width in CSS pixels.
+const layoutWidth = (panel: Locator) => panel.evaluate(element => (element as HTMLElement).offsetWidth)
 
 test('terminal runs a real interactive PTY, survives hiding, resizes, and shares the sidebar with agents', async ({}, info) => {
   test.setTimeout(90000)
@@ -38,6 +41,14 @@ test('terminal runs a real interactive PTY, survives hiding, resizes, and shares
     }
     const screen = panel.locator('.ambio-terminal__screen:not([hidden])')
     const input = screen.locator('textarea')
+    const runChild = async (file: string) => {
+      await input.focus()
+      await page.keyboard.type(`node -e "const fs = require('node:fs'); fs.writeFileSync('${file}.tmp', String(process.pid)); fs.renameSync('${file}.tmp', '${file}'); setInterval(() => {}, 1000)"`)
+      await page.keyboard.press('Enter')
+      await expect.poll(() => existsSync(join(root, file))).toBe(true)
+      return Number(readFileSync(join(root, file), 'utf8'))
+    }
+    const alive = (pid: number) => { try { process.kill(pid, 0); return true } catch { return false } }
     await input.focus()
     await page.keyboard.type(`node -e "console.log('AMBIO_' + 'PTY_OK', process.cwd(), process.stdout.isTTY, process.stdin.isTTY)"`)
     await page.keyboard.press('Enter')
@@ -47,30 +58,37 @@ test('terminal runs a real interactive PTY, survives hiding, resizes, and shares
     await app.evaluate(({ clipboard }) => clipboard.writeText(`node -e "console.log('PASTE_' + 'OK')"`))
     await input.focus(); await page.keyboard.press(process.platform === 'darwin' ? 'Meta+v' : 'Control+v'); await page.keyboard.press('Enter')
     await expect(screen).toContainText('PASTE_OK')
-    await page.keyboard.type(`node -e "setTimeout(() => console.log('HIDDEN_' + 'OUTPUT'), 1500)"`); await page.keyboard.press('Enter')
+    await page.keyboard.type(`node -e "const fs = require('node:fs'); const timer = setInterval(() => { if (fs.existsSync('release-output')) { clearInterval(timer); process.stdout.write('HIDDEN_' + 'OUTPUT\\n', () => fs.writeFileSync('output-written', '')); } }, 20)"`)
+    await page.keyboard.press('Enter')
     await page.keyboard.press('Control+Backquote'); await expect(panel).toBeHidden()
-    await page.waitForTimeout(1800)
+    writeFileSync(join(root, 'release-output'), '')
+    await expect.poll(() => existsSync(join(root, 'output-written'))).toBe(true)
     await page.keyboard.press('Control+Backquote'); await expect(panel).toBeVisible()
     await expect(screen).toContainText('HIDDEN_OUTPUT')
-    const before = await panel.boundingBox()
+    const before = await layoutWidth(panel)
     const handle = panel.getByRole('separator', { name: 'Terminal width' })
     await handle.focus(); await handle.press('ArrowLeft')
-    await expect.poll(async () => (await panel.boundingBox())!.width).toBeGreaterThan(before!.width)
+    await expect.poll(() => layoutWidth(panel)).toBeGreaterThan(before)
     await input.focus()
     await page.keyboard.type(`node -e "console.log('SIZE_' + 'OK', process.stdout.columns, process.stdout.rows)"`); await page.keyboard.press('Enter')
     await expect(screen).toContainText('SIZE_OK')
-    await page.keyboard.type(`node -e "setInterval(() => {}, 1000)"`); await page.keyboard.press('Enter')
-    await page.waitForTimeout(500); await page.keyboard.press('Control+c')
+    const signalChild = await runChild('signal-child.pid')
+    await page.keyboard.press('Control+c')
+    await expect.poll(() => alive(signalChild)).toBe(false)
     // cmd asks whether to terminate a batch job only for batch wrappers; node is a native executable.
     await page.keyboard.type(`node -e "console.log('SIGNAL_' + 'OK')"`); await page.keyboard.press('Enter')
     await expect(screen).toContainText('SIGNAL_OK')
-    const terminalWidth = (await panel.boundingBox())!.width
-    const canvasRight = (await page.locator('[data-ambio-canvas]').first().boundingBox())!.x + (await page.locator('[data-ambio-canvas]').first().boundingBox())!.width
+    const slot = page.locator('.ambio-workbench-sidebar')
+    await expect.poll(() => page.evaluate(() => document.documentElement.getAnimations().some(animation =>
+      animation instanceof CSSAnimation && animation.animationName === 'ambioWorkbenchSidebarIn' && animation.playState !== 'finished',
+    ))).toBe(false)
+    const terminalWidth = await layoutWidth(panel)
+    const canvasRight = await page.locator('[data-ambio-canvas]').first().evaluate(element => element.getBoundingClientRect().right)
     await page.getByRole('button', { name: /^Message agent/ }).click()
     await expect(panel).toBeHidden()
     const agent = page.getByRole('complementary', { name: 'Agent inbox' })
     await expect(agent).toBeVisible()
-    expect((await agent.boundingBox())!.width).toBe(terminalWidth)
+    expect(await layoutWidth(agent)).toBe(terminalWidth)
     const handoff = await page.evaluate(async () => {
       const frames = []
       for (let i = 0; i < 12; i++) {
@@ -86,26 +104,26 @@ test('terminal runs a real interactive PTY, survives hiding, resizes, and shares
     const agentHandle = (await agent.getByRole('separator', { name: 'Resize the agent panel' }).boundingBox())!
     await page.mouse.move(agentHandle.x + agentHandle.width / 2, agentHandle.y + 100)
     await page.mouse.down(); await page.mouse.move(agentHandle.x - 80, agentHandle.y + 100); await page.mouse.up()
-    const agentWidth = (await agent.boundingBox())!.width
-    expect(agentWidth).toBeGreaterThan(terminalWidth)
+    await expect.poll(() => layoutWidth(agent)).toBeGreaterThan(terminalWidth)
+    const agentWidth = await layoutWidth(agent)
     await page.keyboard.press('Control+Backquote'); await expect(panel).toBeVisible()
     await expect(agent).toBeHidden()
-    expect((await panel.boundingBox())!.width).toBe(agentWidth)
+    expect(await layoutWidth(panel)).toBe(agentWidth)
     await page.screenshot({ path: info.outputPath('terminal.png') })
     await page.setViewportSize({ width: 650, height: 900 })
-    await expect.poll(async () => (await panel.boundingBox())!.width).toBeLessThanOrEqual(553)
-    const narrowWidth = (await panel.boundingBox())!.width
+    await expect.poll(() => layoutWidth(panel)).toBeLessThanOrEqual(553)
+    const narrowWidth = await layoutWidth(panel)
     await page.getByRole('button', { name: /^Message agent/ }).click()
     await expect(agent).toBeVisible()
-    expect((await agent.boundingBox())!.width).toBe(narrowWidth)
+    expect(await layoutWidth(agent)).toBe(narrowWidth)
     await page.keyboard.press('Control+Backquote'); await expect(panel).toBeVisible()
-    expect((await panel.boundingBox())!.width).toBe(narrowWidth)
+    expect(await layoutWidth(panel)).toBe(narrowWidth)
     await page.setViewportSize({ width: 1440, height: 900 })
     // Restore the prior authored width after exercising the shared narrow bound.
     const restoredHandle = (await handle.boundingBox())!
     await page.mouse.move(restoredHandle.x + restoredHandle.width - 1, restoredHandle.y + 120)
     await page.mouse.down(); await page.mouse.move(1440 - agentWidth, restoredHandle.y + 120); await page.mouse.up()
-    await expect.poll(async () => (await panel.boundingBox())!.width).toBe(agentWidth)
+    await expect.poll(() => layoutWidth(panel)).toBe(agentWidth)
     await input.focus(); await page.keyboard.type('exit'); await page.keyboard.press('Enter')
     await expect(panel.getByRole('tab')).toContainText('exited 0')
     await panel.getByRole('button', { name: 'Close terminal 1', exact: true }).click()
@@ -113,14 +131,6 @@ test('terminal runs a real interactive PTY, survives hiding, resizes, and shares
     await panel.getByRole('button', { name: 'New terminal', exact: true }).click()
     await expect(panel.getByRole('tab')).toHaveCount(1)
     // A foreground child must terminate with its tab and with renderer reload.
-    const runChild = async (file: string) => {
-      await input.focus()
-      await page.keyboard.type(`node -e "require('fs').writeFileSync('${file}', String(process.pid)); setInterval(() => {}, 1000)"`)
-      await page.keyboard.press('Enter')
-      await expect.poll(() => existsSync(join(root, file))).toBe(true)
-      return Number(readFileSync(join(root, file), 'utf8'))
-    }
-    const alive = (pid: number) => { try { process.kill(pid, 0); return true } catch { return false } }
     const tabChild = await runChild('tab-child.pid')
     await panel.getByRole('button', { name: 'Close terminal 1', exact: true }).click()
     await expect.poll(() => alive(tabChild)).toBe(false)
@@ -131,7 +141,7 @@ test('terminal runs a real interactive PTY, survives hiding, resizes, and shares
     await expect(page.getByRole('button', { name: 'Terminal', exact: true })).toBeVisible()
     await page.keyboard.press('Control+Backquote')
     await expect(panel.getByRole('tab')).toHaveCount(1)
-    expect((await panel.boundingBox())!.width).toBe(agentWidth)
+    expect(await layoutWidth(panel)).toBe(agentWidth)
     expect(errors).toEqual([])
     const refused = await page.evaluate(async () => {
       try { await window.ambio.terminal.start({ id: 'bad', workspaceId: 'unregistered', profileId: '', cols: 80, rows: 24 }); return false } catch { return true }
@@ -140,46 +150,54 @@ test('terminal runs a real interactive PTY, survives hiding, resizes, and shares
     // Opening/closing still animate the common slot; only a content handoff
     // stays still. Sample actual keyframes, including an intermediate position.
     let motionCapture = 0
-    const motion = async (close = false) => {
-      const result = await page.evaluate(async close => {
+    const motion = async (trigger: Locator, state: 'open' | 'closing') => {
+      const result = await trigger.evaluate(async (button, state) => {
         const slot = document.querySelector<HTMLElement>('.ambio-workbench-sidebar')!
         const root = document.documentElement
-        if (close) {
-          slot.querySelector<HTMLButtonElement>('[aria-label="Hide terminal"], [aria-label="Close agent inbox"]')!.click()
-          await new Promise(requestAnimationFrame)
-        }
-        const animation = root.getAnimations()[0]
+        // Capture the animation in the same page task as the state change.
+        // The closing slot unmounts on a real timer, so seek without yielding.
+        const animation = await new Promise<CSSAnimation | undefined>((resolve, reject) => {
+          const observer = new MutationObserver(() => {
+            if (root.dataset.workbenchSidebarState !== state) return
+            observer.disconnect(); clearTimeout(deadline)
+            const name = state === 'open' ? 'ambioWorkbenchSidebarIn' : 'ambioWorkbenchSidebarOut'
+            resolve(root.getAnimations().find((item): item is CSSAnimation => item instanceof CSSAnimation && item.animationName === name))
+          })
+          const deadline = setTimeout(() => { observer.disconnect(); reject(new Error(`Sidebar never entered ${state}`)) }, 2000)
+          observer.observe(root, { attributes: true, attributeFilter: ['data-workbench-sidebar-state'] })
+          ;(button as HTMLElement).click()
+        })
         if (!animation) return null
-        animation.pause(); await animation.ready
+        animation.pause()
         const frames = []
         for (const fraction of [.25, .5, .75]) {
           animation.currentTime = Number(animation.effect!.getComputedTiming().duration) * fraction
-          await new Promise(requestAnimationFrame)
           const bounds = slot.getBoundingClientRect()
           const canvas = document.querySelector<HTMLElement>('[data-ambio-canvas]')!
           const exposed = document.elementFromPoint(bounds.left - 8, bounds.top + 100)
           frames.push({ x: new DOMMatrixReadOnly(getComputedStyle(slot).transform).m41, edgeDifference: bounds.left - canvas.getBoundingClientRect().right,
             liveCanvas: Boolean(exposed?.closest('[data-ambio-canvas]')) })
         }
-        if (!close) {
+        if (state === 'open') {
           animation.currentTime = Number(animation.effect!.getComputedTiming().duration) * .25
-          await new Promise(requestAnimationFrame)
         }
-        return { name: getComputedStyle(root).animationName, frames, width: slot.offsetWidth, inert: slot.inert }
-      }, close)
-      if (!close) await page.screenshot({ path: info.outputPath(`sidebar-opening-${motionCapture++}.png`) })
+        return { name: animation.animationName, frames, width: slot.offsetWidth, inert: slot.inert }
+      }, state)
+      if (state === 'open') await page.screenshot({ path: info.outputPath(`sidebar-opening-${motionCapture++}.png`) })
       // Release script-seeked fill before testing the next CSS animation.
       await page.evaluate(() => document.documentElement.getAnimations().forEach(animation => { animation.finish(); animation.cancel() }))
       return result
     }
-    for (const kind of ['terminal', 'agent']) {
-      if (kind === 'agent') {
-        await page.getByRole('button', { name: /^Message agent/ }).click()
-        await expect(agent).toBeVisible()
-      }
-      const entered = await motion()
+    const hideTerminal = panel.getByRole('button', { name: 'Hide terminal' })
+    await hideTerminal.click()
+    await expect(slot).toBeHidden()
+    for (const [open, close] of [
+      [page.getByRole('button', { name: 'Terminal', exact: true }), hideTerminal],
+      [page.getByRole('button', { name: /^Message agent/ }), agent.getByRole('button', { name: 'Close agent inbox' })],
+    ]) {
+      const entered = await motion(open, 'open')
       expect(entered?.name).toBe('ambioWorkbenchSidebarIn')
-      const closing = await motion(true)
+      const closing = await motion(close, 'closing')
       expect(closing?.name).toBe('ambioWorkbenchSidebarOut')
       for (const result of [entered!, closing!]) for (const frame of result.frames) {
         expect(frame.x).toBeGreaterThan(0); expect(frame.x).toBeLessThan(result.width)
@@ -187,7 +205,7 @@ test('terminal runs a real interactive PTY, survives hiding, resizes, and shares
         expect(frame.liveCanvas).toBe(true)
       }
       expect(closing!.inert).toBe(true)
-      await expect(page.locator('.ambio-workbench-sidebar')).toBeHidden()
+      await expect(slot).toBeHidden()
     }
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.keyboard.press('Control+Backquote'); await expect(panel).toBeVisible()
