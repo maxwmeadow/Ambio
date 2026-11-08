@@ -1881,6 +1881,14 @@ test('opens saved investigations and controls replay through the workbench trans
   })
   await expect(menu.getByRole('button', { name: 'Delete Checkout timeout' })).toBeAttached()
 
+  // The help opens beside the list, never over it.
+  await menu.getByRole('button', { name: 'How investigations work' }).click()
+  const help = page.getByRole('region', { name: 'How investigations work' })
+  await expect(help).toBeVisible()
+  const helpBox = await help.boundingBox()
+  expect(helpBox!.x).toBeGreaterThanOrEqual(menuBox!.x + menuBox!.width)  await page.keyboard.press('Escape')
+  await expect(help).toBeHidden()
+
   await capture.click()
   await expect(menu).toHaveCount(0)
 

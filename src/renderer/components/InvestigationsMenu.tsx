@@ -194,6 +194,7 @@ export function InvestigationsMenu({ workspaceId, trigger = false }: { workspace
               )}
               <InfoPopover
                 className="ambio-investigations-menu__info"
+                beside=".ambio-investigations-menu"
                 label="How investigations work"
                 title="How investigations work"
               >

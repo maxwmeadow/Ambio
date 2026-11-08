@@ -2,11 +2,13 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 import '../../styles/infoPopover.css'
 
 /** Top-layer help anchored to its button, independent of scroll-container layout. */
-export function InfoPopover({ label, title, className, panelClassName, children }: {
+export function InfoPopover({ label, title, className, panelClassName, beside, children }: {
   label: string
   title: string
   className?: string
   panelClassName?: string
+  /** A selector for the enclosing panel to open beside (to its right), so the help never covers it. */
+  beside?: string
   children: ReactNode
 }) {
   const id = useId()
@@ -19,6 +21,19 @@ export function InfoPopover({ label, title, className, panelClassName, children 
     const bounds = button.getBoundingClientRect()
     const margin = 12, gap = 10
     const width = Math.min(320, window.innerWidth - margin * 2)
+    const frame = beside ? button.closest(beside)?.getBoundingClientRect() : undefined
+    if (frame && window.innerWidth - frame.right - gap - margin >= width) {
+      panel.style.width = `${width}px`
+      panel.style.maxHeight = `${window.innerHeight - margin * 2}px`
+      const height = panel.getBoundingClientRect().height
+      const top = Math.max(margin, Math.min(bounds.top - 14, window.innerHeight - margin - height))
+      panel.style.left = `${frame.right + gap}px`
+      panel.style.top = `${top}px`
+      panel.style.setProperty('--info-arrow-y', `${Math.max(12, Math.min(height - 12, bounds.top + bounds.height / 2 - top))}px`)
+      panel.dataset.side = 'right'
+      panel.style.visibility = 'visible'
+      return
+    }
     const above = bounds.top - margin - gap
     const below = window.innerHeight - bounds.bottom - margin - gap
     const side = above >= Math.min(160, below) ? 'top' : 'bottom'
