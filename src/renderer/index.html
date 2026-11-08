@@ -10,13 +10,32 @@
     html, body, #root { width: 100%; height: 100%; overflow: hidden; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      background: #0f1117;
-      color: #e2e8f0;
+      background: #f1efe7;
+      color: #26332f;
     }
+    /* Shown until React's first render replaces #root, so the window opens on
+       the app's own colours instead of an empty background. The strip matches
+       the title bar the window controls sit on. */
+    .ambio-boot { display: flex; flex-direction: column; height: 100%; }
+    .ambio-boot__bar { flex: 0 0 34px; background: #26332f; -webkit-app-region: drag; }
+    .ambio-boot__body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+    .ambio-boot__body img { width: 168px; height: auto; }
+    .ambio-boot__track { position: relative; width: 168px; height: 2px; overflow: hidden; background: #d6d6cc; }
+    .ambio-boot__track::after { content: ''; position: absolute; inset: 0 auto 0 0; width: 40%; background: #2f6a5d; animation: ambio-boot 1.2s ease-in-out infinite; }
+    @keyframes ambio-boot { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+    @media (prefers-reduced-motion: reduce) { .ambio-boot__track::after { animation: none; width: 100%; opacity: .5; } }
   </style>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div class="ambio-boot" role="status" aria-label="Loading Ambio">
+      <div class="ambio-boot__bar"></div>
+      <div class="ambio-boot__body">
+        <img src="./assets/branding/wordmark.svg" alt="Ambio" />
+        <div class="ambio-boot__track"></div>
+      </div>
+    </div>
+  </div>
   <script type="module" src="./main.tsx"></script>
 </body>
 </html>

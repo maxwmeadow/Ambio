@@ -749,7 +749,8 @@ function createWindow(): void {
         height: 34,
       },
     } : {}),
-    backgroundColor: '#0f1117',
+    // The loading screen's paper (src/renderer/index.html), so nothing flashes before it paints.
+    backgroundColor: '#f1efe7',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

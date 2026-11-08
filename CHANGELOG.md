@@ -7,6 +7,8 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Ambio now opens on a loading screen in its own colours, with the Ambio logo,
+  instead of a blank dark window while it starts.
 - For agents whose models have a thinking level, such as Antigravity, you now
   choose the level at the foot of the model menu, and the model button shows
   it. The separate thinking dropdown in the message box is gone.
