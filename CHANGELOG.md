@@ -7,6 +7,9 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- For agents whose models have a thinking level, such as Antigravity, you now
+  choose the level at the foot of the model menu, and the model button shows
+  it. The separate thinking dropdown in the message box is gone.
 - An agent's work now happens in the conversation: while it works, what it
   says and does streams into its own reply, in the same style as its answer,
   instead of a small "is working" box. When it answers, the work folds into a
