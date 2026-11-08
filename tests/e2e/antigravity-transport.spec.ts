@@ -55,7 +55,9 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     await agentMenu(panel).choose('antigravity-cli')
     await panel.getByRole('button', { name: /^Model: / }).click()
     await panel.getByRole('menuitemradio', { name: 'Gemini Fixture', exact: true }).click()
-    await panel.getByRole('combobox', { name: 'Thinking level' }).selectOption('low')
+    // The thinking level is chosen in the same menu, which stays open for it.
+    await panel.getByRole('menuitemradio', { name: /^Thinking: low$/i }).click()
+    await expect(panel.getByRole('button', { name: /^Model: Gemini Fixture, low thinking$/i })).toBeVisible()
     // The ACP connection offers the shared access levels; Ask me sends requests to the conversation.
     expect(await setAgentAccess(panel, 'Antigravity CLI', 'Ask me')).toEqual(['ask', 'full'])
     // The message box says nothing about the connection or its access.

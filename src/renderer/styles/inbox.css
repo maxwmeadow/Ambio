@@ -638,4 +638,10 @@
 .ambio-sheet-review-panel .ambio-sheet-rail__review-reason { flex-wrap: wrap; margin-top: 10px; }
 .ambio-sheet-review-panel .ambio-sheet-rail__review-reason input { flex-basis: 100%; }
 .ambio-sheet-review-panel button:disabled { opacity: .5; cursor: default; }
-.ambio-inbox__thinking { max-width: 90px; color: inherit; background: transparent; border: 0; font: inherit; }
+/* A model's thinking level: a quiet suffix on the model button, a segmented row at the menu's foot. */
+.ambio-inbox__agent-group > .ambio-inbox__model:has(.ambio-inbox__model-thinking) { flex-basis: 164px; width: 164px; }
+.ambio-inbox__model .ambio-inbox__model-thinking { flex: 0 0 auto; margin-left: 5px; color: #5c6b63; font-weight: 500; }
+.ambio-inbox__model-levels { position: sticky; bottom: -4px; display: flex; align-items: center; gap: 2px; margin: 4px -4px -4px; padding: 6px 8px; border-top: 1px solid #c9cbbf; background: #e9e8e0; }
+.ambio-inbox__model-levels > span { flex: 0 0 auto; margin-right: 6px; color: #5c6b63; font: 11px var(--font-ui, sans-serif); }
+.ambio-inbox .ambio-inbox__model-levels button { display: block; flex: 1 1 0; width: auto; min-width: 0; padding: 5px 4px; border: 1px solid transparent; text-align: center; font: 500 11px var(--font-ui, sans-serif); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ambio-inbox .ambio-inbox__model-levels button[aria-checked='true'] { border-color: #596b60; background: #dfeae6; font-weight: 600; }
