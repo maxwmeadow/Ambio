@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { architectureLinkTarget, fileLinkTarget, normalizeAgentText } from './agentMessageFormat.ts'
+import { architectureLinkTarget, fileLinkTarget, normalizeAgentText, splitInlineNumberedLists } from './agentMessageFormat.ts'
 import { codeReferenceFromText } from './codeReference.ts'
 
 const inlineFilePath = (text, files) => codeReferenceFromText(text, files)?.relPath ?? null
@@ -9,6 +9,16 @@ test('artifact links resolve encoded identifiers without browser-specific custom
   assert.deepEqual(architectureLinkTarget('ambio://sheet/394dba97-cb06-46b3-9e53-c4c8d231bad5'), { type: 'sheet', id: '394dba97-cb06-46b3-9e53-c4c8d231bad5' })
   assert.deepEqual(architectureLinkTarget('AMBIO://SYSTEM/arch%3Aruntime%2Fformula'), { type: 'system', id: 'arch:runtime/formula' })
   for (const href of ['https://system/example', 'ambio://file/foo', 'ambio://system/%invalid', 'ambio://sheet/', 'ambio://sheet/id?other=1']) assert.equal(architectureLinkTarget(href), null)
+})
+
+test('a numbered list written on one line is put on lines of its own', () => {
+  assert.equal(
+    splitInlineNumberedLists('1. Add an isMounted flag in each effect. 2. Guard `if (!isMounted) { sub?.remove(); return; }`. 3. Change it to a useRef.'),
+    '1. Add an isMounted flag in each effect.\n2. Guard `if (!isMounted) { sub?.remove(); return; }`.\n3. Change it to a useRef.',
+  )
+  assert.equal(splitInlineNumberedLists('Lifecycle breakdown: 1. Normal startup. 2. Interrupted startup.'), 'Lifecycle breakdown:\n1. Normal startup.\n2. Interrupted startup.')
+  // Already a list, a duration, or a lone number: unchanged.
+  for (const text of ['1. One\n2. Two', 'It took 1.5s. Then 2. more', 'See step 2. for details']) assert.equal(splitInlineNumberedLists(text), text)
 })
 
 test('a "\\b" or "\\f" the agent meant as a letter is put back', () => {

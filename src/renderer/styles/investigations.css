@@ -49,9 +49,11 @@
 :is(.ambio-case__step, .ambio-case__leaving)[data-kind='fix'] .ambio-case__step-icon { background: #fbf1d5; color: #866429; border-color: #b49c66; }
 .ambio-case__step-content { display: grid; align-content: start; gap: 13px; padding: 15px 17px 20px; }
 .ambio-case__step-content p { margin: 0; overflow-wrap: anywhere; }
-.ambio-case__prose { display: grid; gap: 10px; }
-.ambio-case__prose p { font-size: 13px; line-height: 1.6; white-space: pre-line; }
-.ambio-case__prose p:first-child { color: #293d33; font-size: 14px; line-height: 1.55; }
+/* Step text is the chat's Markdown (.ambio-inbox__prose); only its size and ink differ here. */
+.ambio-case__prose .ambio-inbox__prose { color: #293d33; font-size: 13.5px; line-height: 1.6; }
+.ambio-case__step-content .ambio-case__prose p { margin: 0 0 10px; }
+.ambio-case__step-content .ambio-case__prose li > p { margin: 0; }
+.ambio-case__step-content .ambio-case__prose .ambio-inbox__prose > :last-child { margin-bottom: 0; }
 .ambio-case__text-button { justify-self: start; padding: 0; border: 0; background: transparent; color: #316a60; font: 11px/1.5 var(--font-ui); cursor: pointer; text-align: left; }
 .ambio-case__text-button:hover { text-decoration: underline; text-underline-offset: 3px; }
 .ambio-case__experiment-state { display: flex; align-items: center; gap: 7px; color: #3b705c; font-size: 12px; }

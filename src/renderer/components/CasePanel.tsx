@@ -2,6 +2,8 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore, type InvestigationDoc, type ReplayState } from '../store/graphStore'
 import { apiGetInvestigation } from '../canvas/arcdApi'
+import { AgentMessageContent } from './AgentMessageContent'
+import { splitInlineNumberedLists } from './agentMessageFormat'
 import { useShowOnMap } from '../canvas/useShowOnMap'
 import {
   caseSummary,
@@ -46,11 +48,11 @@ function Rich({ text }: { text: string }) {
   )
 }
 
-/** Keep the agent's wording, but give sentences breathing room. Never invent
- * a summary or silently replace earlier cards with a later assessment. */
+/** The agent's wording, drawn as the chat draws it: Markdown, lists, code and
+ * file chips. Never invent a summary or silently replace earlier cards with a
+ * later assessment. */
 function StepText({ text }: { text: string }) {
-  const parts = text.trim().split(/\n\s*\n|(?<=[.!?])\s+(?=[A-Z`])/).filter(Boolean)
-  return <div className="ambio-case__prose">{parts.map((part, index) => <p key={index}><Rich text={part} /></p>)}</div>
+  return <div className="ambio-case__prose"><AgentMessageContent text={splitInlineNumberedLists(text.trim())} /></div>
 }
 
 function useFocus() {

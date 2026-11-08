@@ -199,12 +199,24 @@ export function InvestigationsMenu({ workspaceId, trigger = false }: { workspace
                 title="How investigations work"
               >
                 <p>
-                  An investigation records a run of your code: the functions it called, their arguments and
-                  returns, and where it failed. Open one to replay it on the map, step by step.
+                  Investigations let your agent debug by running your code instead of reasoning about it in its
+                  head. It writes a repro (a test, a script that calls any function with inputs it chooses, or a
+                  request to your server), runs it, and watches the functions it suspects: each call&apos;s
+                  arguments, return value, errors and what changed.
                 </p>
                 <p>
-                  Record one from <strong>Tools ▸ Start / Stop Recording</strong>, or ask your agent to
-                  investigate a problem; what it runs is saved here.
+                  Each run tests one suspicion, so the root cause it reports rests on what actually happened. You
+                  watch the case build beside the map and can message the agent while it works.
+                </p>
+                <p>
+                  Ask your agent to investigate a problem, or record a run yourself from{' '}
+                  <strong>Tools ▸ Start / Stop Recording</strong>. Every run is saved here; open one to replay it
+                  on the map, step by step.
+                </p>
+                <p>
+                  Runs record each function call in JavaScript/TypeScript, Python, Ruby, Java, Kotlin, Scala,
+                  C#, Go, Rust and PHP. C and C++ get the same detail through gdb or lldb. The bar at the bottom
+                  shows the languages this project uses and whether each is ready on this computer.
                 </p>
                 {needsSetup.length > 0 && (
                   <ul className="ambio-investigations-menu__help-list">
@@ -293,7 +305,8 @@ export function InvestigationsMenu({ workspaceId, trigger = false }: { workspace
             </div>
 
             {readiness.length > 0 && (
-              <footer className="ambio-investigations-menu__languages" aria-label="Languages runs can record here">
+              <footer className="ambio-investigations-menu__languages" aria-label="This project's languages">
+                <span className="ambio-investigations-menu__languages-label">This project</span>
                 {readiness.map(row => (
                   <span
                     key={row.language}

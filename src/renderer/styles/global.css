@@ -1283,6 +1283,13 @@ a { color: var(--accent); text-decoration: none; }
   line-height: 1.3;
 }
 
+.ambio-investigations-menu__languages-label {
+  color: #6b7570;
+  font: 600 10px/1.9 var(--font-mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
 .ambio-investigations-menu__language {
   display: inline-flex;
   align-items: center;

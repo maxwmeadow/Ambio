@@ -1886,7 +1886,8 @@ test('opens saved investigations and controls replay through the workbench trans
   const help = page.getByRole('region', { name: 'How investigations work' })
   await expect(help).toBeVisible()
   const helpBox = await help.boundingBox()
-  expect(helpBox!.x).toBeGreaterThanOrEqual(menuBox!.x + menuBox!.width)  await page.keyboard.press('Escape')
+  expect(helpBox!.x).toBeGreaterThanOrEqual(menuBox!.x + menuBox!.width)
+  await page.keyboard.press('Escape')
   await expect(help).toBeHidden()
 
   await capture.click()

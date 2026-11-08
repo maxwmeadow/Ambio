@@ -190,6 +190,10 @@ in the app as "What's New" after updating, so write it for users.
   Django migration headers, `@generated`) are no longer drawn on the map.
 
 ### Fixed
+- Investigation cards, live and in replays, now format the agent's text the
+  way the chat does: numbered lists, code and file links instead of every
+  sentence on its own line. The Saved investigations help now explains that
+  your agent runs your code to debug it, and which languages it can record.
 - Letting go of a resize handle on a sheet keeps the size you chose. Before,
   the note or node jumped back to its old size and then grew to the new one.
 - The Investigations button is back in the toolbar, and saved investigations

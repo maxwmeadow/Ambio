@@ -18,6 +18,30 @@ import { parseSymbolCandidate, symbolHref } from './symbolReference.ts'
  * - The project's own folder is dropped from absolute paths in the text, so
  *   `C:\Users\me\shop\src\a.ts` reads `src\a.ts`. Link targets keep theirs.
  */
+/**
+ * A numbered list an agent wrote on one line ("Fix: 1. Add a flag. 2. Guard
+ * it. 3. Use a ref.") is put on lines of its own, so Markdown draws a list.
+ * Only a run counting up from 1 with at least two items is split; "1.5s" or a
+ * lone "step 2." stay as written.
+ */
+export function splitInlineNumberedLists(text: string): string {
+  return text.split('\n').map(line => {
+    const starts: number[] = []
+    let from = 0
+    for (let n = 1; ; n++) {
+      const item = new RegExp(`(^|[\\s:])${n}\\.\\s+(?=\\S)`, 'g')
+      item.lastIndex = from
+      const found = item.exec(line)
+      if (!found) break
+      starts.push(found.index + found[1].length)
+      from = starts.at(-1)! + String(n).length + 1
+    }
+    if (starts.length < 2) return line
+    const parts = [line.slice(0, starts[0]).trimEnd(), ...starts.map((start, i) => line.slice(start, starts[i + 1]).trim())]
+    return parts.filter(Boolean).join('\n')
+  }).join('\n')
+}
+
 export function normalizeAgentText(text: string, projectRoot?: string): string {
   let result = text.replace(/\u0008/g, 'b').replace(/\u000c/g, 'f').replace(/\r\n/g, '\n')
 
