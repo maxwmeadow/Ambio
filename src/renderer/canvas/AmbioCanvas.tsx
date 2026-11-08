@@ -2415,7 +2415,9 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           plan.updates,
         ).catch(() => {})
       }
-      setSheetInteractionNodes(null)
+      // As for a drop: the prepared nodes still hold the pre-resize size until
+      // the scene worker projects the new layout, so releasing now snapped back.
+      releaseSheetInteractionWhenPrepared()
       return
     }
 
@@ -2445,7 +2447,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         floorLayouts: replaceFloorLayouts(state.floorLayouts, plan.previousLayouts, plan.changedKeys),
       }))
     })
-  }, [workspaceIdForOverlay, sheetSystemIds, sheetFileIds, sheetInfraIds, sheetEffectiveLayouts, reviewMode, reviewScene?.workspaceId, reviewEditableNodeIds, saveReviewLayouts, systems, files, floorLayouts])
+  }, [releaseSheetInteractionWhenPrepared, workspaceIdForOverlay, sheetSystemIds, sheetFileIds, sheetInfraIds, sheetEffectiveLayouts, reviewMode, reviewScene?.workspaceId, reviewEditableNodeIds, saveReviewLayouts, systems, files, floorLayouts])
 
   const onNodeResizeEndRef = useRef(onNodeResizeEnd)
   onNodeResizeEndRef.current = onNodeResizeEnd

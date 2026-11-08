@@ -190,6 +190,8 @@ in the app as "What's New" after updating, so write it for users.
   Django migration headers, `@generated`) are no longer drawn on the map.
 
 ### Fixed
+- Letting go of a resize handle on a sheet keeps the size you chose. Before,
+  the note or node jumped back to its old size and then grew to the new one.
 - The Investigations button is back in the toolbar, and saved investigations
   open in a cleaner, compact popover: newest first, delete on hover, one line
   of language coverage, and setup help behind an ⓘ.
