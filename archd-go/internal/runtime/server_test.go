@@ -45,7 +45,10 @@ http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
 		Server:  fmt.Sprintf("%s server.py %d", testPython(), port),
 		Port:    port,
 		Watches: []RunWatch{{AbsPath: filepath.Join(root, "server.py"), Symbol: "price"}},
-		Timeout: 30 * time.Second,
+		// Two recorded Pythons take ~2s alone, but on a Windows runner busy
+		// with the rest of the suite the server alone once took 16s to start,
+		// and 30s killed the client before it printed (CI on main, Nov 2026).
+		Timeout: 2 * time.Minute,
 	})
 	if err != nil {
 		t.Fatal(err)

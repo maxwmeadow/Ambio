@@ -173,12 +173,12 @@ func (s *Server) handleMappingAttempt(w http.ResponseWriter, r *http.Request) {
 		op = parts[1]
 	}
 	var input struct {
-		WorkspaceID string           `json:"workspaceId"`
-		SessionID   string           `json:"sessionId"`
-		ChunkID     string           `json:"chunkId"`
+		WorkspaceID string          `json:"workspaceId"`
+		SessionID   string          `json:"sessionId"`
+		ChunkID     string          `json:"chunkId"`
 		Systems     db.DraftSystems `json:"systems"`
-		Note        string           `json:"note"`
-		Rationale   string           `json:"rationale"`
+		Note        string          `json:"note"`
+		Rationale   string          `json:"rationale"`
 	}
 	input.WorkspaceID = r.URL.Query().Get("workspace")
 	if r.Method == http.MethodPost {
