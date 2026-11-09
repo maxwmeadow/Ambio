@@ -16,8 +16,8 @@ type beginProposalDraftRequest struct {
 }
 
 type addProposalDraftChunkRequest struct {
-	WorkspaceID string           `json:"workspaceId"`
-	ChunkID     string           `json:"chunkId"`
+	WorkspaceID string          `json:"workspaceId"`
+	ChunkID     string          `json:"chunkId"`
 	Systems     db.DraftSystems `json:"systems"`
 }
 
