@@ -80,19 +80,24 @@ test('setup keeps every client visible and locates, persists, rechecks and clear
     const codex = () => agents().getByRole('radio', { name: /^Codex CLI / })
     const sidebar = () => page.getByRole('region', { name: 'Codex CLI', exact: true })
     await expect(page.locator('.ambio-choose__sidebar')).toHaveCount(0)
+    const workspace = page.locator('.ambio-connect__workspace')
+    const stage = workspace.getByRole('tabpanel')
+    const fullWidth = (await workspace.boundingBox())!.width
+    expect((await stage.boundingBox())!.width).toBeCloseTo(fullWidth)
     await expect(codex()).toContainText('Not found')
     await expect(agents().getByRole('radio', { name: /^GitHub Copilot CLI/ })).toContainText('Not found')
     await expect(agents().getByRole('radio', { name: /^Codex IDE extension/ })).toContainText('Ambio not added yet')
     await codex().click()
     await expect(sidebar()).toBeVisible()
-    // Details overlay the field agent and never consume space below the pills.
+    // On desktop, the details take space beside the pills only while open.
     await expect.poll(() => sidebar().evaluate(panel => {
-      const area = panel.closest('.ambio-connect__mascot')!.getBoundingClientRect()
+      const area = panel.closest('.ambio-connect__workspace')!.getBoundingClientRect()
       const bounds = panel.getBoundingClientRect()
       return Math.abs(area.right - bounds.right) < 2 && Math.abs(area.bottom - bounds.bottom) < 2
     })).toBe(true)
     await sidebar().getByRole('button', { name: 'Close connector details' }).click()
     await expect(sidebar()).toHaveCount(0)
+    expect((await stage.boundingBox())!.width).toBeCloseTo(fullWidth)
     await expect(codex()).toBeFocused()
     await page.keyboard.press('Space')
     await expect(sidebar()).toBeVisible()
@@ -116,7 +121,7 @@ test('setup keeps every client visible and locates, persists, rechecks and clear
     await page.keyboard.press('ArrowLeft')
     await expect(codex()).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByRole('button', { name: /^Map with Codex/ })).toHaveCount(0)
-    await expect(page.locator('.ambio-connect__mascot')).toContainText('Needs setup')
+    await expect(sidebar()).toContainText('was not found')
     await page.screenshot({ path: 'test-results/agent-discovery-missing.png' })
 
     // The extension can be connected through the existing canonical installer,

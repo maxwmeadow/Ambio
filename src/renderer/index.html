@@ -13,10 +13,11 @@
       background: #f1efe7;
       color: #26332f;
     }
-    /* Shown until React's first render replaces #root, so the window opens on
-       the app's own colours instead of an empty background. The strip matches
-       the title bar the window controls sit on. */
-    .ambio-boot { display: flex; flex-direction: column; height: 100%; }
+    /* Keep the same splash before React mounts and while it resolves the
+       startup destination. Hide it in the same render that shows the app. */
+    .ambio-boot { display: none; position: fixed; inset: 0; flex-direction: column; background: #f1efe7; }
+    #root:empty + .ambio-boot,
+    #root:has(> .ambio-resume-hold) + .ambio-boot { display: flex; }
     .ambio-boot__bar { flex: 0 0 34px; background: #26332f; -webkit-app-region: drag; }
     .ambio-boot__body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
     .ambio-boot__body img { width: 168px; height: auto; }
@@ -27,13 +28,12 @@
   </style>
 </head>
 <body>
-  <div id="root">
-    <div class="ambio-boot" role="status" aria-label="Loading Ambio">
-      <div class="ambio-boot__bar"></div>
-      <div class="ambio-boot__body">
-        <img src="./assets/branding/wordmark.svg" alt="Ambio" />
-        <div class="ambio-boot__track"></div>
-      </div>
+  <div id="root"></div>
+  <div class="ambio-boot" role="status" aria-label="Loading Ambio">
+    <div class="ambio-boot__bar"></div>
+    <div class="ambio-boot__body">
+      <img src="./assets/branding/wordmark.svg" alt="Ambio" />
+      <div class="ambio-boot__track"></div>
     </div>
   </div>
   <script type="module" src="./main.tsx"></script>

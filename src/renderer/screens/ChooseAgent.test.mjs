@@ -33,7 +33,7 @@ const hosts = [
 function render(selectedAppId = 'cursor') {
   return renderToStaticMarkup(React.createElement(ChooseAgent, {
     hosts, selectedAppId, stateOf: () => 'installed', blankProject: false,
-    workspaceId: 'fixture', projectRoot: '/fixture', notes: {}, locateNotices: {}, onChoice() {}, onSelectApp() {},
+    workspaceId: 'fixture', projectRoot: '/fixture', notes: {}, locateNotices: {}, onSelectApp() {},
   }))
 }
 function choices(t) {

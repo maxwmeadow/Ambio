@@ -214,11 +214,25 @@
 
 .ambio-connect__workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 330px;
+  grid-template-columns: minmax(0, 1fr);
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
 }
+
+.ambio-connect__workspace:has(.ambio-choose__sidebar) {
+  grid-template-columns: minmax(0, 1fr) 330px;
+}
+
+.ambio-connect__connector-sidebar {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 1px solid #cbd1cc;
+}
+
+.ambio-connect__connector-sidebar:empty { display: none; }
 
 .ambio-connect__stage {
   display: flex;
@@ -657,43 +671,6 @@
 .ambio-connect__secondary { border: 1px solid #b8beb8; background: #f8f7f2; color: #56655e; }
 .ambio-connect__secondary:hover { border-color: #75867e; color: #23362f; }
 
-.ambio-connect__mascot {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  padding: 28px 24px;
-  border-left: 1px solid #cbd1cc;
-  background:
-    radial-gradient(circle at 50% 43%, rgba(71, 128, 106, 0.12), transparent 47%),
-    repeating-linear-gradient(0deg, rgba(53, 78, 68, 0.035) 0 1px, transparent 1px 13px),
-    #e6e9e3;
-}
-
-.ambio-connect__mascot::before {
-  content: 'FIELD AGENT 04';
-  position: absolute;
-  top: 18px;
-  left: 20px;
-  color: #819089;
-  font-size: 9px;
-  letter-spacing: 0.17em;
-}
-
-.ambio-connect__mascot svg {
-  width: min(100%, 300px);
-  height: auto;
-  overflow: visible;
-  color: #1b2c25;
-  filter: drop-shadow(3px 5px 0 rgba(39, 56, 49, 0.11));
-}
-
-.ambio-connect__mascot > .ambio-final-gemini {
-  width: min(100%, 320px);
-}
-
 .ambio-connect__footer {
   display: flex;
   align-items: center;
@@ -756,10 +733,9 @@
 
 @media (max-width: 850px) {
   .ambio-connect__card { flex: none; width: calc(100% - 32px); height: auto; min-height: 700px; margin: 16px auto 24px; overflow: visible; }
-  .ambio-connect__workspace { grid-template-columns: minmax(0, 1fr); }
+  .ambio-connect__workspace:has(.ambio-choose__sidebar) { grid-template-columns: minmax(0, 1fr); }
   .ambio-connect__stage { min-height: 520px; overflow: visible; }
-  .ambio-connect__mascot { min-height: 380px; border-top: 1px solid #cbd1cc; border-left: 0; }
-  .ambio-connect__mascot svg { width: 230px; }
+  .ambio-connect__connector-sidebar { height: 380px; border-top: 1px solid #cbd1cc; border-left: 0; }
 }
 
 @media (max-width: 580px) {
@@ -1196,7 +1172,7 @@
 .ambio-choose__section { min-width: 0; }
 .ambio-choose__heading { margin: 0 0 9px; color: #4f6159; font-family: var(--font-ui); font-size: 12px; font-weight: 600; line-height: 1.4; }
 .ambio-choose__pills { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
-.ambio-choose__option { --availability-color: #aab4ae; position: relative; display: inline-flex; align-items: center; gap: 8px; width: auto; max-width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid var(--availability-color); border-radius: 999px; background: #fbfaf6; color: #23362f; font-family: var(--font-ui); text-align: left; cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease; }
+.ambio-choose__option { --availability-color: #aab4ae; position: relative; display: inline-flex; align-items: center; gap: 8px; width: auto; max-width: 100%; min-height: 44px; padding: 5px 8px; border: 5px solid var(--availability-color); border-radius: 999px; background: #fbfaf6; color: #23362f; font-family: var(--font-ui); text-align: left; cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease; }
 .ambio-choose__option:hover:not(:disabled) { background: #fffefb; }
 .ambio-choose__option[aria-checked='true'] { background: #e8f1eb; box-shadow: inset 0 0 0 1px var(--availability-color); }
 .ambio-choose__option:focus-visible { outline: 2px solid #34735f; outline-offset: 3px; }
@@ -1210,9 +1186,7 @@
 .ambio-choose__quiet { padding: 0; border: 0; background: none; color: #2f6a5d; font: inherit; font-size: 11px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .ambio-choose__quiet:disabled { color: #8d9a93; cursor: default; }
 .ambio-choose__empty { margin: 0; color: #6b7a72; font-size: 12px; }
-.ambio-connect__connector-sidebar { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
-.ambio-connect__mascot:has(.ambio-choose__sidebar) > .ambio-final-gemini { visibility: hidden; }
-.ambio-choose__sidebar { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow-x: hidden; background: #f3f1e9; color: #23362f; pointer-events: auto; text-align: left; animation: ambio-connector-sidebar-in 220ms ease-out; }
+.ambio-choose__sidebar { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow-x: hidden; background: #f3f1e9; color: #23362f; text-align: left; animation: ambio-connector-sidebar-in 220ms ease-out; }
 .ambio-choose__sidebar-header { display: flex; flex: none; align-items: center; gap: 10px; padding: 22px 20px; border-bottom: 1px solid #d0d1c7; }
 .ambio-choose__sidebar-header > div { flex: 1; min-width: 0; }
 .ambio-choose__sidebar-header p { margin: 0 0 5px; color: #65766f; font-size: 10px; }
@@ -1251,7 +1225,7 @@
 .ambio-choose__footer .ambio-choose__model { width: 100%; max-width: none; }
 
 @keyframes ambio-connector-sidebar-in {
-  from { transform: translateX(-100%); }
+  from { transform: translateX(100%); }
   to { transform: translateX(0); }
 }
 @media (prefers-reduced-motion: reduce) {

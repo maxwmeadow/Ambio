@@ -77,9 +77,6 @@ export async function stopMappingRun(run: MappingRun): Promise<void> {
   }
 }
 
-/** What setup has chosen, for the mascot beside it. */
-export type MappingChoice = { label: string; kind: 'chat' | 'run' | 'setup' | 'app'; available?: boolean } | null
-
 /** Ambio chat's services and the CLIs on this computer, kept current as services change. */
 export function useRunnableChoices() {
   const [targets, setTargets] = useState<DeliveryHost[]>(() => CLI_CLIENTS.map(client => ({ ...client, route: 'run', available: false, detail: 'CLI not found.' })))
@@ -167,15 +164,6 @@ export async function startMapping({ choice, workspaceId, projectRoot, installer
 
 export type MappingState = 'stopping' | 'finishing' | 'working' | 'done' | 'failed' | 'stopped' | 'waiting'
 
-/** Live summary shared with the parent stage and Field Agent 04. */
-export interface MappingSummary {
-  state: MappingState
-  filesCount: number
-  systemsCount: number
-  latestAction: string
-  error?: string
-}
-
 export interface ActivityEvent {
   id: string
   kind: 'tool' | 'text' | 'thinking' | 'error'
@@ -206,14 +194,10 @@ const LOG_ITEMS = 600
 export function MappingActivity({
   run,
   onDismiss,
-  onState,
-  onSummary,
   onRetry,
 }: {
   run: MappingRun
   onDismiss: () => void
-  onState?: (state: MappingState) => void
-  onSummary?: (summary: MappingSummary) => void
   onRetry?: () => void
 }) {
   const [items, setItems] = useState<ActivityEvent[]>([])
@@ -340,8 +324,6 @@ export function MappingActivity({
     return () => { active = false; clearInterval(timer) }
   }, [run])
 
-  useEffect(() => { onState?.(state) }, [state, onState])
-
   const filesCount = useMemo(() => {
     const fileSet = new Set<string>()
     for (const item of items) {
@@ -351,20 +333,6 @@ export function MappingActivity({
       }
     }
     return fileSet.size
-  }, [items, current?.rootPath])
-
-  const latestAction = useMemo(() => {
-    for (let i = items.length - 1; i >= 0; i--) {
-      const item = items[i]
-      if (item.kind === 'tool') {
-        const info = toolRow(item.text, current?.rootPath)
-        return `${info.badge} ${info.tool}${info.target ? ` · ${info.target}` : ''}`
-      }
-      if (item.kind === 'text') {
-        return item.text.slice(0, 60)
-      }
-    }
-    return ''
   }, [items, current?.rootPath])
 
   const extractedError = useMemo(() => {
@@ -377,16 +345,6 @@ export function MappingActivity({
 
   const isCurrentDraft = Boolean(drafts.newest && drafts.newest.updatedAt >= (current?.startedAt ?? startTime))
   const systemsCount = attempt ? (attempt.systemCount ?? 0) : (isCurrentDraft ? (drafts.newest?.systemCount ?? 0) : 0)
-
-  useEffect(() => {
-    onSummary?.({
-      state,
-      filesCount,
-      systemsCount,
-      latestAction,
-      error: extractedError || detail,
-    })
-  }, [state, filesCount, systemsCount, latestAction, extractedError, detail, onSummary])
 
   const stop = async () => { await stopMappingRun(run) }
 

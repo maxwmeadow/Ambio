@@ -1061,7 +1061,7 @@ test('uses two-step agent setup for blank projects without changing codebase set
   await expect(steps).toHaveCount(2)
   await expect(steps.nth(0)).toHaveAttribute('aria-selected', 'true')
 
-  // Three connection types share one selection; details open over the mascot.
+  // Three connection types share one selection and open their own details.
   const agents = page.getByRole('radiogroup', { name: 'Agents' })
   await expect(agents.getByRole('heading')).toHaveText(['Ambio chat', 'Ambio runs it', 'In another app'])
   await expect(agents.getByRole('radio', { name: /Ambio chat/ })).toBeVisible()
@@ -1071,8 +1071,8 @@ test('uses two-step agent setup for blank projects without changing codebase set
   await expect(page.locator('.ambio-choose__sidebar')).toHaveCount(0)
   await agents.getByRole('radio', { checked: true }).click()
   await expect(page.locator('.ambio-choose__footer .ambio-connect__primary, .ambio-choose__footer .ambio-connect__secondary')).toHaveCount(1)
-  const mascot = page.locator('.ambio-connect__mascot .ambio-final-gemini')
-  await expect(mascot).toHaveAttribute('data-state', 'connected')
+  const mascot = page.getByRole('img', { name: /Field agent/i, includeHidden: true })
+  await expect(mascot).toHaveCount(0)
 
   const readStableFrame = () => page.evaluate(() => {
     const screen = document.querySelector('.ambio-connect')!
@@ -1090,6 +1090,7 @@ test('uses two-step agent setup for blank projects without changing codebase set
 
   await steps.getByText('Connect').click()
   await expect(page.getByRole('heading', { name: /Connect/ })).toBeVisible()
+  await expect(mascot).toHaveCount(0)
   expect(await readStableFrame()).toEqual(firstFrame)
   await expect(page.getByText('Waiting for the agent to verify Ambio tools')).toBeVisible()
   const openCanvas = page.getByRole('button', { name: /Open canvas/ })
@@ -1110,7 +1111,6 @@ test('uses two-step agent setup for blank projects without changing codebase set
   expect(cardBox?.height).toBeLessThanOrEqual(820)
 
   agentConnected = false
-  await expect(mascot).toHaveAttribute('data-state', 'sleeping', { timeout: 5_000 })
   await expect(openCanvas).toBeDisabled()
 
   agentConnected = true
@@ -4123,9 +4123,9 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
     await expect(help).toBeHidden()
     await sessions.uncheck()
   }
-  // The mascot follows the chosen agent: one Ambio runs is ready without connecting.
-  const caption = page.locator('.ambio-connect__mascot p[aria-live]')
-  await expect(caption).toHaveText('Found - Claude Code CLI. Sign in to this CLI before mapping.')
+  const mascot = page.getByRole('img', { name: /Field agent/i, includeHidden: true })
+  await expect(mascot).toHaveCount(0)
+  await expect(sidebar).toContainText('Sign in to this CLI before mapping.')
   await page.screenshot({ path: 'test-results/setup-choose-agent.png' })
   // The model is chosen right beside the button that starts the run.
   await sidebar.getByRole('combobox', { name: 'Model' }).selectOption('opus')
@@ -4153,8 +4153,7 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   await expect(page.getByRole('heading', { name: 'Claude Code CLI is mapping this project' })).toBeVisible()
   await expect(page.getByRole('tablist', { name: 'Agent setup steps' }).getByRole('tab')).toHaveCount(3)
   await expect(page.getByRole('tablist', { name: 'Agent setup steps' })).not.toContainText('restart', { ignoreCase: true })
-  await expect(page.locator('.ambio-connect__mascot .ambio-final-gemini')).toHaveAttribute('data-state', 'connected')
-  await expect(caption).toHaveText('Working - Claude Code CLI is mapping the project.')
+  await expect(mascot).toHaveCount(0)
   const delivered = await app.evaluate(() => (globalThis as unknown as { delivered: Array<{ hostId: string; model?: string }> }).delivered)
   expect(delivered.map(request => [request.hostId, request.model])).toEqual([['claude-code', 'opus']])
   await page.screenshot({ path: 'test-results/setup-map-with-agent.png' })
@@ -4169,6 +4168,7 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   mappingAttempt.endedAt = Date.now()
   await expect(page.getByRole('tab', { name: /Review$/ })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByRole('heading', { name: 'Your architecture is ready' })).toBeVisible()
+  await expect(mascot).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Review architecture' })).toBeVisible()
   await page.screenshot({ path: 'test-results/setup-mapping-settled.png' })
   await page.getByRole('tab', { name: /Map project/ }).click()

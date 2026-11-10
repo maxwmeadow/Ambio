@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { AgentHostInfo } from '../../../electron/preload'
 import type { AgentHostState } from './connectAgentPresentation'
-import { CHAT_SETUP, startMapping, useRunnableChoices, type MappingChoice, type MappingRun, type RunnableChoice } from './MapWithAgent'
+import { CHAT_SETUP, startMapping, useRunnableChoices, type MappingRun, type RunnableChoice } from './MapWithAgent'
 import { openModelServices } from '../modelServiceNavigation'
 import { AgentModelSelect, useAgentModel } from '../components/AgentModelMenu'
 import { chatModels } from '../../shared/agentChat'
@@ -13,7 +13,7 @@ import { InfoPopover } from '../components/ui/InfoPopover'
 /**
  * Setup's first step: supported client pills grouped by connection type. Each route keeps
  * its own availability and setup; product marks are bundled for offline use.
- * The selected client's details open over the field agent without losing state.
+ * The selected client's details open in a sidebar without losing state.
  */
 
 const APP_STATUS: Record<AgentHostState, string> = {
@@ -27,7 +27,7 @@ const APP_STATUS: Record<AgentHostState, string> = {
 export function ChooseAgent({
   sidebarTarget,
   blankProject, workspaceId, projectRoot, hosts, stateOf, selectedAppId, onSelectApp, installing, notes, locateNotices,
-  onInstall, onRemove, onLocate, onClearOverride, rescanning, onRescan, onContinue, onOpenCanvas, onStarted, onChoice, hostDiscoveryError,
+  onInstall, onRemove, onLocate, onClearOverride, rescanning, onRescan, onContinue, onOpenCanvas, onStarted, hostDiscoveryError,
 }: {
   sidebarTarget: HTMLDivElement | null
   blankProject: boolean
@@ -49,7 +49,6 @@ export function ChooseAgent({
   onContinue: () => void
   onOpenCanvas: () => void
   onStarted: (run: MappingRun, warning?: string, retry?: () => void) => void
-  onChoice: (choice: MappingChoice) => void
   hostDiscoveryError?: string
 }) {
   const discovery = useRunnableChoices()
@@ -61,7 +60,7 @@ export function ChooseAgent({
     selectedPill.current?.focus()
   }
   useEffect(() => {
-    // The field agent stacks below the choices on small screens.
+    // On small screens, the details stack below the choices.
     if (sidebarOpen && window.matchMedia('(max-width: 850px)').matches) sidebarTarget?.scrollIntoView({ block: 'nearest' })
   }, [sidebarOpen, sidebarTarget])
   const runnable = discovery.choices
@@ -89,9 +88,6 @@ export function ChooseAgent({
 
   // Later steps must follow the app actually shown as selected, including a default.
   useEffect(() => { if (app && app.id !== selectedAppId) onSelectApp(app.id) }, [app?.id, selectedAppId])
-  useEffect(() => {
-    onChoice(run ? { label: run.label, kind: run.kind, available: run.kind !== 'run' || run.host.available } : app ? { label: appName, kind: 'app', available: appState === 'installed' || appState === 'live' } : null)
-  }, [run?.id, run?.kind === 'run' ? run.host.available : undefined, app?.id, appState])
 
   // The model the mapping runs with, remembered with the agent panel's choice for the same agent.
   const model = useAgentModel({
@@ -323,7 +319,7 @@ export function ChooseAgent({
       </header>
       <div className="ambio-choose__detail" key={chosen}>
         {run?.kind === 'run' && <>
-          <p>Ambio calls your local {run.label} installation directly and shows its progress here.</p>
+          <p>Ambio calls your local {run.label} installation directly and shows its progress here.{run.host.available && !blankProject && ' Sign in to this CLI before mapping.'}</p>
           <p>It uses the subscription or API account you configure in {run.label}, where supported. Manage sign-in and billing in that client.</p>
         </>}
         {(run?.kind === 'chat' || run?.kind === 'setup') && <>

@@ -9,6 +9,10 @@ data flow or a limit named here, update it in the same change.
 
 ## Project workbench chrome
 
+`index.html` paints the startup splash outside the React root. It stays visible
+while `App` resolves a launch request or decides whether to resume a project.
+The splash hides when the launcher, project setup, or workbench renders.
+
 `ProjectSetupScreen` edits the display name in both initial setup and Project
 Settings. Confirmation trims the name and saves it with the source boundaries;
 blank names cannot be submitted. Electron's folder registration reuses a known
@@ -742,12 +746,12 @@ availability. Setup groups wrapping name-and-logo pills (`ConnectorLogo.tsx`)
 into Ambio chat, Ambio runs it, and In another app sections, using bundled assets whose sources
 are recorded in `assets/connectors/SOURCES.md`. Each pill keeps its availability
 in its colored outline, accessible label and tooltip; keyboard selection uses arrows/Home/End across sections.
-Selecting a pill opens a nonmodal sidebar over the field agent. `ChooseAgent`
+Selecting a pill opens a nonmodal sidebar. `ChooseAgent`
 owns selection, discovery and setup state and portals the details into a stable
-slot in `ConnectAgentScreen`'s mascot area; closing returns focus to the pill.
-Details scroll independently above pinned actions, with a reduced-motion
-alternative and narrow-screen scrolling into the stacked agent area. The
-field-agent character/title-bar transition is a separately staged UI change.
+slot in `ConnectAgentScreen`. The slot takes up space only while details are
+open, beside the choices on wide screens and below them on narrow screens.
+Closing returns focus to the pill. Details scroll independently above pinned
+actions, and their opening animation respects reduced-motion preferences.
 Session-option help uses the shared `InfoPopover` in the browser's top layer,
 anchored to its trigger with scroll/resize tracking and native outside-click
 dismissal. It does not participate in the sidebar layout; Escape dismisses the

@@ -3,8 +3,7 @@ import type { ProjectConfig } from '../../shared/types'
 import type { MappingAttempt } from '../../shared/agentDelivery'
 import { useProposalStore } from '../store/architectureProposalStore'
 import type { AgentHostInfo, AgentInstallResult } from '../../../electron/preload'
-import { AgentMascot } from '../components/AgentMascot'
-import { startMapping, stopMappingRun, MappingActivity, rememberedMappingRun, rememberMappingRun, type MappingChoice, type MappingRun, type MappingState, type MappingSummary } from './MapWithAgent'
+import { startMapping, stopMappingRun, MappingActivity, rememberedMappingRun, type MappingRun } from './MapWithAgent'
 import { ChooseAgent } from './ChooseAgent'
 import { discoveryRequest } from '../components/agentDiscovery'
 import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
@@ -24,7 +23,6 @@ const POLL_MS = 2000
 type SetupStep = 1 | 2 | 3
 
 interface AgentPresenceResponse {
-  connected: boolean
   connections: Array<{ connectionId: string; hostId: string; lastSeenAt: number; lastToolAt?: number }>
 }
 
@@ -76,15 +74,12 @@ export function ConnectAgentScreen({
   const [rescanning, setRescanning] = useState(false)
   const [hostDiscoveryError, setHostDiscoveryError] = useState('')
   const [locateNotices, setLocateNotices] = useState<Record<string, string>>({})
-  const [hasLivePresence, setHasLivePresence] = useState(false)
   const [liveHostIds, setLiveHostIds] = useState<Set<string>>(() => new Set())
   const [verifiedHostIds, setVerifiedHostIds] = useState<Set<string>>(() => new Set())
   // A mapping Ambio is running itself needs no install, restart or command.
   const [mappingRun, setMappingRun] = useState<MappingRun | null>(() => blankProject ? null : rememberedMappingRun(project.id))
   const [mappingRecord, setMappingRecord] = useState<MappingAttempt | null>(null)
   const readyForReview = !!mappingRun?.attemptId && mappingRecord?.id === mappingRun.attemptId && mappingRecord.state === 'submitted' && !!mappingRecord.endedAt
-  const [mappingState, setMappingState] = useState<MappingState | null>(null)
-  const [mappingSummary, setMappingSummary] = useState<MappingSummary | null>(null)
   const handleRetry = useCallback(async () => {
     if (!mappingRun) return
     try {
@@ -104,13 +99,11 @@ export function ConnectAgentScreen({
       const { run, warning } = await startMapping({ choice, workspaceId: project.id, projectRoot: project.rootPath, model: mappingRun.model })
       setMappingRecord(null)
       movedToReview.current = false
-      setMappingState(null)
       setMappingWarning(warning ?? '')
       setMappingRun(run)
       setActiveStep(2)
     } catch (error) { setMappingWarning(error instanceof Error ? error.message : String(error)) }
   }, [mappingRun, project.id, project.rootPath, setActiveStep])
-  const [mappingChoice, setMappingChoice] = useState<MappingChoice>(null)
   const [connectorSidebarTarget, setConnectorSidebarTarget] = useState<HTMLDivElement | null>(null)
   const [mappingWarning, setMappingWarning] = useState('')
   const [confirmSkipOpen, setConfirmSkipOpen] = useState(false)
@@ -174,7 +167,6 @@ export function ConnectAgentScreen({
         const res = await fetch(`${archdApi()}/api/agent/presence?workspace=${workspace}`)
         if (res.ok) {
           const body = await res.json() as AgentPresenceResponse
-          setHasLivePresence(body.connected)
           setLiveHostIds(new Set(
             (body.connections ?? []).map(item => item.hostId).filter(id => id !== 'unknown'),
           ))
@@ -212,49 +204,7 @@ export function ConnectAgentScreen({
     setActiveStep(3)
   }, [blankProject, activeStep, setActiveStep, readyForReview])
 
-  // The mascot follows the chosen agent, in that agent's terms: an agent Ambio
-  // runs is ready without connecting; one in another app waits for its chat.
-  const otherAppName = selectedHost?.modalityLabel || selectedHost?.label || 'your agent'
-  const otherAppInstalled = !!selectedHost && selectedHost.configured && selectedHost.workflowInstalled
   const mappingLabel = mappingRun ? (mappingRun.kind === 'chat' ? 'Ambio chat' : mappingRun.label) : ''
-  const mappingActive = !!mappingRun && (mappingState === null || mappingState === 'working' || mappingState === 'waiting' || mappingState === 'finishing')
-  const mascot: { state: 'sleeping' | 'connected' | 'proposal-ready'; caption?: string } =
-    !blankProject && readyForReview ? { state: 'proposal-ready' }
-      : mappingActive ? { state: 'connected', caption: mappingState === 'finishing' ? 'Map submitted - closing the agent session before review.' : mappingState === 'waiting' ? `Waiting - ${mappingLabel} needs your answer.` : `Working - ${mappingLabel} is mapping the project.` }
-        : mappingRun ? { state: 'connected', caption: `Ready - the last mapping ${mappingState === 'stopped' ? 'was stopped' : mappingState === 'done' ? 'finished without a proposal' : 'did not finish'}. Choose again to retry.` }
-          : hasLivePresence ? { state: 'connected', caption: `Ready - ${liveHostIds.size && selectedHost && liveHostIds.has(selectedHost.connectionHostId ?? selectedHost.id) ? otherAppName : 'your agent'} is connected.` }
-            : !blankProject && activeStep === 1 && mappingChoice?.kind === 'setup' ? { state: 'sleeping', caption: 'Asleep - connect ChatGPT or add an API key to use Ambio chat.' }
-              : activeStep === 1 && mappingChoice?.available === false ? { state: 'sleeping', caption: `Needs setup - ${mappingChoice.label}. Select its pill for details.` }
-              : activeStep === 1 && mappingChoice?.kind === 'run' ? { state: 'connected', caption: `Found - ${mappingChoice.label}. Sign in to this CLI before mapping.` }
-              : !blankProject && activeStep === 1 && mappingChoice ? { state: 'connected', caption: `Ready - ${mappingChoice.label} is ready. Press Map to start.` }
-                : blankProject && activeStep === 1 ? { state: 'connected', caption: 'Ready - Ambio chat and the agents Ambio runs need no setup.' }
-                  : otherAppInstalled ? { state: 'sleeping', caption: `Waiting - restart ${otherAppName} so it can connect.` }
-                    : { state: 'sleeping', caption: 'Asleep - no agent is ready yet.' }
-  const fieldAgentCommentary = useMemo(() => {
-    if (!mappingRun) return ''
-    const label = mappingLabel || 'The agent'
-    if (readyForReview) {
-      return 'Architecture proposal ready! You can review the systems, nesting, and file placement.'
-    }
-    if (mappingState === 'failed') {
-      return `${label} stopped before completing the map. You can retry now or choose another agent.`
-    }
-    if (mappingState === 'stopped') {
-      return `${label}'s mapping run was stopped. You can retry with ${label} or pick another agent.`
-    }
-    if (mappingState === 'waiting') {
-      return `${label} has paused and needs your answer. Check the prompt to proceed.`
-    }
-    if (mappingSummary && mappingSummary.systemsCount > 0) {
-      return `${mappingSummary.systemsCount} ${mappingSummary.systemsCount === 1 ? 'system' : 'systems'} drafted on your canvas! ${label} is defining connections and boundaries.`
-    }
-    if (mappingSummary && mappingSummary.filesCount > 0) {
-      return `${label} is scanning codebase structure (${mappingSummary.filesCount} ${mappingSummary.filesCount === 1 ? 'file' : 'files'} inspected). Tracing imports to discover systems.`
-    }
-    return `Observing ${label} as it explores your repository. Systems will be proposed and drawn as it analyzes your code.`
-  }, [mappingRun, mappingLabel, readyForReview, mappingState, mappingSummary])
-
-  const mascotState = mascot.state
 
   const selectedPresentation = selectedHost
     ? presentAgentHost(selectedHost, results[selectedHost.id], liveHostIds.has(selectedHost.id))
@@ -418,7 +368,7 @@ export function ConnectAgentScreen({
               <div className="ambio-connect__step-panel ambio-connect__step-panel--pinned">
                 <h2>{blankProject ? 'Choose your agent' : 'Choose who maps this project'}</h2>
                 {mappingRun
-                  ? <div className="ambio-connect__scroll"><MappingActivity run={mappingRun} onState={setMappingState} onSummary={setMappingSummary} onRetry={handleRetry} onDismiss={() => setMappingRun(null)} /></div>
+                  ? <div className="ambio-connect__scroll"><MappingActivity run={mappingRun} onRetry={handleRetry} onDismiss={() => setMappingRun(null)} /></div>
                   : <ChooseAgent
                     sidebarTarget={connectorSidebarTarget}
                     blankProject={blankProject} workspaceId={project.id} projectRoot={project.rootPath} hosts={hosts}
@@ -427,8 +377,8 @@ export function ConnectAgentScreen({
                     onInstall={host => { void installHost(host) }} onRemove={host => { void removeHost(host) }}
                     onLocate={host => { void locateHost(host) }} onClearOverride={host => { void clearHostOverride(host) }}
                     rescanning={rescanning} onRescan={rescan} hostDiscoveryError={hostDiscoveryError}
-                    onContinue={() => setActiveStep(2)} onOpenCanvas={onComplete} onChoice={setMappingChoice}
-                    onStarted={(run, warning) => { setMappingRecord(null); movedToReview.current = false; setMappingState(null); setMappingWarning(warning ?? ''); setMappingRun(run); setActiveStep(2) }} />}
+                    onContinue={() => setActiveStep(2)} onOpenCanvas={onComplete}
+                    onStarted={(run, warning) => { setMappingRecord(null); movedToReview.current = false; setMappingWarning(warning ?? ''); setMappingRun(run); setActiveStep(2) }} />}
               </div>
             )}
 
@@ -493,7 +443,7 @@ export function ConnectAgentScreen({
                   <>
                     <h2>{readyForReview ? 'Project mapping is complete' : mappingRecord?.state === 'submitted' ? 'Closing the mapping session' : mappingRecord?.state === 'cancelled' ? 'Project mapping stopped' : `${mappingLabel} is mapping this project`}</h2>
                     <p className="ambio-connect__step-copy">Review opens after the complete map is submitted and the agent session has stopped.</p>
-                    <MappingActivity run={mappingRun} onState={setMappingState} onSummary={setMappingSummary} onRetry={handleRetry} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />
+                    <MappingActivity run={mappingRun} onRetry={handleRetry} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />
                     {mappingWarning && <p className="ambio-map-with__error" role="status">{mappingWarning}</p>}
                   </>
                 ) : (
@@ -521,16 +471,13 @@ export function ConnectAgentScreen({
                 {readyForReview
                   ? <button type="button" className="ambio-connect__review" onClick={() => { if (mappingRecord?.proposalId) useProposalStore.setState({ pinned: { workspaceId: project.id, id: mappingRecord.proposalId } }); onReview() }}>Review architecture →</button>
                   : mappingRun
-                    ? <MappingActivity run={mappingRun} onState={setMappingState} onSummary={setMappingSummary} onRetry={handleRetry} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />
+                    ? <MappingActivity run={mappingRun} onRetry={handleRetry} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />
                     : null}
               </div>
             )}
           </section>
 
-          <aside className="ambio-connect__mascot">
-            <AgentMascot state={mascotState} caption={mascot.caption} hostLabel={mappingLabel || selectedHost?.modalityLabel || selectedHost?.label || 'agent'} />
-            <div className="ambio-connect__connector-sidebar" ref={setConnectorSidebarTarget} />
-          </aside>
+          <div className="ambio-connect__connector-sidebar" ref={setConnectorSidebarTarget} />
         </div>
 
         {!blankProject && (

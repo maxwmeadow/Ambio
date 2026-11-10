@@ -923,10 +923,9 @@ export default function App() {
     )
   }
 
-  // Hold the frame while we decide whether to resume. Without this the
-  // launcher paints for a beat and is yanked away, which reads as a glitch.
+  // Keep the splash in index.html visible while we decide whether to resume.
   if (!currentProject && !resumeChecked) {
-    return <div className="ambio-resume-hold" aria-busy="true" aria-label="Opening your last project" />
+    return <div className="ambio-resume-hold" hidden />
   }
 
   // Home screen when no project is open
