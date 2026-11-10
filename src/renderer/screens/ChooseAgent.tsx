@@ -4,7 +4,7 @@ import type { AgentHostInfo } from '../../../electron/preload'
 import type { AgentHostState } from './connectAgentPresentation'
 import { CHAT_SETUP, startMapping, useRunnableChoices, type MappingRun, type RunnableChoice } from './MapWithAgent'
 import { openModelServices } from '../modelServiceNavigation'
-import { AgentModelSelect, useAgentModel } from '../components/AgentModelMenu'
+import { AgentModelSelect, AgentThinkingSelect, useAgentModel } from '../components/AgentModelMenu'
 import { chatModels } from '../../shared/agentChat'
 import { APP_CLIENTS, RUN_NEEDS_INSTALL } from '../../shared/agentDelivery'
 import { ConnectorLogo } from '../components/ConnectorLogo'
@@ -116,6 +116,7 @@ export function ChooseAgent({
           installer: offerInstall && addToSessions ? installer : undefined,
           required: mustInstall ? required : undefined,
           model: selectedModel,
+          thinking: selectedModel ? model.thinking : undefined,
         })
         onStarted(started, warning, doMap)
       }
@@ -194,10 +195,10 @@ export function ChooseAgent({
       <p>{run.label} connects to Ambio through {needs.app}. Ambio will configure {needs.app} automatically before mapping.</p>
 
     </div>
-    action = <div className="ambio-choose__actions"><AgentModelSelect model={model} disabled={busy} /><button type="button" className="ambio-connect__primary" disabled={busy} onClick={() => { void map(run) }}>{busy ? 'Adding Ambio\u2026' : `Add Ambio and map with ${run.label}`}</button></div>
+    action = <div className="ambio-choose__actions"><AgentModelSelect model={model} disabled={busy} /><AgentThinkingSelect model={model} disabled={busy} /><button type="button" className="ambio-connect__primary" disabled={busy} onClick={() => { void map(run) }}>{busy ? 'Adding Ambio\u2026' : `Add Ambio and map with ${run.label}`}</button></div>
   } else if (run) {
     detail = run.kind === 'chat' ? <p>Uses {run.provider.name} · {run.provider.model}. Ambio starts it here and shows its progress. Nothing to install or restart.</p> : null
-    action = <div className="ambio-choose__actions"><AgentModelSelect model={model} disabled={busy} /><button type="button" className="ambio-connect__primary" disabled={busy} onClick={() => { void map(run) }}>{busy ? 'Starting…' : `Map with ${run.label}`}</button></div>
+    action = <div className="ambio-choose__actions"><AgentModelSelect model={model} disabled={busy} /><AgentThinkingSelect model={model} disabled={busy} /><button type="button" className="ambio-connect__primary" disabled={busy} onClick={() => { void map(run) }}>{busy ? 'Starting…' : `Map with ${run.label}`}</button></div>
   } else if (app && appState) {
     const working = installing === app.id
     const hasCommand = (app.triggerKind === 'slash command' || app.triggerKind === 'skill command') && app.command

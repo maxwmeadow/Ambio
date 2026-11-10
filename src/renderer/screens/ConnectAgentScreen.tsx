@@ -96,7 +96,7 @@ export function ConnectAgentScreen({
         if (!provider) throw new Error('This model service is unavailable. Choose another agent.')
         choice = { id: `chat:${provider.id}`, label: mappingRun.label, kind: 'chat' as const, provider }
       }
-      const { run, warning } = await startMapping({ choice, workspaceId: project.id, projectRoot: project.rootPath, model: mappingRun.model })
+      const { run, warning } = await startMapping({ choice, workspaceId: project.id, projectRoot: project.rootPath, model: mappingRun.model, thinking: mappingRun.kind === 'run' ? mappingRun.thinking : undefined })
       setMappingRecord(null)
       movedToReview.current = false
       setMappingWarning(warning ?? '')

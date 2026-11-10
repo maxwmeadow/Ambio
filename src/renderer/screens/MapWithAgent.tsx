@@ -14,7 +14,7 @@ import { projectPath, statusLabel, toolRow } from '../components/agentActivity'
 
 /** A mapping Ambio started, kept per project so reopening setup follows it. */
 export type MappingRun =
-  | { kind: 'run'; workspaceId: string; messageId: string; hostId: string; label: string; model?: string; attemptId?: string }
+  | { kind: 'run'; workspaceId: string; messageId: string; hostId: string; label: string; model?: string; thinking?: string; attemptId?: string }
   | { kind: 'chat'; workspaceId: string; conversationId: string; label: string; model?: string; attemptId?: string }
 
 const runKey = (workspaceId: string) => `ambio:setup-mapping:${workspaceId}`
@@ -121,10 +121,12 @@ export function useRunnableChoices() {
  * sessions of that CLI is attempted first when asked; it never blocks the run.
  * Returns the run, and a warning when the add did not work.
  */
-export async function startMapping({ choice, workspaceId, projectRoot, installer, required, model }: {
+export async function startMapping({ choice, workspaceId, projectRoot, installer, required, model, thinking }: {
   choice: Exclude<RunnableChoice, { kind: 'setup' }>; workspaceId: string; projectRoot: string; installer?: AgentHostInfo
   /** An install the agent cannot work without (RUN_NEEDS_INSTALL): a failure stops the mapping. */
   required?: AgentHostInfo; model?: string
+  /** The chosen model's thinking level, for an agent Ambio runs. */
+  thinking?: string
 }): Promise<{ run: MappingRun; warning?: string }> {
   if (choice.kind === 'run' && !choice.host.available) throw new Error(choice.host.discoveryError ?? 'This CLI is not available. Locate its executable or rescan before mapping.')
   let warning: string | undefined
@@ -153,10 +155,10 @@ export async function startMapping({ choice, workspaceId, projectRoot, installer
     const messageId = crypto.randomUUID()
     await useSheetStore.getState().sendToAgent(workspaceId, `${MAPPING_CONTRACT} ${MAPPING_PROGRESS}\n\n${brief}`, [], null, messageId, [], { threadId: messageId, mode: 'propose' })
     const attempt = await createMappingAttempt(workspaceId, messageId)
-    run = { kind: 'run', workspaceId, messageId, hostId: choice.host.id, label: choice.label, model, attemptId: attempt.id }
+    run = { kind: 'run', workspaceId, messageId, hostId: choice.host.id, label: choice.label, model, thinking, attemptId: attempt.id }
     rememberMappingRun(run, workspaceId)
-    await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: choice.host.id, mappingAttemptId: attempt.id, ...(model ? { model } : {}) })
-    run = { kind: 'run', workspaceId, messageId, hostId: choice.host.id, label: choice.label, model, attemptId: attempt.id }
+    await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: choice.host.id, mappingAttemptId: attempt.id, ...(model ? { model } : {}), ...(model && thinking ? { thinking } : {}) })
+    run = { kind: 'run', workspaceId, messageId, hostId: choice.host.id, label: choice.label, model, thinking, attemptId: attempt.id }
   }
   rememberMappingRun(run, workspaceId)
   return { run, warning }

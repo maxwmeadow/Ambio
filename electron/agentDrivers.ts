@@ -38,6 +38,8 @@ export interface DriverTurn {
   resume?: string
   /** The model the user chose for this turn; unset keeps the host's default. */
   model?: string
+  /** An effort level the chosen model offers (ModelOption.thinkingLevels); unset keeps the host's own. */
+  effort?: string
   mapping?: MappingBinding
   /** How much the agent may do without asking, for a driver that offers levels (AgentDriver.access). */
   access?: AgentAccess
@@ -307,6 +309,8 @@ const claudeCode: AgentDriver = {
         // Text arrives as it is written (stream_event deltas), as well as whole.
         '--include-partial-messages',
         ...modelFlag(turn),
+        // Claude Code steps a level the model lacks down to the highest it has.
+        ...(turn.effort ? ['--effort', turn.effort] : []),
         ...claudePermissions(turn),
         // The user's own MCP servers load beside Ambio's, which is named here
         // and so wins over an "ambio" entry in their settings (Claude Code
@@ -433,6 +437,7 @@ const codex: AgentDriver = {
           : ['--sandbox', codexSandbox(turn.mode)]),
         '--skip-git-repo-check',
         ...(turn.model ? ['-c', `model=${JSON.stringify(turn.model)}`] : []),
+        ...(turn.effort ? ['-c', `model_reasoning_effort=${JSON.stringify(turn.effort)}`] : []),
         '-c', 'approval_policy="never"',
         // Codex keeps its reasoning to itself unless asked for a summary;
         // the summaries show in the turn's activity as it works.

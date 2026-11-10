@@ -24,7 +24,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
   const m = JSON.parse(line)
   const reply = result => send({ id: m.id, result })
   if (m.method === 'initialize') return reply({ userAgent: `codex/${version}` })
-  if (m.method === 'model/list') return reply({ data: [{ model: 'fixture', displayName: 'Fixture model' }], nextCursor: null })
+  if (m.method === 'model/list') return reply({ data: [{ model: 'fixture', displayName: 'Fixture model', defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'low' }, { reasoningEffort: 'medium' }, { reasoningEffort: 'high' }] }], nextCursor: null })
   if (m.method === 'thread/start' || m.method === 'thread/resume') {
     captured = { args: process.argv.slice(2), cwd: process.cwd(), workspace: process.env.AMBIO_WORKSPACE_ID, setup: m.params, resumed: m.method === 'thread/resume', corrections: [] }
     return reply({ thread: { id: m.params.threadId ?? session }, approvalPolicy: m.params.approvalPolicy, approvalsReviewer: m.params.approvalsReviewer, sandbox: { type: m.params.sandbox === 'workspace-write' ? 'workspaceWrite' : m.params.sandbox === 'read-only' ? 'readOnly' : 'dangerFullAccess' } })
@@ -37,7 +37,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
   }
   if (m.method === 'turn/start') {
     turn = `turn-${++nextTurn}`
-    captured.prompt = m.params.input[0].text; captured.turn = turn; capture()
+    captured.prompt = m.params.input[0].text; captured.turn = turn; captured.effort = m.params.effort; capture()
     reply({ turn: { id: turn } }); notify('turn/started', { turn: { id: turn } })
     notify('item/agentMessage/delta', { itemId: 'text', delta: 'Fixture is reading ' })
     setTimeout(() => notify('item/agentMessage/delta', { itemId: 'text', delta: 'the project.' }), 180)

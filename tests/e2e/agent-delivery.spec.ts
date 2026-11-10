@@ -176,7 +176,10 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
         expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(panelBox.x + panelBox.width)
         await page.screenshot({ path: 'test-results/model-menu.png' })
         await inbox.getByRole('menuitemradio', { name: 'Opus' }).click()
-        await expect(inbox.getByRole('button', { name: 'Model: Opus' })).toBeVisible()
+        // Its effort levels are chosen in the same menu; none is chosen for it.
+        await expect(inbox.getByRole('menuitemradio', { name: /^Thinking: / })).toHaveCount(5)
+        await inbox.getByRole('menuitemradio', { name: 'Thinking: Extra high' }).click()
+        await expect(inbox.getByRole('button', { name: 'Model: Opus, Extra high thinking' })).toBeVisible()
         await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-claude.png' })
       }
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill(`Handle only the ${host} fixture.`)
@@ -200,6 +203,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       }
       if (host === 'claude-code') {
         expect(actual.args[actual.args.indexOf('--model') + 1]).toBe('opus')
+        expect(actual.args[actual.args.indexOf('--effort') + 1]).toBe('xhigh')
         // Ask me: Claude's own default mode, its questions answered in Ambio.
         expect(actual.args[actual.args.indexOf('--permission-mode') + 1]).toBe('default')
         expect(actual.args[actual.args.indexOf('--permission-prompt-tool') + 1]).toBe('mcp__ambio__approve_action')

@@ -1725,6 +1725,9 @@ function setupIPC(): void {
       const chosen = antigravity ? antigravityRoute(models, validModel(request.model) ? request.model : prior?.model,
         deliveryRunner.conversationTransport(project.id, conversation, request.hostId), validModel(request.thinking) ? request.thinking : undefined) : undefined
       const useAntigravityAcp = chosen?.transport === 'acp'
+      // Another agent's effort level is honoured only when its chosen model lists it.
+      const effortModels = !antigravity && validModel(request.model) && validModel(request.thinking) ? await listModels(request.hostId, target.launcher, os.homedir()) : []
+      const effort = effortModels.find(model => model.id === request.model)?.thinkingLevels?.some(level => level.id === request.thinking) ? request.thinking : undefined
       const earlier = deliveryRunner.list(project.id).filter(run => run.threadId === conversation && run.rootPath !== fs.realpathSync(project.rootPath) && fs.existsSync(run.rootPath))
       let workPath = earlier.length ? earlier[earlier.length - 1].rootPath : project.rootPath
       if (!earlier.length && request.where === 'worktree') {
@@ -1747,7 +1750,7 @@ function setupIPC(): void {
       // Antigravity's print route always runs with full access, so only that level is honoured there.
       const honoured = driver?.access ?? (antigravity ? ['full'] : undefined)
       if (request.access !== undefined && (!isAgentAccess(request.access) || !honoured?.includes(request.access))) throw new Error(`${target.label} cannot be run at this access level.`)
-      const turn = { mode, messageId: request.messageId, cwd: workPath, mapping, ...(chosen?.model ? { model: chosen.model } : validModel(request.model) ? { model: request.model } : {}), ...(request.access ? { access: request.access } : {}) }
+      const turn = { mode, messageId: request.messageId, cwd: workPath, mapping, ...(chosen?.model ? { model: chosen.model } : validModel(request.model) ? { model: request.model } : {}), ...(effort ? { effort } : {}), ...(request.access ? { access: request.access } : {}) }
       if (request.codexTransport !== undefined && !['app-server', 'exec'].includes(request.codexTransport)) throw new Error('Invalid Codex transport.')
       const pinnedCodex = request.hostId === 'codex' ? deliveryRunner.codexTransport(project.id, threadId) : undefined
       if (pinnedCodex && request.codexTransport && pinnedCodex !== request.codexTransport) throw new Error('This conversation keeps its Codex connection. Start a new conversation to change it.')
@@ -1784,8 +1787,8 @@ function setupIPC(): void {
         ...request, rootPath: workPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, prompt,
         args: plan.args, stdin: plan.stdin, threadId, mode, driver, mapping, sessionId: resume ?? plan.sessionId, resumed: !!resume,
         codexTransport,
-        ...(chosen ? { transport: chosen.transport, model: turn.model, thinking: chosen.thinking } : {}),
-        ...(nativeCodex ? { codex: { resume, model: turn.model, approval: request.access === 'ask' || request.access === 'auto' ? 'on-request' : 'never', reviewer: request.access === 'auto' ? 'auto_review' : 'user', review: request.codexReview } } : {}),
+        ...(chosen ? { transport: chosen.transport, model: turn.model, thinking: chosen.thinking } : effort ? { thinking: effort } : {}),
+        ...(nativeCodex ? { codex: { resume, model: turn.model, effort, approval: request.access === 'ask' || request.access === 'auto' ? 'on-request' : 'never', reviewer: request.access === 'auto' ? 'auto_review' : 'user', review: request.codexReview } } : {}),
         ...(acp ? driver?.muse ? { muse: { ...acp, model: turn.model } } : { acp } : {}),
         ...(antigravity || nativeCodex || driver?.acp || driver?.muse ? {} : { fresh: printPlan }),
       })

@@ -4038,7 +4038,9 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
       { id: 'antigravity-cli', label: 'Antigravity CLI', route: 'run', available: true, detail: '' },
     ])
     ipcMain.removeHandler('agent:models')
-    ipcMain.handle('agent:models', () => [{ id: 'fable', label: 'Fable (latest)' }, { id: 'opus', label: 'Opus (latest)' }])
+    // Claude Code's levels, as agentModels.ts lists them (no default of its own).
+    const effort = ['low', 'medium', 'high', 'xhigh', 'max'].map(id => ({ id, label: id === 'xhigh' ? 'Extra high' : id[0].toUpperCase() + id.slice(1) }))
+    ipcMain.handle('agent:models', () => [{ id: 'fable', label: 'Fable (latest)', thinkingLevels: effort }, { id: 'opus', label: 'Opus (latest)', thinkingLevels: effort }])
     ipcMain.removeHandler('agent:deliver')
     ipcMain.handle('agent:deliver', (_event, request) => { state.delivered.push(request); return { detail: 'Agent launched.' } })
     ipcMain.removeHandler('agent:delivery-runs')
@@ -4129,6 +4131,11 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   await page.screenshot({ path: 'test-results/setup-choose-agent.png' })
   // The model is chosen right beside the button that starts the run.
   await sidebar.getByRole('combobox', { name: 'Model' }).selectOption('opus')
+  // So is the model's thinking level; Claude Code keeps its own until one is chosen.
+  const thinking = sidebar.getByRole('combobox', { name: 'Thinking level' })
+  await expect(thinking).toHaveValue('')
+  await thinking.selectOption('high')
+  await page.locator('.ambio-choose__actions').screenshot({ path: 'test-results/setup-model-thinking.png' })
   await sidebar.getByRole('button', { name: 'Map with Claude Code CLI' }).click()
   const activity = page.getByRole('region', { name: 'Mapping activity' })
   await expect(activity).toContainText('Claude Code CLI is mapping the project')
@@ -4154,8 +4161,8 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   await expect(page.getByRole('tablist', { name: 'Agent setup steps' }).getByRole('tab')).toHaveCount(3)
   await expect(page.getByRole('tablist', { name: 'Agent setup steps' })).not.toContainText('restart', { ignoreCase: true })
   await expect(mascot).toHaveCount(0)
-  const delivered = await app.evaluate(() => (globalThis as unknown as { delivered: Array<{ hostId: string; model?: string }> }).delivered)
-  expect(delivered.map(request => [request.hostId, request.model])).toEqual([['claude-code', 'opus']])
+  const delivered = await app.evaluate(() => (globalThis as unknown as { delivered: Array<{ hostId: string; model?: string; thinking?: string }> }).delivered)
+  expect(delivered.map(request => [request.hostId, request.model, request.thinking])).toEqual([['claude-code', 'opus', 'high']])
   await page.screenshot({ path: 'test-results/setup-map-with-agent.png' })
   await expect(page.getByRole('tab', { name: 'Map project' })).toHaveAttribute('aria-selected', 'true')
   mappingAttempt.state = 'submitted'

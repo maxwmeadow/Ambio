@@ -208,18 +208,18 @@ export function chatDeepLink(hostId: string, prompt: string, mode: TurnMode = 'b
 }
 
 /** How one turn is started in a host: its arguments, stdin and session. */
-export function deliveryPlan(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string; mapping?: MappingBinding; access?: AgentAccess } = {}): DriverPlan {
+export function deliveryPlan(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string; effort?: string; mapping?: MappingBinding; access?: AgentAccess } = {}): DriverPlan {
   const driver = agentDriver(hostId)
   if (!driver) throw new Error('This host has no direct delivery route.')
-  return driver.plan({ hostId, mcp, workspaceId, prompt, mode: turn.mode ?? 'build', resume: turn.resume, messageId: turn.messageId, cwd: turn.cwd, model: turn.model, mapping: turn.mapping, access: turn.access })
+  return driver.plan({ hostId, mcp, workspaceId, prompt, mode: turn.mode ?? 'build', resume: turn.resume, messageId: turn.messageId, cwd: turn.cwd, model: turn.model, effort: turn.effort, mapping: turn.mapping, access: turn.access })
 }
 
-export function deliveryArguments(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string; mapping?: MappingBinding; access?: AgentAccess } = {}): string[] {
+export function deliveryArguments(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string; effort?: string; mapping?: MappingBinding; access?: AgentAccess } = {}): string[] {
   return deliveryPlan(hostId, mcp, workspaceId, prompt, turn).args
 }
 
 export interface RunInput {
-  codex?: Pick<CodexAppServerTurn, 'resume' | 'model' | 'approval' | 'reviewer' | 'review'>
+  codex?: Pick<CodexAppServerTurn, 'resume' | 'model' | 'effort' | 'approval' | 'reviewer' | 'review'>
   codexTransport?: DeliveryRun['codexTransport']
   workspaceId: string; messageId: string; hostId: string; rootPath: string; revision: string; launcher: DeliveryLauncher; args: string[]; prompt: string
   /** The conversation and kind of turn, when the request carries them. */

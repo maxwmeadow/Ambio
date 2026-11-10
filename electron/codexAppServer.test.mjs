@@ -132,6 +132,25 @@ test('discovery paginates the server model list without opening a thread', async
   assert.ok(!f.sent.some(m => m.method === 'thread/start'))
 })
 
+// Shape from codex model/list (GPT-6.1-Sol): each model advertises its own efforts and default.
+test('each model offers the reasoning efforts it advertises, with its own default', async t => {
+  const f = fixture(t, {}, m => m.method === 'model/list' ? { data: [
+    { model: 'sol', displayName: 'Sol', defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'low' }, { reasoningEffort: 'medium' }, { reasoningEffort: 'xhigh' }] },
+    { model: 'plain', displayName: 'Plain' },
+  ], nextCursor: null } : undefined)
+  const [sol, plain] = await f.client.models()
+  assert.deepEqual(sol.thinkingLevels, [{ id: 'low', label: 'Low' }, { id: 'medium', label: 'Medium' }, { id: 'xhigh', label: 'Extra high' }])
+  assert.equal(sol.defaultThinking, 'medium')
+  assert.equal(plain.thinkingLevels, undefined)
+  // The chosen effort rides on the turn; without one the thread keeps its own.
+  for (const effort of ['xhigh', undefined]) {
+    const run = fixture(t, { model: 'sol', ...(effort ? { effort } : {}) })
+    const { outcome } = await running(run)
+    assert.equal(run.sent.find(m => m.method === 'turn/start').params.effort, effort)
+    run.notify('turn/completed', { turn: { id: 'turn', status: 'completed' } }); await outcome
+  }
+})
+
 test('Ask me and Auto retain sandbox boundaries; unknown versions never gain Auto or Windows fallback access', () => {
   assert.deepEqual(codexAppServerPolicy('build', 'on-request', 'win32', 'user', 'codex/0.162.1'), { sandbox: 'workspace-write', approvalPolicy: 'on-request', approvalsReviewer: 'user', config: { sandbox_workspace_write: { network_access: false, exclude_tmpdir_env_var: true, exclude_slash_tmp: true }, windows: { sandbox: 'unelevated' } } })
   assert.deepEqual(codexAppServerPolicy('build', 'on-request', 'linux'), { sandbox: 'workspace-write', approvalPolicy: 'on-request', approvalsReviewer: 'user', config: { sandbox_workspace_write: { network_access: false, exclude_tmpdir_env_var: true, exclude_slash_tmp: true } } })

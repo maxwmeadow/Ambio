@@ -7,7 +7,7 @@ import type { ModelOption } from '../src/shared/agentDelivery.ts'
 import type { DriverLauncher } from './agentDrivers.ts'
 import { MuseClient } from './museClient.ts'
 import { antigravityOptions, inspectAntigravity } from './antigravityTransport.ts'
-import { CodexAppServer, codexAccessLevels } from './codexAppServer.ts'
+import { CodexAppServer, codexAccessLevels, effortLabel } from './codexAppServer.ts'
 
 /**
  * The models each agent Ambio runs can be asked to use, read the way that
@@ -20,11 +20,15 @@ import { CodexAppServer, codexAccessLevels } from './codexAppServer.ts'
  * Antigravity CLI: `agy models`.
  */
 
+// `claude --effort` takes these (Claude Code 2.1.322) and steps a level a model
+// lacks down to the highest it has, so every alias offers them. No default:
+// unchosen, Claude Code keeps the user's own effort setting.
+const CLAUDE_EFFORT = ['low', 'medium', 'high', 'xhigh', 'max'].map(id => ({ id, label: effortLabel(id) }))
 const CLAUDE_ALIASES: ModelOption[] = [
-  { id: 'fable', label: 'Fable' },
-  { id: 'opus', label: 'Opus' },
-  { id: 'sonnet', label: 'Sonnet' },
-  { id: 'haiku', label: 'Haiku' },
+  { id: 'fable', label: 'Fable', thinkingLevels: CLAUDE_EFFORT },
+  { id: 'opus', label: 'Opus', thinkingLevels: CLAUDE_EFFORT },
+  { id: 'sonnet', label: 'Sonnet', thinkingLevels: CLAUDE_EFFORT },
+  { id: 'haiku', label: 'Haiku', thinkingLevels: CLAUDE_EFFORT },
 ]
 
 /** A model name a flag can carry safely. */

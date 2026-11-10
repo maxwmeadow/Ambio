@@ -33,6 +33,15 @@ test('a chosen model reaches each agent with its own flag, and none is passed by
   }
 })
 
+test('a chosen effort reaches Claude Code and Codex with their own flags, and none is passed by default', () => {
+  const mcp = { command: 'node', args: ['mcp.js'] }
+  const claude = deliveryPlan('claude-code', mcp, 'ws', 'p', { mode: 'ask', model: 'opus', effort: 'xhigh' }).args
+  assert.equal(claude[claude.indexOf('--effort') + 1], 'xhigh')
+  assert.ok(deliveryPlan('codex', mcp, 'ws', 'p', { mode: 'ask', model: 'gpt-6.1-sol', effort: 'high' }).args.includes('model_reasoning_effort="high"'))
+  assert.ok(!deliveryPlan('claude-code', mcp, 'ws', 'p', { mode: 'ask', model: 'opus' }).args.includes('--effort'))
+  assert.ok(!deliveryPlan('codex', mcp, 'ws', 'p', { mode: 'ask' }).args.some(arg => arg.startsWith('model_reasoning_effort=')))
+})
+
 // Captured from the official @xai-official/grok 1.0.67 native binary, without login.
 test('Grok catalog excludes authentication notices and its default heading', () => {
   assert.deepEqual(grokModels('You are not authenticated.\n\nDefault model: grok-4.6\n\nAvailable models:\n  * grok-4.6 (default)\n  - grok-4.5\n'), [{ id: 'grok-4.6', label: 'grok-4.6' }, { id: 'grok-4.5', label: 'grok-4.5' }])

@@ -141,6 +141,16 @@ export function AgentModelMenu({ model, disabled }: { model: AgentModelChoice; d
   </div>
 }
 
+/** The chosen model's thinking level as a plain select, for setup; nothing for a model without levels. */
+export function AgentThinkingSelect({ model, disabled }: { model: AgentModelChoice; disabled?: boolean }) {
+  if (model.loading || !model.thinkingLevels?.length) return null
+  return <select className="ambio-choose__model ambio-choose__thinking" aria-label="Thinking level" title="How much the agent thinks" value={model.thinking ?? ''} disabled={disabled} onChange={event => model.setThinking?.(event.target.value)}>
+    {/* A model with no default of its own (Claude Code) keeps the agent's setting until one is chosen. */}
+    {!model.thinking && <option value="">Default thinking</option>}
+    {model.thinkingLevels.map(level => <option key={level.id} value={level.id}>{level.label} thinking</option>)}
+  </select>
+}
+
 /** The same choice as a plain select, for setup. */
 export function AgentModelSelect({ model, disabled }: { model: AgentModelChoice; disabled?: boolean }) {
   if (model.loading) return <select className="ambio-choose__model" aria-label="Model" disabled><option>Loading models…</option></select>

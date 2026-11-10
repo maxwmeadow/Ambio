@@ -47,12 +47,30 @@ export function codexAppServerPolicy(mode: DriverTurn['mode'], approval: CodexAp
   }
 }
 
+/** An effort level's name as the menu shows it: Codex's own values, capitalized ("xhigh" reads "Extra high"). */
+export function effortLabel(level: string): string {
+  return level === 'xhigh' ? 'Extra high' : level.charAt(0).toUpperCase() + level.slice(1)
+}
+
+/** The reasoning efforts a model advertises (model/list), and its own default. */
+export function codexEffort(model: any): Pick<ModelOption, 'thinkingLevels' | 'defaultThinking'> {
+  const levels: string[] = (Array.isArray(model?.supportedReasoningEfforts) ? model.supportedReasoningEfforts : [])
+    .map((item: any) => item?.reasoningEffort).filter((level: unknown): level is string => typeof level === 'string' && /^[a-z]{1,20}$/.test(level))
+  if (!levels.length) return {}
+  return {
+    thinkingLevels: levels.map(level => ({ id: level, label: effortLabel(level) })),
+    ...(levels.includes(model.defaultReasoningEffort) ? { defaultThinking: model.defaultReasoningEffort } : {}),
+  }
+}
+
 export interface CodexAppServerTurn {
   cwd: string
   prompt: string
   mode: DriverTurn['mode']
   resume?: string
   model?: string
+  /** A reasoning effort the model advertises; unset keeps the thread's own. */
+  effort?: string
   approval?: 'never' | 'on-request'
   reviewer?: 'user' | 'auto_review'
   review?: boolean
@@ -118,7 +136,7 @@ export class CodexAppServer {
     for (let page = 0; page < 20; page++) {
       const result = await this.request('model/list', { cursor, limit: 100 })
       for (const model of result.data ?? []) {
-        if (typeof model.model === 'string' && !model.hidden) models.push({ id: model.model, label: model.displayName || model.model })
+        if (typeof model.model === 'string' && !model.hidden) models.push({ id: model.model, label: model.displayName || model.model, ...codexEffort(model) })
       }
       if (!result.nextCursor || result.nextCursor === cursor) break
       cursor = result.nextCursor
@@ -144,7 +162,7 @@ export class CodexAppServer {
       if (status !== 'completed') return { stopReason: status, resumed: !!this.turn.resume }
     }
     const text = this.turn.prompt + (this.turn.review ? `\n\nCodex's native review has finished. Use the following review as evidence, claim this Ambio request and return the review through Ambio's normal reply workflow. Do not change files.\n\n${this.reviewText || 'The reviewer returned no written findings.'}` : '')
-    const status = await this.startTurn('turn/start', { threadId: this.threadId, input: [{ type: 'text', text }], summary: 'auto' })
+    const status = await this.startTurn('turn/start', { threadId: this.threadId, input: [{ type: 'text', text }], summary: 'auto', ...(this.turn.effort ? { effort: this.turn.effort } : {}) })
     return { stopReason: status, resumed: !!this.turn.resume }
   }
 

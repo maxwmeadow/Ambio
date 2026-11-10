@@ -15,7 +15,7 @@ const bundled = await build({
     builder.onLoad({ filter: /.*/, namespace: 'setup-test' }, args => ({ contents:
       args.path.endsWith('MapWithAgent') ? 'export const CHAT_SETUP="chat-setup"; export const startMapping=()=>{}; export const useRunnableChoices=()=>({choices:globalThis.ambioSetupChoices??[],loading:globalThis.ambioSetupChoices==null,error:\'\',refresh:async()=>{}});'
         : args.path.endsWith('AgentChatPanel') ? 'export const OPEN_MODEL_SERVICES="model-services";'
-          : 'export const AgentModelSelect=()=>null; export const useAgentModel=()=>({value:""});', loader: 'js' }))
+          : 'export const AgentModelSelect=()=>null; export const AgentThinkingSelect=()=>null; export const useAgentModel=()=>({value:""});', loader: 'js' }))
   } }],
 })
 const module = { exports: {} }
