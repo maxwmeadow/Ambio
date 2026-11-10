@@ -409,12 +409,10 @@ const SERVER_INSTRUCTIONS = `Ambio maps this codebase's architecture, and the pe
 
 ${DRAW_FIRST_WORKFLOW}
 
-When you are asked to find the cause of a bug, a wrong value, a crash, a flaky test or any other unexpected behaviour, debug through the \`investigation\` tool:
-1. op "start" with the symptom as the name.
-2. op "hypothesis" for each suspicion, in one sentence naming the function or file.
-3. op "run" to test it: the command that reproduces the problem (a test, a script, the CLI) plus \`watch\` on the functions you suspect, e.g. watch: ["src/pricing.ts:applyDiscount"]. It returns what those functions actually did while the code ran - arguments, return values, arguments they mutated, values that drift from call to call, exceptions - and which functions executed at all. This answers most "why is this value wrong" questions in one step, without editing the code to add logging. When the bug is behind a server (an endpoint returns the wrong thing), pass \`server\` (e.g. "npm start") and \`port\`, and make \`command\` the request that triggers it (e.g. "curl -s localhost:3000/api/cart"): the server runs under observation too.
-4. op "verdict" on the hypothesis (confirmed, refuted or inconclusive), then op "conclude" with the root cause.
-5. Fix it, op "run" the repro again to verify, and op "stop" to save the case.
+When you are asked to find the cause of a bug, a wrong value, a crash, a flaky test or any other unexpected behaviour, debug through the \`investigation\` tool instead of guessing from the source:
+1. op "run" with the \`command\` that reproduces it (a test, a script, the CLI), \`watch\` on the functions you suspect (e.g. ["src/pricing.ts:applyDiscount"], or a whole file), and \`hypothesis\`: your suspicion in one sentence. It opens the case and reports what those functions actually did - arguments, returns, arguments they mutated, state shared between calls, exceptions - and what executed at all. If it refutes your suspicion, run again with the next one. For a bug behind a server, pass \`server\` (e.g. "npm start") and \`port\`, with \`command\` the request that triggers it.
+2. Fix it and op "run" the repro again.
+3. op "conclude" with \`text\` (the root cause), \`fix\`, \`result\` ("confirmed") and \`run\` (the run that verified the fix). That records the verdict and saves the case.
 
 Keep reading and searching files the way you normally do. What you do through \`investigation\` appears on the person's map next to the code it concerns, and anything they say back to you arrives in your tool results.
 
@@ -520,6 +518,18 @@ function anchorText(anchors?: InvestigationAnchor[]): string {
   if (!anchors?.length) return ''
   const parts = anchors.map(a => a.symbol ? `${a.relPath} › ${a.symbol}` : a.relPath).filter(Boolean)
   return parts.length ? ` on ${parts.join(', ')}` : ''
+}
+
+async function openCase(workspaceId: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/investigation/case?workspace=${encodeURIComponent(workspaceId)}`)
+  if (!res.ok) throw new Error(`case failed: ${await res.text()}`)
+  return (await res.json() as any).case
+}
+
+/** The hypothesis a verdict with no `hypothesis` is about: the last one tested, else the last one stated. */
+function latestHypothesisId(c: any): string | undefined {
+  const tested = [...(c?.runs ?? [])].reverse().find((run: any) => run.hypothesisId)?.hypothesisId
+  return tested ?? c?.hypotheses?.at(-1)?.id
 }
 
 function renderCase(c: any): string {
@@ -839,18 +849,18 @@ const CORE_TOOLS = [
   },
   {
     name: 'investigation',
-    description: "Debug by running code. run executes a repro or tests, observing the functions you watch, and reports what they did: mutated arguments, state shared between calls, repeats, returns, exceptions (JS/TS, Python, Ruby, Go, JVM, C#, PHP, Rust). ops: start hypothesis run verdict note conclude stop case list get. The human watches live and can reply.",
+    description: "Debug by running code. run executes a repro or tests, observing the functions you watch, and reports what they did: mutated arguments, state shared between calls, repeats, returns, exceptions (JS/TS, Python, Ruby, Go, JVM, C#, PHP, Rust). ops: run conclude start hypothesis verdict note stop case list get. The human watches live and can reply.",
     inputSchema: {
       type: 'object',
       properties: {
         op: { type: 'string' },
         name: { type: 'string', description: 'start: the symptom' },
-        text: { type: 'string', description: 'hypothesis, note, verdict reason, conclude root cause' },
+        text: { type: 'string', description: 'hypothesis, note, verdict reason, root cause' },
         command: { type: 'string', description: 'run: the repro command' },
         server: { type: 'string', description: 'run: started first (e.g. "npm start"); command exercises it' },
         port: { type: 'number', description: 'server port to wait for' },
         watch: { type: 'array', items: { type: 'string' }, description: '"file.ts:fn", "fn" or a file' },
-        hypothesis: { type: 'string', description: 'e.g. H1' },
+        hypothesis: { type: 'string', description: 'suspicion or H1' },
         result: { type: 'string', description: 'confirmed | refuted | inconclusive' },
         run: { type: 'string', description: 'e.g. R2' },
         fix: { type: 'string' },
@@ -2140,7 +2150,7 @@ Steps to execute:
           readiness,
           gaps.length ? `\nAmbio's infra map flags these contract gaps; check whether one is the cause:\n${gaps.map(line => `  ! ${line}`).join('\n')}` : '',
           '',
-          'Next: state what you suspect with op "hypothesis", then test it with op "run" - the command that reproduces the problem, plus `watch` on the functions you suspect.',
+          'Next: op "run" with the command that reproduces the problem, `watch` on the functions you suspect, and `hypothesis`: what you suspect, in one sentence.',
           commands.length ? `Commands in this project: ${commands.join(' · ')}` : '',
         ].filter(Boolean).join('\n')
         await postAgentActivity(project.workspaceId, `Agent opened a case: ${data.name}`, 'success')
@@ -2160,17 +2170,27 @@ Steps to execute:
 
       case 'investigation_run': {
         const watch = Array.isArray(args.watch) ? args.watch : args.watch ? [args.watch] : []
+        // A hypothesis written as a sentence is recorded here, so stating a
+        // suspicion and testing it is one call, not two: each extra call is a
+        // whole agent turn.
+        let hypothesis = typeof args.hypothesis === 'string' ? args.hypothesis.trim() : ''
+        let stated = ''
+        if (hypothesis && !/^H?\d+$/i.test(hypothesis)) {
+          const added = await investigationPost(project.workspaceId, 'hypothesis', { text: hypothesis, file: args.file, symbol: args.symbol })
+          stated = `${added.hypothesis.id} recorded${anchorText(added.hypothesis.anchors)}.\n`
+          hypothesis = added.hypothesis.id
+        }
         const data = await investigationPost(project.workspaceId, 'run', {
           command: args.command,
           watch,
           cwd: args.cwd,
           timeoutSec: args.timeoutSec ?? args.timeout,
-          hypothesis: args.hypothesis,
+          hypothesis: hypothesis || undefined,
           server: args.server,
           port: args.port,
         })
         pendingFromResult = data.humanMessages
-        result = data.report + (data.openedCase ? '\n(No case was open, so this run opened one.)' : '')
+        result = stated + data.report
         break
       }
 
@@ -2184,8 +2204,8 @@ Steps to execute:
         pendingFromResult = data.humanMessages
         const h = data.hypothesis
         result = `${h.id} marked ${h.status}.` + (h.status === 'confirmed'
-          ? ' When you know the root cause, op "conclude" with it as text (and fix once you have one).'
-          : ' State the next suspicion with op "hypothesis".')
+          ? ' Fix it, run the repro again, then op "conclude" with the root cause and that run as `run`.'
+          : ' Test the next suspicion: op "run" with it as `hypothesis`.')
         break
       }
 
@@ -2199,6 +2219,18 @@ Steps to execute:
       }
 
       case 'investigation_conclude': {
+        // One call settles the case: the verdict on the hypothesis it rests
+        // on, the root cause, and - once a run verified the fix - saving it.
+        const verdictResult = (args.result ?? args.status) as string | undefined
+        let settled = ''
+        if (verdictResult) {
+          const verdict = await investigationPost(project.workspaceId, 'verdict', {
+            hypothesis: args.hypothesis ?? latestHypothesisId(await openCase(project.workspaceId)),
+            result: verdictResult,
+            run: args.run,
+          })
+          settled = `${verdict.hypothesis.id} marked ${verdict.hypothesis.status}. `
+        }
         const data = await investigationPost(project.workspaceId, 'conclude', {
           rootCause: args.rootCause ?? args.text,
           file: args.file,
@@ -2207,10 +2239,14 @@ Steps to execute:
           verified: args.verified ?? args.run,
         })
         pendingFromResult = data.humanMessages
-        result = `Root cause recorded${anchorText(data.conclusion.anchors)}. ` +
-          (data.conclusion.verified
-            ? 'Verified by a run. Call op "stop" to save the case.'
-            : 'After fixing, run the repro again to verify, conclude again with that run as `run`, then op "stop".')
+        result = `${settled}Root cause recorded${anchorText(data.conclusion.anchors)}. `
+        if (data.conclusion.verified) {
+          const saved = await investigationPost(project.workspaceId, 'stop', {})
+          result += `Verified by a run; case saved (${saved.id}), and the person can replay it from Investigations.`
+          await postAgentActivity(project.workspaceId, `Agent closed the case ${saved.name ?? saved.id}`, 'success')
+        } else {
+          result += 'After fixing, run the repro again, then conclude again with that run as `run`; that saves the case.'
+        }
         break
       }
 

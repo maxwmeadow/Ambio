@@ -268,7 +268,9 @@ test.before(async () => {
 
 test.after(() => {
   harness?.stop()
-  if (project) rmSync(project, { recursive: true, force: true })
+  // On Windows a toolchain process a run started (a build server) can hold the
+  // folder for a moment after the harness stops.
+  if (project) rmSync(project, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 })
 })
 
 test('a run reports the side effect reading the code would have to infer', async () => {
@@ -286,7 +288,7 @@ test('a run reports the side effect reading the code would have to infer', async
   assert.match(run.text, /^Run R1 · `node billing\/repro\.js` · exit 0/)
   assert.match(run.text, /`applyLateFee` changes its argument `table\.fees\.late` on all 4 calls: \(absent\) → 5, 5 → 10/)
   assert.match(run.text, /receives the same `table` object again on 3 of 4 calls/)
-  assert.match(run.text, /Record what this showed: investigation verdict/)
+  assert.match(run.text, /If this explains it: fix it, run the repro again, then conclude \{text: root cause, hypothesis: "H1"/)
   assert.match(run.text, /\n105\n110\n115\n120/, 'the program output is included')
 })
 
@@ -449,4 +451,39 @@ test('closing the case leaves a timeline the canvas can replay step by step', as
   assert.equal(doc.conclusion.rootCause, 'applyLateFee writes into DEFAULT_FEES, which every invoice shares')
   const run = doc.events.find(e => e.type === 'investigation:run').payload.run
   assert.ok(run.watched.length === 1 && run.findings.length > 0, 'the run event carries its evidence for replay')
+})
+
+// Every tool call is a whole agent turn, re-reading the conversation: the loop
+// an agent is told to follow is run, fix, run, conclude - three calls, with the
+// case opened, the hypothesis recorded and the case saved along the way.
+test('the short loop opens, tests, settles and saves a case in three calls', async () => {
+  const investigating = harness.initialization.instructions.match(/When you are asked to find the cause[\s\S]*?(?=\n\nKeep reading)/)?.[0] ?? ''
+  assert.ok(investigating, 'the server instructions describe the investigation loop')
+  assert.ok(investigating.length < 1300, `the investigation instructions are ${investigating.length} characters; every session pays for them`)
+  assert.doesNotMatch(investigating, /op "start"|op "stop"|op "verdict"/, 'the default loop needs none of the bookkeeping ops')
+
+  const first = await client.callTool('investigation', {
+    op: 'run', command: 'node billing/repro.js', watch: ['billing/ledger.js:applyLateFee'],
+    hypothesis: 'applyLateFee() keeps adding to the shared DEFAULT_FEES table',
+  }, 60000)
+  assert.equal(first.isError, false, first.text)
+  assert.match(first.text, /^H1 recorded on billing\/ledger\.js › applyLateFee\.\nRun R1 · `node billing\/repro\.js` · exit 0 · [^\n]* · testing H1/)
+
+  const verify = await client.callTool('investigation', { op: 'run', command: 'node billing/repro.js', watch: ['billing/ledger.js:applyLateFee'] }, 60000)
+  assert.equal(verify.isError, false, verify.text)
+
+  const concluded = await client.callTool('investigation', {
+    op: 'conclude', text: 'applyLateFee writes into DEFAULT_FEES, which every invoice shares', fix: 'copy the table per invoice',
+    result: 'confirmed', run: 'R2',
+  })
+  assert.equal(concluded.isError, false, concluded.text)
+  assert.match(concluded.text, /^H1 marked confirmed\. Root cause recorded[^\n]*Verified by a run; case saved \(/)
+  const open = await api(`/api/investigation/case?workspace=${harness.workspaceId}`)
+  assert.equal(open.case, null, 'concluding with a verifying run saved and closed the case')
+  const saved = (await api(`/api/investigation/list?workspace=${harness.workspaceId}`))
+  const ids = (saved.investigations ?? saved).map(item => item.id)
+  const id = concluded.text.match(/case saved \(([^)]+)\)/)[1]
+  assert.ok(ids.includes(id), 'the saved case is listed for replay')
+  const doc = await api(`/api/investigation/${id}?workspace=${harness.workspaceId}`)
+  assert.equal(doc.conclusion.verified, doc.events.filter(e => e.type === 'investigation:run').at(-1).payload.run.id, 'R2 verified the fix')
 })

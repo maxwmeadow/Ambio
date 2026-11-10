@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"ambio.local/archd/internal/db"
 	"ambio.local/archd/internal/runtime"
@@ -891,15 +892,29 @@ func renderRunReport(rep *RunReport, requestedWatches int) string {
 
 	if len(rep.Watched) > 0 {
 		b.WriteString("\nWatched\n")
+		// Every report token is the agent's cost, and a whole file can be
+		// watched: past the detail budget a function gets a short line without
+		// its samples, past the list budget only its name.
+		brief := 0
+		var unlisted []string
 		for _, w := range rep.Watched {
+			if b.Len() > reportListBudget {
+				unlisted = append(unlisted, w.Anchor.Symbol)
+				continue
+			}
+			detailed := b.Len() <= reportDetailBudget
 			fmt.Fprintf(&b, "• %s  %s · %d calls", w.Anchor.Symbol, where(w.Anchor), w.Calls)
 			if w.Errors > 0 {
 				fmt.Fprintf(&b, " · %d %s", w.Errors, failedVerb(firstFailure(w)))
 			}
-			if w.Returns != "" {
+			if w.Returns != "" && detailed {
 				fmt.Fprintf(&b, " · returns %s", clip(w.Returns, 120))
 			}
 			b.WriteString("\n")
+			if !detailed {
+				brief++
+				continue
+			}
 			for _, f := range w.Findings {
 				if f.Severity == "info" {
 					fmt.Fprintf(&b, "    %s\n", f.Text)
@@ -918,6 +933,12 @@ func renderRunReport(rep *RunReport, requestedWatches int) string {
 				}
 				b.WriteString("\n")
 			}
+		}
+		if len(unlisted) > 0 {
+			fmt.Fprintf(&b, "• and %d more: %s\n", len(unlisted), clip(strings.Join(unlisted, ", "), 300))
+		}
+		if n := brief + len(unlisted); n > 0 {
+			fmt.Fprintf(&b, "  (detail left out for %d function%s to keep this report short; watch fewer functions to see it)\n", n, plural(n))
 		}
 	}
 
@@ -955,13 +976,14 @@ func renderRunReport(rep *RunReport, requestedWatches int) string {
 	}
 
 	if rep.OutputLines > 0 {
-		shown := strings.Count(rep.OutputTail, "\n") + 1
+		tail := clipStart(rep.OutputTail, outputRoom(b.Len(), 4000))
+		shown := strings.Count(tail, "\n") + 1
 		if shown < rep.OutputLines {
 			fmt.Fprintf(&b, "\nOutput (last %d of %d lines)\n", shown, rep.OutputLines)
 		} else {
 			b.WriteString("\nOutput\n")
 		}
-		b.WriteString(clip(rep.OutputTail, 4000))
+		b.WriteString(tail)
 		b.WriteString("\n")
 	}
 
@@ -980,24 +1002,52 @@ func renderRunReport(rep *RunReport, requestedWatches int) string {
 		if srv.OutputLines == 0 {
 			fmt.Fprintf(&b, "\nServer (%s%s): no output\n", state, ready)
 		} else {
-			shown := strings.Count(srv.OutputTail, "\n") + 1
+			tail := clipStart(srv.OutputTail, outputRoom(b.Len(), 3000))
+			shown := strings.Count(tail, "\n") + 1
 			fmt.Fprintf(&b, "\nServer output (%s%s", state, ready)
 			if shown < srv.OutputLines {
 				fmt.Fprintf(&b, "; last %d of %d lines", shown, srv.OutputLines)
 			}
 			b.WriteString(")\n")
-			b.WriteString(clip(srv.OutputTail, 3000))
+			b.WriteString(tail)
 			b.WriteString("\n")
 		}
 	}
 
 	if rep.HypothesisID != "" {
-		fmt.Fprintf(&b, "\nRecord what this showed: investigation verdict {hypothesis: %q, result: confirmed | refuted | inconclusive}.\n", rep.HypothesisID)
+		fmt.Fprintf(&b, "\nIf this explains it: fix it, run the repro again, then conclude {text: root cause, hypothesis: %q, result: confirmed, run: that run}. If not, run again with your next hypothesis.\n", rep.HypothesisID)
 	}
 	if requestedWatches == 0 && rep.FunctionsRun > 0 {
 		b.WriteString("\nTo see arguments, return values and side effects, run again with watch: [\"path/to/file.ts:functionName\"] (or a whole file).\n")
 	}
 	return b.String()
+}
+
+// A run report is read by the agent in full, so it has a size: findings and
+// watched summaries first, sample calls while under reportDetailBudget, then
+// program and server output in whatever room is left of reportBudget.
+const (
+	reportBudget       = 6800
+	reportDetailBudget = 4000
+	reportListBudget   = 5200
+)
+
+// outputRoom is how much of an output tail fits: at most limit, at least enough
+// to show the last few lines.
+func outputRoom(used, limit int) int {
+	return min(limit, max(600, reportBudget-used))
+}
+
+// clipStart keeps the end of an output tail, where the error usually is.
+func clipStart(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	cut := len(s) - (n - 1)
+	for cut < len(s) && !utf8.RuneStart(s[cut]) {
+		cut++
+	}
+	return "…" + s[cut:]
 }
 
 func clip(s string, n int) string {

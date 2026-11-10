@@ -13,16 +13,30 @@ and the investigations menu says what runs can see per language.
 
 ## The loop
 
-One MCP tool, `investigation`, with these ops:
+An agent needs three tool calls: **run, (fix the code), run, conclude.**
+
+1. `run` with the repro `command`, `watch` on the suspects and `hypothesis` as
+   one sentence. It opens a case if none is open, records the hypothesis
+   (anchored to what it names) and tests it.
+2. The agent fixes the code and `run`s the repro again.
+3. `conclude` with the root cause, `fix`, `result` and the verifying `run`. It
+   records the verdict on the hypothesis tested last (or the one named), the
+   conclusion, and, because a run verified the fix, saves the case.
+
+Every tool call is a whole agent turn that re-reads the conversation, so the
+bookkeeping happens inside these calls instead of in calls of its own. The
+earlier loop (start, hypothesis, run, verdict, conclude, run, stop) took about
+eight calls; that cost is what made Ambio about 25% dearer than reading in the
+[evaluation](#evaluation). The separate ops remain for agents that want them:
 
 | op | What the agent sends | What it gets back |
 |---|---|---|
+| `run` | `command`, `watch`, optional `hypothesis` (a sentence, or an existing `H1`); for a bug behind a server, `server` (started first) and `port` (waited for), with `command` the request that triggers it | The evidence report (below), with what the server printed; a sentence hypothesis is recorded first |
+| `conclude` | `text` - the root cause, optional `fix`, `run` that proved the fix, `result` and `hypothesis` for the verdict | Verdict and conclusion recorded; with a verifying run, the case is saved for replay |
 | `start` | `name` - the symptom | Case opened; the project's own repro commands (`npm test`, `pytest`, ...) |
 | `hypothesis` | `text` - one sentence | `H1`, anchored to the files and functions the sentence names |
-| `run` | `command`, `watch`, optional `hypothesis`; for a bug behind a server, `server` (started first) and `port` (waited for), with `command` the request that triggers it | The evidence report (below), with what the server printed |
 | `verdict` | `hypothesis`, `result` (confirmed, refuted, inconclusive), `text` | Recorded; next step |
 | `note` | `text` | Anchored note |
-| `conclude` | `text` - the root cause, optional `fix`, optional `run` that proved the fix | Recorded |
 | `stop` | - | Case saved for replay |
 | `case`, `list`, `get` | - | The case file, saved cases, one saved case |
 
@@ -61,7 +75,11 @@ Then, per watched function: call count, a return summary, and sample calls with
 arguments, return value or exception, and what changed. Samples cover the first
 calls, one of each kind of outcome, and the last. After that comes which
 functions ran across the codebase, and the tail of the program's output. The
-report is bounded (under 8 KB) so a large run cannot flood the agent's context.
+report is bounded (under 8 KB, tested with a whole file of watched functions
+and long program and server output): sample calls stop past a detail budget,
+past a list budget the remaining watched functions are named on one line, and
+the output tails get the room that is left, keeping their last lines, where
+the error usually is.
 
 Two findings from the trials, verbatim:
 
@@ -391,6 +409,11 @@ What this shows:
 
 Next: the same comparison on a codebase of several hundred files, where bulk
 reading stops working, and on bugs that depend on production-like data.
+
+2026-11-10: the loop was cut from about eight calls to three (see
+[The loop](#the-loop)) and the run report given a hard size budget, aimed at
+the cost gap above. Not yet re-measured; the plan for measuring it against
+third-party benchmarks is [INVESTIGATION_BENCHMARK.md](INVESTIGATION_BENCHMARK.md).
 
 ### Reproducing
 

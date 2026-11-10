@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -180,6 +181,38 @@ func TestRunReportIsBoundedAndSaysWhatToDoNext(t *testing.T) {
 	raw, _ := json.Marshal(rep)
 	if len(raw) > 64*1024 {
 		t.Fatalf("run event is %d bytes; it is broadcast and recorded", len(raw))
+	}
+}
+
+// The worst case for an agent's context: a whole file watched, every function
+// with long sample calls, and long program and server output.
+func TestRunReportStaysBoundedWhenEverythingIsLong(t *testing.T) {
+	arg := strings.Repeat("x", 400)
+	ret := strings.Repeat("y", 400)
+	var watched []ReportWatched
+	for i := 0; i < 40; i++ {
+		samples := make([]runtime.CallSample, 4)
+		for j := range samples {
+			samples[j] = runtime.CallSample{Call: j + 1, Args: arg, Returned: &ret, Mutated: []string{arg}}
+		}
+		watched = append(watched, ReportWatched{
+			Anchor: runtime.Anchor{RelPath: "src/big.ts", Symbol: "fn" + strconv.Itoa(i), Line: i + 1},
+			Calls:  12, Returns: ret, Samples: samples,
+			Findings: []Finding{{Severity: "info", Text: strings.Repeat("z", 200)}},
+		})
+	}
+	rep := &RunReport{N: 3, Command: "npm test", HypothesisID: "H2", Watched: watched,
+		FunctionsRun: 200, FilesRun: 30,
+		OutputTail: strings.Repeat("program output line\n", 400) + "Error: the real failure", OutputLines: 5000,
+		Server: &ReportServer{Command: "npm start", OutputTail: strings.Repeat("server log line\n", 400), OutputLines: 3000}}
+	text := renderRunReport(rep, 1)
+	if len(text) > 8000 {
+		t.Fatalf("report is %d bytes; a run must not flood the agent's context", len(text))
+	}
+	for _, want := range []string{"fn0", "fn39", "detail left out for", "Error: the real failure", "conclude"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing %q in the bounded report:\n%s", want, text)
+		}
 	}
 }
 

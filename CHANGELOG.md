@@ -190,6 +190,9 @@ in the app as "What's New" after updating, so write it for users.
   Django migration headers, `@generated`) are no longer drawn on the map.
 
 ### Fixed
+- Investigations cost your agent less. It now debugs in three steps (run the
+  repro with its suspicion, fix, run again and conclude) instead of about
+  eight, and a run's report stays short even when it watches a whole file.
 - Investigation cards, live and in replays, now format the agent's text the
   way the chat does: numbered lists, code and file links instead of every
   sentence on its own line. The Saved investigations help now explains that
