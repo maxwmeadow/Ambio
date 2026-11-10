@@ -2,7 +2,7 @@ import { _electron as electron, expect, test } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { agentMenu, setAgentAccess, skipAgentGuides } from './agentGuides'
+import { agentMenu, agentSetup, setAgentAccess, skipAgentGuides } from './agentGuides'
 
 test('native Codex streams, accepts corrections, stops, resumes, asks permission and runs review', async () => {
   test.setTimeout(90000)
@@ -53,11 +53,12 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
     await agentMenu(inbox).choose('codex')
     // A model's reasoning efforts come from Codex's own list; the choice rides on the turn.
-    await inbox.getByRole('button', { name: /^Model: / }).click()
-    await inbox.getByRole('menuitemradio', { name: 'Fixture model', exact: true }).click()
-    await expect(inbox.getByRole('menuitemradio', { name: 'Thinking: Medium' })).toHaveAttribute('aria-checked', 'true')
-    await inbox.getByRole('menuitemradio', { name: 'Thinking: High' }).click()
-    await expect(inbox.getByRole('button', { name: 'Model: Fixture model, High thinking' })).toBeVisible()
+    const setup = agentSetup(inbox)
+    await setup.chooseModel('Fixture model')
+    await expect(setup.panel.getByRole('menuitemradio', { name: 'Thinking: Medium' })).toHaveAttribute('aria-checked', 'true')
+    await page.screenshot({ path: 'test-results/agent-setup-codex.png' })
+    await setup.chooseThinking('High')
+    await expect(setup.trigger).toHaveAccessibleName('Agent and model: Codex CLI, Fixture model, High thinking')
     const composer = inbox.getByRole('textbox', { name: 'Instruction for your agent' })
     const send = inbox.locator('form').getByRole('button', { name: 'Start Codex CLI', exact: true })
     setMode('hold')
@@ -100,7 +101,8 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     // /review runs Codex's native reviewer on the current changes.
     await composer.fill('/review'); await send.click()
     await expect.poll(() => captured().review?.target.type).toBe('uncommittedChanges')
-    await expect.poll(() => captured().prompt).toContain('Fixture native review found no issues')
+    // Read while the stand-in rewrites its capture file, the prompt can be briefly absent; keep polling.
+    await expect.poll(() => captured().prompt ?? '').toContain('Fixture native review found no issues')
     await expect(inbox.locator('.ambio-turn').last()).toContainText('finished without replying')
     await page.screenshot({ path: 'test-results/codex-native-review.png' })
     // Auto uses the native reviewer, retaining an Ask's read-only sandbox.

@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ModelOption } from '../../shared/agentDelivery'
-import { InboxIcon } from './InboxIcon'
 
 /**
  * Which model an agent runs with, chosen where the message is written.
@@ -88,64 +87,19 @@ export function useAgentModel({ key, hostId, chatOptions, current, context = '',
 }
 
 /** A model's ID is worth a line only when it says more than its name ("GPT-6.1 Terra" is `gpt-6.1-terra`). */
-const idSaysMore = (option: ModelOption) => {
+export const idSaysMore = (option: ModelOption) => {
   const letters = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '')
   return letters(option.id) !== letters(option.label)
 }
 
-/**
- * The model button beside the request type, opening the agent's models. A model
- * with thinking levels shows its level on the button and as a row at the foot of
- * the menu, so the choice takes no room of its own in the composer.
- */
-export function AgentModelMenu({ model, disabled }: { model: AgentModelChoice; disabled?: boolean }) {
-  const [open, setOpen] = useState(false)
-  const anchor = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const outside = (event: PointerEvent) => { if (!anchor.current?.contains(event.target as Node)) setOpen(false) }
-    document.addEventListener('pointerdown', outside)
-    return () => document.removeEventListener('pointerdown', outside)
-  }, [open])
-  if (model.loading) return <div className="ambio-inbox__mode ambio-inbox__model">
-    <button type="button" className="ambio-inbox__mode-button ambio-inbox__model-loading" disabled aria-label="Model: loading" title="Looking up this agent's models">
-      <span className="ambio-inbox__model-label">Loading models…</span>
-    </button>
-  </div>
-  // An agent with no model choice here still shows the segment, so the pill keeps its shape.
-  if (!model.options.length) return <div className="ambio-inbox__mode ambio-inbox__model">
-    <button type="button" className="ambio-inbox__mode-button ambio-inbox__model-none" disabled aria-label="Model: the agent's own" title="This agent uses its own model setting">
-      <span className="ambio-inbox__model-label">Default</span>
-    </button>
-  </div>
-  const label = model.options.find(option => option.id === model.value)?.label ?? 'Default'
-  const choices: ModelOption[] = [...(model.hasDefault ? [{ id: '', label: 'Default' }] : []), ...model.options]
-  const levels = thinkingChoices(model)
-  const thinking = thinkingLabel(model)
-  return <div ref={anchor} className="ambio-inbox__mode ambio-inbox__model" onKeyDown={event => {
-    if (event.key === 'Escape' && open) { event.stopPropagation(); event.nativeEvent.stopImmediatePropagation(); setOpen(false) }
-  }}>
-    <button type="button" className="ambio-inbox__mode-button" disabled={disabled} aria-haspopup="menu" aria-expanded={open}
-      aria-label={`Model: ${label}${thinking ? `, ${thinking} thinking` : ''}`} title={thinking ? `${label}, ${thinking} thinking` : 'Which model the agent uses'} onClick={() => setOpen(!open)}>
-      <span className="ambio-inbox__model-label">{label}</span>
-      {thinking && <span className="ambio-inbox__model-thinking">{thinking}</span>}
-      <InboxIcon name="chevron" size={11} />
-    </button>
-    {open && <div className="ambio-inbox__mode-menu ambio-inbox__model-menu" role="menu" aria-label="Model">
-      {choices.map(option => <button key={option.id || 'default'} type="button" role="menuitemradio" aria-checked={model.value === option.id} aria-label={option.label}
-        autoFocus={model.value === option.id} onClick={() => { model.set(option.id); if (!option.thinkingLevels?.length) setOpen(false) }}>
-        <strong>{option.label}</strong>{option.id && idSaysMore(option) && <small>{option.id}</small>}{!option.id && <small>Whatever the agent is set to use</small>}
-        {model.value === option.id && <InboxIcon name="check" size={13} />}
-      </button>)}
-      {levels.length > 0 && <div className="ambio-inbox__model-levels" role="group" aria-label="Thinking">
-        <span className="ambio-inbox__model-levels-label">Thinking</span>
-        <div className="ambio-inbox__model-levels-choices">
-          {levels.map(level => <button key={level.id || 'default'} type="button" role="menuitemradio" aria-checked={(model.thinking ?? '') === level.id} aria-label={`Thinking: ${level.label}`}
-            onClick={() => { model.setThinking?.(level.id); setOpen(false) }}>{level.label}</button>)}
-        </div>
-      </div>}
-    </div>}
-  </div>
+/** The models offered, with the agent's own default first where it has one. */
+export function modelChoices(model: AgentModelChoice): ModelOption[] {
+  return [...(model.hasDefault ? [{ id: '', label: 'Default' }] : []), ...model.options]
+}
+
+/** The chosen model's name, or Default. */
+export function modelLabel(model: AgentModelChoice): string {
+  return model.options.find(option => option.id === model.value)?.label ?? 'Default'
 }
 
 /** The chosen model's thinking level as a plain select, for setup; nothing for a model without levels. */
@@ -162,13 +116,13 @@ export function AgentThinkingSelect({ model, disabled }: { model: AgentModelChoi
  * setup. A model with no default of its own (Claude Code) starts with Default:
  * the agent's own setting, and nothing is sent.
  */
-function thinkingChoices(model: AgentModelChoice): Array<{ id: string; label: string }> {
+export function thinkingChoices(model: AgentModelChoice): Array<{ id: string; label: string }> {
   const levels = model.thinkingLevels ?? []
   return levels.length && !model.defaultThinking ? [{ id: '', label: 'Default' }, ...levels] : levels
 }
 
-/** What the composer's pill says for the level: always one, while the model has levels. */
-function thinkingLabel(model: AgentModelChoice): string | undefined {
+/** What the composer says for the level: always one, while the model has levels. */
+export function thinkingLabel(model: AgentModelChoice): string | undefined {
   return thinkingChoices(model).find(level => level.id === (model.thinking ?? ''))?.label
 }
 

@@ -138,8 +138,12 @@ the way that agent publishes it (Claude Code's aliases, Codex's
 `model/list`), cached per
 session (`agent:models`). A delivery request may carry a model, which each
 driver passes with its own flag. Ambio chat services keep the models found when
-tested, and a turn may use any of them. The choice is made in the composer
-(`AgentModelMenu`) and in setup, remembered per agent.
+tested, and a turn may use any of them. A model may list thinking levels
+(`ModelOption.thinkingLevels`: Antigravity's per model, Codex's
+`supportedReasoningEfforts`, Claude Code's `--effort` levels); a request's level
+is honoured only when its model lists it. Agent, model and level are chosen in
+one composer control (`AgentSetupMenu` in `AgentDelivery.tsx`) and in setup,
+remembered per agent.
 
 Grok Build runs `grok --sandbox <profile> agent --no-leader [--model …] stdio`
 through `acpClient.ts`. Its advertised authentication method uses the CLI's

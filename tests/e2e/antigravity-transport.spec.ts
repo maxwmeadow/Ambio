@@ -2,7 +2,7 @@ import { _electron as electron, expect, test } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { agentMenu, setAgentAccess, skipAgentGuides } from './agentGuides'
+import { agentMenu, agentSetup, setAgentAccess, skipAgentGuides } from './agentGuides'
 
 test('Antigravity uses its reported model route, asks permission and finishes steered work', async () => {
   test.setTimeout(120000)
@@ -53,11 +53,11 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     await page.getByRole('button', { name: /^Message agent/ }).click()
     const panel = page.getByRole('complementary', { name: 'Agent inbox' })
     await agentMenu(panel).choose('antigravity-cli')
-    await panel.getByRole('button', { name: /^Model: / }).click()
-    await panel.getByRole('menuitemradio', { name: 'Gemini Fixture', exact: true }).click()
-    // The thinking level is chosen in the same menu, which stays open for it.
-    await panel.getByRole('menuitemradio', { name: /^Thinking: low$/i }).click()
-    await expect(panel.getByRole('button', { name: /^Model: Gemini Fixture, low thinking$/i })).toBeVisible()
+    const setup = agentSetup(panel)
+    await setup.chooseModel('Gemini Fixture')
+    // The thinking level is chosen in the same control, back on its rows.
+    await setup.chooseThinking('Low')
+    await expect(setup.trigger).toHaveAccessibleName('Agent and model: Antigravity CLI, Gemini Fixture, Low thinking')
     // The ACP connection offers the shared access levels; Ask me sends requests to the conversation.
     expect(await setAgentAccess(panel, 'Antigravity CLI', 'Ask me')).toEqual(['ask', 'full'])
     // The message box says nothing about the connection or its access.
@@ -100,16 +100,14 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     const server = captured().find(item => item.mcpServers)?.mcpServers[0]
     expect(server.env).toEqual([{ name: 'AMBIO_WORKSPACE_ID', value: 'demo' }])
     expect(server.args).toContain('--ambio-host=antigravity-cli')
-    await panel.getByRole('button', { name: /^Model: / }).click()
-    await panel.getByRole('menuitemradio', { name: 'Claude Fixture', exact: true }).click()
+    await setup.chooseModel('Claude Fixture')
     await textbox.fill('Switch the model')
     await panel.getByRole('button', { name: 'Start Antigravity CLI', exact: true }).click()
     await expect(panel.getByRole('alert')).toContainText('Start a new conversation')
     expect(orders).toHaveLength(1)
     expect(captured().some(item => item.transport === 'print')).toBe(false)
     await panel.getByRole('button', { name: 'New conversation', exact: true }).click()
-    await panel.getByRole('button', { name: /^Model: / }).click()
-    await panel.getByRole('menuitemradio', { name: 'Claude Fixture', exact: true }).click()
+    await setup.chooseModel('Claude Fixture')
     await textbox.fill('Use the other model')
     await panel.getByRole('button', { name: 'Start Antigravity CLI', exact: true }).click()
     await expect.poll(() => captured().some(item => item.transport === 'print')).toBe(true)
@@ -117,8 +115,7 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     await expect(panel.locator('.ambio-inbox__transport')).toHaveCount(0)
     // Full access on the ACP connection approves the agent's request without a card.
     await panel.getByRole('button', { name: 'New conversation', exact: true }).click()
-    await panel.getByRole('button', { name: /^Model: / }).click()
-    await panel.getByRole('menuitemradio', { name: 'Gemini Fixture', exact: true }).click()
+    await setup.chooseModel('Gemini Fixture')
     await setAgentAccess(panel, 'Antigravity CLI', 'Full access')
     await textbox.fill('Edit without asking')
     await panel.getByRole('button', { name: 'Start Antigravity CLI', exact: true }).click()

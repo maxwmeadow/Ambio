@@ -5,6 +5,7 @@ import { archdApi } from '../archdEndpoint.ts'
 import { InboxIcon } from './InboxIcon'
 import { rememberDeliveryHost, rememberedDeliveryHost } from '../projectLocalState'
 import { AgentAccessChoices, type AgentAccessChoice } from './AgentAccess'
+import { idSaysMore, modelChoices, modelLabel, thinkingChoices, thinkingLabel, type AgentModelChoice } from './AgentModelMenu'
 
 export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?: string) {
   const [hosts, setHosts] = useState<DeliveryHost[]>([])
@@ -136,7 +137,7 @@ export function deliveryAction(host?: DeliveryHost, hostId = '', watchingHosts: 
   return host.route === 'run' ? `Start ${host.label}` : host.route === 'open' ? `Copy + open ${host.label}` : `Copy for ${host.label}`
 }
 
-export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers = 0, watchingHosts = [], onChange, disabled, rootPath, onManageConnections, chatServices, onSetUpChat, fixed, access, children }: {
+export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers = 0, watchingHosts = [], onChange, disabled, rootPath, onManageConnections, chatServices, onSetUpChat, fixed, access, model, modelDisabled }: {
   hosts: DeliveryHost[]; hostId: string; installedIds: string[]; watchers?: number; watchingHosts?: string[]; onChange: (value: string) => void; disabled: boolean; rootPath: string
   onManageConnections?: () => void
   /** Ambio chat's model services, offered when a conversation can start with one; undefined hides Ambio chat. */
@@ -146,8 +147,9 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
   fixed?: { label: string; guideId: string }
   /** The level the chosen agent's next turn would run at; its guide asks for one while none is chosen. */
   access?: AgentAccessChoice
-  /** Shown joined to the picker's right edge: the model choice. */
-  children?: ReactNode
+  /** The chosen agent's model and thinking level, chosen in the same control. */
+  model?: AgentModelChoice
+  modelDisabled?: boolean
 }) {
   const [seen, setSeen] = useState(seenGuides)
   // The agent whose guide was opened from the menu's info button or the fixed agent's name.
@@ -195,17 +197,10 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
   const [introduced, setIntroduced] = useState<string | null>(null)
   useEffect(() => { if (needsIntroduction) setIntroduced(hostId) }, [needsIntroduction, hostId])
   const introduce = needsIntroduction || introduced === hostId
-  // One pill in the message box's row: the agent with its model joined to it.
+  // One control in the message box's row: the agent, its model and thinking level.
   return <div className="ambio-inbox__agent-picker">
-    <div className="ambio-inbox__agent-group" data-fixed={fixed ? true : undefined}>
-      <span className="ambio-inbox__agent-select">
-        {fixed && <InboxIcon name="agent" size={13} />}
-        {fixed
-          ? <button type="button" className="ambio-inbox__delivery-fixed" id="ambio-delivery-select" title="How this agent works here. Start a new conversation to use another agent." onClick={() => setReading(fixed.guideId)}>{fixed.label}</button>
-          : <AgentMenu label="Work-order destination" value={hostId} groups={groups} disabled={disabled} variant="segment" onChange={choose} onInfo={setReading} />}
-      </span>
-      {children}
-    </div>
+    <AgentSetupMenu value={hostId} groups={groups} disabled={disabled} onChange={choose} onInfo={setReading}
+      fixed={fixed ? { label: fixed.label, onAbout: () => setReading(fixed.guideId) } : undefined} model={model} modelDisabled={modelDisabled} />
     {introduce
       ? <DestinationGuide name={nameOf(hostId)} guideId={guideId} accessHost={accessHostOf(hostId)} picker={guidePicker(hostId, choose)}
         intro={{ ready: !access?.needsChoice, onConfirm: () => { setSeen(markGuideSeen(guideId)); setIntroduced(null) } }} />
@@ -254,25 +249,121 @@ function AgentMenu({ label, value, groups, onChange, onInfo, disabled, variant }
   }}>
     <button type="button" className="ambio-agent-menu__trigger" disabled={disabled} aria-haspopup="menu" aria-expanded={open}
       aria-label={`${label}: ${current?.label ?? 'none'}`} data-value={value} onClick={() => setOpen(!open)}>
-      {variant === 'segment' && <InboxIcon name="agent" size={13} />}
-      {/* In the pill the menu's group already says how it runs, so "CLI" and the like are left off. */}
-      <span>{(variant === 'segment' ? current?.label.replace(/\s+(\(CLI\)|\(IDE\)|CLI|IDE)$/, '') : current?.label) ?? 'Choose an agent'}</span>
+      <span>{current?.label ?? 'Choose an agent'}</span>
       <InboxIcon name="chevron" size={11} />
     </button>
-    {open && <div className="ambio-agent-menu__list" role="menu" aria-label={label}>
-      {groups.filter(group => group.items.length).map((group, index) => <div key={group.label ?? index} role="group" aria-label={group.label}>
-        {group.label && <div className="ambio-agent-menu__heading">{group.label}</div>}
-        {group.items.map(item => <div key={item.value || 'manual'} className="ambio-agent-menu__row">
-          <button type="button" role="menuitemradio" aria-checked={item.value === value} data-value={item.value}
-            disabled={item.disabled} autoFocus={item.value === value} onClick={() => { onChange(item.value); setOpen(false) }}>
-            <strong>{item.label}</strong>
-            {item.detail && <small>{item.detail}</small>}
-            {item.value === value && <InboxIcon name="check" size={13} />}
-          </button>
-          {onInfo && item.info && <button type="button" className="ambio-agent-menu__info" aria-label={`About ${item.label}`} title={`How ${item.label} works here`}
-            onClick={() => { setOpen(false); onInfo(item.value) }}><InboxIcon name="info" size={13} /></button>}
-        </div>)}
+    {open && <AgentChoiceList className="ambio-agent-menu__list" label={label} value={value} groups={groups}
+      onPick={item => { onChange(item); setOpen(false) }} onInfo={onInfo ? item => { setOpen(false); onInfo(item) } : undefined} />}
+  </div>
+}
+
+/** The agents, grouped by how they run, each with its state and its guide's info button. */
+function AgentChoiceList({ className, label, value, groups, onPick, onInfo }: {
+  className: string; label: string; value: string; groups: AgentChoiceGroup[]
+  onPick: (value: string) => void; onInfo?: (value: string) => void
+}) {
+  return <div className={className} role="menu" aria-label={label}>
+    {groups.filter(group => group.items.length).map((group, index) => <div key={group.label ?? index} role="group" aria-label={group.label}>
+      {group.label && <div className="ambio-agent-menu__heading">{group.label}</div>}
+      {group.items.map(item => <div key={item.value || 'manual'} className="ambio-agent-menu__row">
+        <button type="button" role="menuitemradio" aria-checked={item.value === value} data-value={item.value}
+          disabled={item.disabled} autoFocus={item.value === value} onClick={() => onPick(item.value)}>
+          <strong>{item.label}</strong>
+          {item.detail && <small>{item.detail}</small>}
+          {item.value === value && <InboxIcon name="check" size={13} />}
+        </button>
+        {onInfo && item.info && <button type="button" className="ambio-agent-menu__info" aria-label={`About ${item.label}`} title={`How ${item.label} works here`}
+          onClick={() => onInfo(item.value)}><InboxIcon name="info" size={13} /></button>}
       </div>)}
+    </div>)}
+  </div>
+}
+
+/** In the composer the menu's group already says how an agent runs, so "CLI" and the like are left off. */
+const shortAgentName = (label: string) => label.replace(/\s+(\(CLI\)|\(IDE\)|CLI|IDE)$/, '')
+
+/**
+ * The message box's one control for who does the work: the agent, its model
+ * and its thinking level. Closed, it names the model and level (or the agent,
+ * while the model is the agent's own). Open, it lists the three as rows; the
+ * agent and model rows each open their full list in place, with a way back, so
+ * nothing is squeezed whatever the panel's width.
+ */
+function AgentSetupMenu({ value, groups, disabled, onChange, onInfo, fixed, model, modelDisabled }: {
+  value: string; groups: AgentChoiceGroup[]; disabled: boolean
+  onChange: (value: string) => void; onInfo: (value: string) => void
+  /** A conversation keeps its agent: the agent row names it and opens its guide. */
+  fixed?: { label: string; onAbout: () => void }
+  model?: AgentModelChoice; modelDisabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [view, setView] = useState<'main' | 'agents' | 'models'>('main')
+  const anchor = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const outside = (event: PointerEvent) => { if (!anchor.current?.contains(event.target as Node)) setOpen(false) }
+    document.addEventListener('pointerdown', outside)
+    return () => document.removeEventListener('pointerdown', outside)
+  }, [open])
+  const agent = fixed?.label ?? groups.flatMap(group => group.items).find(item => item.value === value)?.label ?? 'Choose an agent'
+  const offersModels = !!model && (model.loading || model.options.length > 0)
+  const chosenModel = model && model.value ? modelLabel(model) : undefined
+  const levels = model ? thinkingChoices(model) : []
+  const thinking = model ? thinkingLabel(model) : undefined
+  const summary = [agent, chosenModel ?? (offersModels ? 'default model' : undefined), thinking && `${thinking} thinking`].filter(Boolean).join(', ')
+  const close = () => { setOpen(false); setView('main') }
+  return <div ref={anchor} className="ambio-agent-setup" onKeyDown={event => {
+    if (event.key !== 'Escape' || !open) return
+    event.preventDefault(); event.stopPropagation(); event.nativeEvent.stopImmediatePropagation()
+    if (view === 'main') close(); else setView('main')
+  }}>
+    <button type="button" className="ambio-agent-setup__trigger" disabled={disabled && !fixed} aria-haspopup="dialog" aria-expanded={open}
+      aria-label={`Agent and model: ${summary}`} title={summary} data-value={value} onClick={() => { if (open) close(); else { setView('main'); setOpen(true) } }}>
+      <InboxIcon name="agent" size={13} />
+      <span className="ambio-agent-setup__primary">{chosenModel ?? shortAgentName(agent)}</span>
+      {thinking && <span className="ambio-agent-setup__secondary">{thinking}</span>}
+      <InboxIcon name="chevron" size={11} />
+    </button>
+    {open && <div className="ambio-agent-setup__panel" role="dialog" aria-label="Agent and model">
+      {view === 'main' && <div className="ambio-agent-setup__rows">
+        {fixed
+          ? <button type="button" className="ambio-agent-setup__row" aria-label={`Agent: ${fixed.label}`} title="How this agent works here. Start a new conversation to use another agent." onClick={() => { close(); fixed.onAbout() }}>
+            <span className="ambio-agent-setup__label">Agent</span>
+            <span className="ambio-agent-setup__value"><strong className="ambio-inbox__delivery-fixed">{fixed.label}</strong><small>Kept for this conversation</small></span>
+            <InboxIcon name="info" size={13} />
+          </button>
+          : <button type="button" className="ambio-agent-setup__row" aria-label={`Agent: ${agent}`} disabled={disabled} onClick={() => setView('agents')}>
+            <span className="ambio-agent-setup__label">Agent</span>
+            <span className="ambio-agent-setup__value"><strong>{agent}</strong></span>
+            <InboxIcon name="chevron" size={12} />
+          </button>}
+        {model && <button type="button" className="ambio-agent-setup__row" aria-label={`Model: ${model.loading ? 'loading' : offersModels ? modelLabel(model) : 'set by the agent'}`}
+          disabled={modelDisabled || !offersModels || model.loading} onClick={() => setView('models')}>
+          <span className="ambio-agent-setup__label">Model</span>
+          <span className="ambio-agent-setup__value"><strong>{model.loading ? 'Loading models…' : offersModels ? modelLabel(model) : 'Set by the agent'}</strong>
+            {!model.loading && !offersModels && <small>This agent chooses its model in its own app</small>}</span>
+          {offersModels && !model.loading && <InboxIcon name="chevron" size={12} />}
+        </button>}
+        {levels.length > 0 && <div className="ambio-agent-setup__thinking" role="group" aria-label="Thinking">
+          <span className="ambio-agent-setup__label">Thinking</span>
+          <div className="ambio-agent-setup__levels">
+            {levels.map(level => <button key={level.id || 'default'} type="button" role="menuitemradio" aria-checked={(model!.thinking ?? '') === level.id} aria-label={`Thinking: ${level.label}`}
+              disabled={modelDisabled} onClick={() => { model!.setThinking?.(level.id); close() }}>{level.label}</button>)}
+          </div>
+        </div>}
+      </div>}
+      {view !== 'main' && <button type="button" className="ambio-agent-setup__back" onClick={() => setView('main')}>
+        <InboxIcon name="chevron" size={12} />{view === 'agents' ? 'Agent' : 'Model'}
+      </button>}
+      {view === 'agents' && <AgentChoiceList className="ambio-agent-menu__list ambio-agent-setup__list" label="Work-order destination" value={value} groups={groups}
+        onPick={item => { onChange(item); setView('main') }} onInfo={item => { close(); onInfo(item) }} />}
+      {view === 'models' && model && <div className="ambio-agent-menu__list ambio-agent-setup__list" role="menu" aria-label="Model">
+        {modelChoices(model).map(option => <button key={option.id || 'default'} type="button" role="menuitemradio" aria-checked={model.value === option.id} aria-label={option.label}
+          autoFocus={model.value === option.id} onClick={() => { model.set(option.id); setView('main') }}>
+          <strong>{option.label}</strong>{option.id && idSaysMore(option) && <small>{option.id}</small>}{!option.id && <small>Whatever the agent is set to use</small>}
+          {model.value === option.id && <InboxIcon name="check" size={13} />}
+        </button>)}
+      </div>}
     </div>}
   </div>
 }

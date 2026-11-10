@@ -18,7 +18,7 @@ import { useCheckoutStore } from '../store/checkoutStore'
 import { conversationWorkplace, focusedCheckout } from './checkoutModel'
 import { CHAT_DELIVERY, WATCHING_DELIVERY, deliveryReadiness, type AgentAccess, type ModelOption } from '../../shared/agentDelivery'
 import { chatModels } from '../../shared/agentChat'
-import { AgentModelMenu, useAgentModel } from './AgentModelMenu'
+import { useAgentModel } from './AgentModelMenu'
 import { useAgentAccess } from './AgentAccess'
 import { decideAgentPermission, refreshAgentPermissions, useAgentPermissionStore, type AgentPermissionRequest, type AgentQuestion } from '../store/agentPermissionStore'
 import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
@@ -479,9 +479,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
         </div><AgentDeliveryDestination hosts={delivery.hosts} hostId={retry.current?.hostId ?? (delivery.hostId.startsWith(`${CHAT_DELIVERY}:`) && !chatProvider ? '' : delivery.hostId)} installedIds={delivery.installedIds} watchers={delivery.watchers} watchingHosts={delivery.watchingHosts} onChange={delivery.setHostId} disabled={locked || !!delivery.busy || inProgress} rootPath={graph.rootPath} onManageConnections={onManageConnections}
           chatServices={current ? undefined : chat.providers.map(provider => ({ id: provider.id, label: chatAgentLabel(provider, provider.model) }))}
           onSetUpChat={() => window.dispatchEvent(new Event(OPEN_MODEL_SERVICES))}
-          fixed={chatCurrent ? { label: chatAgentLabel(chatProvider, chatCurrent.model), guideId: CHAT_DELIVERY } : undefined} access={agentAccess}>
-          <AgentModelMenu model={agentModel} disabled={locked || inProgress} />
-        </AgentDeliveryDestination><span>{retry.current && !sending ? 'Send unconfirmed · retry' : steering && sending ? `${workingLabel} reads it at its next step…` : sending || chat.busy ? 'Sending…' : ''}</span><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }}
+          fixed={chatCurrent ? { label: chatAgentLabel(chatProvider, chatCurrent.model), guideId: CHAT_DELIVERY } : undefined} access={agentAccess}
+          model={agentModel} modelDisabled={locked || inProgress} /><span>{retry.current && !sending ? 'Send unconfirmed · retry' : steering && sending ? `${workingLabel} reads it at its next step…` : sending || chat.busy ? 'Sending…' : ''}</span><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }}
           worktree={worktreeOffered ? { on: delivery.where === 'worktree', onChange: on => delivery.setWhere(on ? 'worktree' : 'here') } : undefined} /></>}{caseTarget && <span>{sendingCase ? 'Sending…' : 'Investigation feedback'}</span>}{inProgress && <button className="ambio-inbox__send ambio-inbox__stop" type="button" aria-label="Stop" title="Stop this request" disabled={chat.busy} onClick={() => { void stopTurn() }}><InboxIcon name="stop" size={15} /></button>}{(!inProgress || caseTarget || steering) && <button className="ambio-inbox__send" type="submit" aria-label={sendLabel} title={retry.current ? 'Retry original message' : sendLabel} disabled={caseTarget ? sendingCase || !caseAvailable || !note.trim() : sending || !!delivery.busy || chat.busy || !(retry.current?.note ?? note).trim() || effectiveSelection.length > 100}><InboxIcon name={retry.current && !sending ? 'retry' : 'send'} size={19} /></button>}</div>
       </form>
       {!caseTarget && effectiveSelection.length > 100 && <small className="ambio-inbox__limit" role="alert">Attach up to 100 canvas items per message.</small>}

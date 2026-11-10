@@ -1,5 +1,5 @@
 import { _electron as electron, expect, test } from '@playwright/test'
-import { agentMenu } from './agentGuides'
+import { agentMenu, agentSetup } from './agentGuides'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -77,9 +77,12 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
     await inbox.getByRole('button', { name: 'Send to Ambio chat' }).click()
     await expect(messages).toContainText('Your UI depends on', { timeout: 30000 })
     await expect(messages).toContainText('Your UI depends on Storage.')
-    // The conversation keeps its agent; the picker gives way to its name.
-    await expect(destination.trigger).toHaveCount(0)
+    // The conversation keeps its agent: the control's Agent row names it instead of listing agents.
+    const setup = agentSetup(inbox)
+    await setup.open()
+    await expect(setup.panel.getByRole('button', { name: /^Agent: / })).toContainText('Kept for this conversation')
     await expect(inbox.locator('.ambio-inbox__delivery-fixed')).toContainText('My local test service')
+    await setup.close()
     await expect(inbox.locator('.ambio-chat__status')).toHaveCount(0)
     await composer.fill('What should we change next?')
     await inbox.getByRole('button', { name: 'Send to Ambio chat' }).click()

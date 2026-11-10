@@ -118,10 +118,11 @@ in the app as "What's New" after updating, so write it for users.
 - Added sticky notes on the Floor and sheets with automatic text saving and shared agent access. Notes nest inside systems through the native placement, collision, packing, compression and resize paths; normal note controls are reduced to double-click editing and keyboard deletion. Concurrent drafts stay protected.
 
 ### Added
-- Choose how hard Claude Code and Codex think: each model's levels sit at the
-  foot of the model menu (Claude Code: Low to Max; Codex: the levels each model
-  offers, starting at its own default), and beside the model when mapping a
-  project, for Antigravity too.
+- The agent, its model and how hard it thinks are one button in the message
+  box. It shows the model and thinking level; open it to change the agent, the
+  model or the level, each in full. Claude Code and Codex now offer thinking
+  levels (Claude Code: Low to Max; Codex: the levels each model offers,
+  starting at its own default), also beside the model when mapping a project.
 - Integrated terminals in an Ambio-styled, resizable right sidebar. Ctrl+` opens
   or hides it on every platform. Run interactive shells in the project folder,
   keep multiple sessions, pick detected shells or locate another executable;

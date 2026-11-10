@@ -354,8 +354,6 @@
 :is(.ambio-guide__confirm, .ambio-guide__close, .ambio-guide__picker select):focus-visible { outline: 2px solid #69a799; outline-offset: 2px; }
 @keyframes ambio-guide-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ambio-guide-backdrop { animation: none; } }
-.ambio-inbox__model .ambio-inbox__model-label { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ambio-inbox__model-menu { width: 300px; max-height: 320px; overflow-y: auto; }
 /* The panel's hover colour is for light buttons; the conversation title sits on the dark header. */
 .ambio-inbox .ambio-inbox__conversation-button:is(:hover, [aria-expanded='true']):not(:disabled) { color: #f4f7f2; }
 .ambio-inbox .ambio-inbox__conversation-menu button[role='menuitemradio']:is(:hover, :focus-visible) { color: var(--inbox-ink); }
@@ -412,27 +410,39 @@
 .ambio-inbox__compose-tools > span:empty { display: none; }
 .ambio-inbox__compose-tools > .ambio-inbox__mode { margin-left: auto; }
 .ambio-inbox__agent-picker { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 auto; }
-/* The agent pill: agent, model and guide as segments of one control, styled like the request type. */
-.ambio-inbox__agent-group { display: flex; align-items: stretch; flex: 0 1 auto; min-width: 0; height: 28px; border: 1px solid #a9b0ac; background: #f7f6f1; }
-.ambio-inbox__agent-group:focus-within { border-color: #3c7d76; }
-.ambio-inbox__agent-select { position: relative; display: flex; align-items: center; flex: 1 1 auto; min-width: 0; }
-.ambio-inbox__agent-select > svg { position: absolute; top: 50%; color: #4f6159; pointer-events: none; }
-.ambio-inbox__agent-select > svg:first-child { left: 8px; transform: translateY(-50%); }
-.ambio-inbox__agent-select > svg:last-child:not(:first-child) { right: 7px; transform: translateY(-50%) rotate(-90deg); }
-.ambio-inbox__agent-select > select { appearance: none; -webkit-appearance: none; width: 100%; min-width: 64px; max-width: 200px; height: 100%; padding: 0 24px 0 27px; border: 0; background: transparent; color: #2b3833; font: 600 11px var(--font-ui, sans-serif); text-overflow: ellipsis; cursor: pointer; }
-.ambio-inbox__agent-select > select:hover:not(:disabled) { background: #dfeae6; }
-.ambio-inbox__agent-select > select:focus-visible { outline: 2px solid #69a799; outline-offset: -2px; }
-.ambio-inbox__agent-select > select:disabled { cursor: default; opacity: .6; }
-.ambio-inbox__agent-select > .ambio-inbox__delivery-fixed { display: flex; align-items: center; max-width: 240px; height: 100%; padding: 0 10px 0 27px; border: 0; background: transparent; font: 600 11px var(--font-ui, sans-serif); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-/* The agent's name gives up space before its model does. */
-.ambio-inbox__agent-group > .ambio-inbox__model { flex: 0 0 auto; }
-.ambio-inbox .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__mode-button { max-width: 100%; height: 100%; border: 0; border-left: 1px solid #cdd3cd; background: transparent; font-weight: 500; color: #3d4f47; }
-.ambio-inbox .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__mode-button:is(:hover, [aria-expanded='true']):not(:disabled) { background: #dfeae6; }
-.ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__model-label { max-width: 120px; }
-.ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__mode-menu { left: 0; right: auto; }
-/* A conversation's fixed agent opens its guide. */
-.ambio-inbox .ambio-inbox__agent-select > button.ambio-inbox__delivery-fixed { color: #2b3833; text-align: left; cursor: pointer; }
-.ambio-inbox .ambio-inbox__agent-select > button.ambio-inbox__delivery-fixed:hover { background: #dfeae6; }
+/* One control for the agent, its model and thinking level. Closed: the model and
+   level (or the agent), sized to its words. Open: labelled rows; the agent and
+   model rows open their full list in place. Scoped to the panel so its button
+   reset (font: inherit; padding: 0) cannot win. */
+.ambio-agent-setup { position: relative; display: flex; flex: 0 1 auto; min-width: 0; }
+.ambio-inbox .ambio-agent-setup__trigger { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; height: 28px; padding: 0 9px; border: 1px solid #a9b0ac; background: #f7f6f1; color: #2b3833; font: 600 12px/1.4 var(--font-ui, sans-serif); text-align: left; cursor: pointer; }
+.ambio-inbox .ambio-agent-setup__trigger:is(:hover, [aria-expanded='true']):not(:disabled) { border-color: #3c7d76; background: #dfeae6; }
+.ambio-inbox .ambio-agent-setup__trigger:focus-visible { outline: 2px solid #69a799; outline-offset: 1px; }
+.ambio-inbox .ambio-agent-setup__trigger:disabled { cursor: default; opacity: .6; }
+.ambio-agent-setup__trigger > svg { flex: none; color: #4f6159; }
+.ambio-agent-setup__trigger > svg:last-child { transform: rotate(-90deg); }
+.ambio-agent-setup__primary { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ambio-agent-setup__secondary { flex: none; color: #5c6b63; font-weight: 500; white-space: nowrap; }
+.ambio-agent-setup__panel { position: absolute; z-index: 30; left: 0; bottom: calc(100% + 8px); width: 320px; max-width: calc(100vw - 32px); padding: 4px; background: #e9e8e0; border: 1px solid #596b60; box-shadow: 4px 4px 0 #182b1e59; }
+.ambio-agent-setup__rows { display: grid; gap: 2px; }
+.ambio-agent-setup__label { color: #5c6b63; font: 700 9px/1.4 var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
+.ambio-inbox .ambio-agent-setup__row { display: grid; grid-template-columns: 62px minmax(0, 1fr) 14px; align-items: center; gap: 8px; width: 100%; padding: 9px 9px; border: 0; background: transparent; color: #27332f; text-align: left; cursor: pointer; }
+.ambio-inbox .ambio-agent-setup__row:hover:not(:disabled), .ambio-inbox .ambio-agent-setup__row:focus-visible { background: #d2ded2; outline: none; }
+.ambio-inbox .ambio-agent-setup__row:disabled { cursor: default; }
+.ambio-agent-setup__row > svg { color: #4f6159; }
+.ambio-agent-setup__value { display: grid; min-width: 0; }
+.ambio-agent-setup__value strong { overflow: hidden; color: #27332f; font: 600 13px/1.35 var(--font-ui, sans-serif); white-space: nowrap; text-overflow: ellipsis; }
+.ambio-agent-setup__value small { color: #5c6b63; font: 11px/1.4 var(--font-ui, sans-serif); }
+.ambio-agent-setup__thinking { display: grid; grid-template-columns: 62px minmax(0, 1fr); align-items: start; gap: 8px; margin-top: 2px; padding: 10px 9px 8px; border-top: 1px solid #c9cbbf; }
+.ambio-agent-setup__thinking > .ambio-agent-setup__label { padding-top: 6px; }
+.ambio-agent-setup__levels { display: flex; flex-wrap: wrap; gap: 4px; }
+.ambio-inbox .ambio-agent-setup__levels button { padding: 5px 10px; border: 1px solid #c3cbc3; background: #f4f3ec; color: #2b3833; font: 500 12px/1.3 var(--font-ui, sans-serif); white-space: nowrap; cursor: pointer; }
+.ambio-inbox .ambio-agent-setup__levels button:hover:not(:disabled), .ambio-inbox .ambio-agent-setup__levels button:focus-visible { border-color: #8ea596; background: #dfeae6; outline: none; }
+.ambio-inbox .ambio-agent-setup__levels button[aria-checked='true'] { border-color: #2f6a5d; background: #dfeae6; color: #1f4a40; font-weight: 600; }
+.ambio-inbox .ambio-agent-setup__back { display: flex; align-items: center; gap: 6px; width: 100%; padding: 7px 9px; border: 0; border-bottom: 1px solid #c9cbbf; background: transparent; color: #2f6a5d; font: 700 9px/1.4 var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.ambio-inbox .ambio-agent-setup__back:hover { background: #d2ded2; }
+.ambio-agent-setup__back > svg { transform: rotate(180deg); }
+.ambio-agent-setup .ambio-agent-setup__list { position: static; width: auto; max-height: min(380px, 55vh); padding: 2px 0 0; border: 0; box-shadow: none; background: transparent; }
 /* The agent menu, in the style of the model and request-type menus. Not scoped
    to the panel: the first-use introduction shows it outside it. */
 .ambio-agent-menu { position: relative; display: flex; min-width: 0; }
@@ -443,7 +453,6 @@
 .ambio-agent-menu__trigger:hover:not(:disabled), .ambio-agent-menu__trigger[aria-expanded='true'] { background: #dfeae6; }
 .ambio-agent-menu__trigger:focus-visible { outline: 2px solid #69a799; outline-offset: -2px; }
 .ambio-agent-menu__trigger:disabled { cursor: default; opacity: .6; }
-.ambio-agent-menu--segment .ambio-agent-menu__trigger { height: 26px; max-width: 220px; }
 .ambio-agent-menu--field { flex: 1; }
 .ambio-agent-menu--field .ambio-agent-menu__trigger { height: 30px; border: 1px solid #a9b8ab; background: #fbfaf5; font-size: 13px; }
 .ambio-agent-menu__list { position: absolute; z-index: 30; left: 0; bottom: calc(100% + 8px); width: 290px; max-height: min(420px, 60vh); overflow-y: auto; padding: 4px; background: #e9e8e0; border: 1px solid #596b60; box-shadow: 4px 4px 0 #182b1e59; }
@@ -466,36 +475,12 @@
 .ambio-agent-menu__list .ambio-agent-menu__info:hover:not(:disabled) { color: #1f4a40; background: #dfeae6; border-color: #2f6a5d; }
 .ambio-agent-menu__list .ambio-agent-menu__info:focus-visible { opacity: 1; outline: 2px solid #69a799; outline-offset: 1px; }
 @media (hover: none) { .ambio-agent-menu__list .ambio-agent-menu__info { opacity: 1; } }
-/* In the pill, the menu is the agent segment. */
-.ambio-inbox__agent-select > .ambio-agent-menu { flex: 1 1 auto; }
-.ambio-inbox .ambio-inbox__model-loading { color: #6b7a72; font-style: italic; cursor: progress; }
-.ambio-inbox .ambio-inbox__model-loading:disabled { opacity: 1; }
-/* The agent pill keeps one shape for every agent: fixed segment widths, one
-   type size, names truncated cleanly. Scoped to the panel so its button reset
-   (font: inherit; padding: 0) cannot win. */
+/* Scoped to the panel so its button reset (font: inherit; padding: 0) cannot win. */
 .ambio-inbox .ambio-agent-menu__trigger { gap: 6px; padding: 0 8px 0 9px; color: #2b3833; font: 600 11px/1 var(--font-ui, sans-serif); }
+.ambio-inbox .ambio-agent-menu__trigger > span { line-height: 1.4; }
 .ambio-inbox .ambio-agent-menu__trigger:hover:not(:disabled), .ambio-inbox .ambio-agent-menu__trigger[aria-expanded='true'] { color: #2b3833; background: #dfeae6; }
-.ambio-inbox .ambio-agent-menu--segment .ambio-agent-menu__trigger { width: 100%; max-width: none; height: 26px; border: 0; background: transparent; }
-.ambio-inbox .ambio-agent-menu--segment .ambio-agent-menu__trigger:is(:hover, [aria-expanded='true']):not(:disabled) { background: #dfeae6; }
 .ambio-inbox .ambio-agent-menu--field .ambio-agent-menu__trigger { height: 30px; border: 1px solid #a9b8ab; background: #fbfaf5; font-size: 13px; }
 .ambio-inbox .ambio-agent-menu__list [role='menuitemradio'] { padding: 6px 9px; }
-.ambio-inbox__agent-select { flex: 0 1 156px; width: 156px; min-width: 96px; }
-.ambio-inbox__agent-select > .ambio-agent-menu { width: 100%; }
-.ambio-inbox__agent-select > .ambio-inbox__delivery-fixed { width: 100%; max-width: none; padding-left: 26px; }
-.ambio-inbox__agent-select > svg:first-child { left: 9px; }
-/* The model segment fits "model · level", so neither is cut off; the agent's name gives way first. */
-.ambio-inbox__agent-group > .ambio-inbox__model { flex: 0 1 auto; width: auto; min-width: 76px; max-width: 260px; }
-.ambio-inbox .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__mode-button { width: 100%; justify-content: space-between; padding: 0 8px 0 9px; font: 600 11px/1 var(--font-ui, sans-serif); color: #2b3833; }
-.ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__model-label { flex: 1 1 auto; min-width: 0; max-width: none; text-align: left; }
-/* The pill's text is set solid (line-height 1), but a label that ellipsizes
-   clips to its line box, which cut the descenders off "Antigravity". */
-.ambio-inbox .ambio-agent-menu__trigger > span, .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__model-label { line-height: 1.4; }
-.ambio-inbox .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__model-none, .ambio-inbox .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__model-loading { color: #7b8a82; font-weight: 500; opacity: 1; cursor: default; }
-/* The model menu opens from the pill's left edge, not the model segment's, so it
-   stays inside the panel with its checkmark and scrollbar in view. */
-.ambio-inbox__agent-group { position: relative; }
-.ambio-inbox__agent-group > .ambio-inbox__model { position: static; }
-.ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__mode-menu { left: -1px; right: auto; width: calc(100% + 2px); min-width: 300px; max-height: min(420px, 60vh); overflow-y: auto; }
 /* Copy sits in the reply's header row, top right, rather than under the reply. */
 .ambio-inbox .ambio-inbox__reply-heading .ambio-inbox__copy-reply { margin: 0 0 0 auto; }
 .ambio-sheet-rail__review-label em { color: var(--rail-muted); font-size: 10.5px; font-style: normal; line-height: 1.25; overflow-wrap: anywhere; }
@@ -644,12 +629,3 @@
 .ambio-sheet-review-panel .ambio-sheet-rail__review-reason { flex-wrap: wrap; margin-top: 10px; }
 .ambio-sheet-review-panel .ambio-sheet-rail__review-reason input { flex-basis: 100%; }
 .ambio-sheet-review-panel button:disabled { opacity: .5; cursor: default; }
-/* A model's thinking level: after the model in the pill, in a quieter ink, and a labelled row of
-   whole-word choices at the menu's foot that wraps rather than cutting a word. */
-.ambio-inbox__model .ambio-inbox__model-thinking { display: inline-flex; flex: 0 0 auto; margin-left: 8px; color: #5c6b63; font-weight: 500; line-height: 1.4; white-space: nowrap; }
-.ambio-inbox__model-levels { position: sticky; bottom: -4px; display: grid; gap: 6px; margin: 4px -4px -4px; padding: 8px 12px 10px; border-top: 1px solid #c9cbbf; background: #e9e8e0; }
-.ambio-inbox__model-levels .ambio-inbox__model-levels-label { color: #5c6b63; font: 700 9px/1.4 var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
-.ambio-inbox__model-levels-choices { display: flex; flex-wrap: wrap; gap: 4px; }
-.ambio-inbox .ambio-inbox__model-levels-choices button { display: block; width: auto; padding: 5px 10px; border: 1px solid #c3cbc3; background: #f4f3ec; color: #2b3833; text-align: center; font: 500 12px/1.3 var(--font-ui, sans-serif); white-space: nowrap; cursor: pointer; }
-.ambio-inbox .ambio-inbox__model-levels-choices button:hover, .ambio-inbox .ambio-inbox__model-levels-choices button:focus-visible { border-color: #8ea596; background: #dfeae6; outline: none; }
-.ambio-inbox .ambio-inbox__model-levels-choices button[aria-checked='true'] { border-color: #2f6a5d; background: #dfeae6; color: #1f4a40; font-weight: 600; }
