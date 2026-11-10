@@ -448,6 +448,7 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 ## Done log
 
 - 2026-11-10 `startup-splash-handoff` Kept the branded splash visible through startup routing to eliminate the dark frame before the project or launcher appears. (`main`)
+- 2026-11-10 `titlebar-underline-full-width` Title bar bottom underline (highlight + border) extends continuously across the top-right corner under the native Windows caption controls; retired passive setup/indexing status indicator from WorkbenchTitleBar. (`codex/remove-field-agent-04`)
 - 2026-11-10 `setup-pill-border-width` Increased connector pill border width from 1px to 5px to make availability colors easier to see. (`codex/remove-field-agent-04`)
 - 2026-11-10 `remove-field-agent-04` Removed Field Agent 04 from project setup and retired `connector-agent-titlebar`. Connector details take space only while open. (`codex/remove-field-agent-04`)
 

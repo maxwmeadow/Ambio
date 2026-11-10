@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import type { ProjectConfig } from '../../shared/types'
-import { blockedReason, describeProgress, readProgress } from '../canvas/architectureProposal'
+import { blockedReason, readProgress } from '../canvas/architectureProposal'
 import { ArchitectureProposalPanel } from '../components/ArchitectureProposalPanel'
 import { ProposalReviewCanvas } from '../components/ProposalReviewCanvas'
 import { ProposalDraftProgress } from '../components/ProposalDraftProgress'
@@ -95,10 +95,7 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
 
   return (
     <main className="ambio-onboarding ambio-project-review">
-      <WorkbenchTitleBar
-        status={proposal ? describeProgress(progress).toUpperCase() : 'LOADING PROPOSAL'}
-        statusTone={proposal ? (progress.settled ? 'ready' : 'busy') : 'busy'}
-      />
+      <WorkbenchTitleBar />
 
       <div className="ambio-review__workspace ambio-review__workspace--proposal">
         <section className="ambio-review__panel ambio-review__panel--proposal" aria-labelledby="review-title">

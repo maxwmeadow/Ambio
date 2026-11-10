@@ -7,6 +7,9 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- The top title bar's underline now extends all the way across to the right edge
+  under the Windows minimize, maximize and close controls without being cut off.
+- Removed the passive setup and indexing status indicator from the top title bar.
 - Field Agent 04 is gone from project setup. Connector details open beside the
   choices on wide screens and below them on narrow screens.
 - Thicker borders make the connector status colors easier to see in project setup.

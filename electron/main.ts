@@ -741,12 +741,14 @@ function createWindow(): void {
     ...(isMac ? {
       trafficLightPosition: { x: 14, y: 10 },
     } : {}),
-    // On Windows: overlay native window controls on top of the custom toolbar
+    // On Windows: overlay native window controls on top of the custom toolbar.
+    // Reserve the bottom 2px for the title bar's underline (highlight + border)
+    // so the native caption overlay does not paint over them on Windows.
     ...(isWin ? {
       titleBarOverlay: {
         color: '#26332f',
         symbolColor: '#f2f1eb',
-        height: 34,
+        height: 32,
       },
     } : {}),
     // The loading screen's paper (src/renderer/index.html), so nothing flashes before it paints.
@@ -2108,10 +2110,12 @@ function setupIPC(): void {
   ipcMain.handle('window:set-title-bar-height', (_event, height: number) => {
     if (mainWindow && !mainWindow.isDestroyed() && process.platform === 'win32') {
       try {
+        // Reserve the bottom 2px for the title bar's underline (highlight + border)
+        // so the native caption overlay does not paint over them on Windows.
         mainWindow.setTitleBarOverlay({
           color: '#26332f',
           symbolColor: '#f2f1eb',
-          height,
+          height: Math.max(0, height - 2),
         })
       } catch {
         // Ignore if unsupported

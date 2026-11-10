@@ -4334,22 +4334,8 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   font-size: 13px;
 }
 
-/* Window controls sit at the far end whether or not a status is shown. */
+/* Keep the window controls at the far edge. */
 .ambio-workbench-titlebar__product { margin-right: auto; }
-
-.ambio-workbench-titlebar__status {
-  margin-left: auto;
-  color: #a9d5c9;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-}
-
-.ambio-workbench-titlebar__status--busy {
-  color: #e0b86f;
-  animation: pulse 1.5s ease-in-out infinite;
-}
 
 .ambio-launcher__body {
   display: grid;
@@ -5332,10 +5318,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 @media (max-width: 560px) {
   .ambio-launcher__titlebar {
     padding-right: 140px;
-  }
-
-  .ambio-workbench-titlebar__status {
-    display: none;
   }
 
   .ambio-launcher__body {

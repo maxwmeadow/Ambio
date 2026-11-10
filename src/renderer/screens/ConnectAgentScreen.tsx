@@ -323,11 +323,7 @@ export function ConnectAgentScreen({
 
   return (
     <div className="ambio-connect">
-      <WorkbenchTitleBar
-        className="ambio-connect__titlebar"
-        status={indexing ? 'INDEXING' : 'AGENT SETUP'}
-        statusTone={indexing ? 'busy' : 'ready'}
-      />
+      <WorkbenchTitleBar className="ambio-connect__titlebar" />
 
       <main className="ambio-connect__card">
         <header className="ambio-connect__header">

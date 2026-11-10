@@ -13,6 +13,11 @@ data flow or a limit named here, update it in the same change.
 while `App` resolves a launch request or decides whether to resume a project.
 The splash hides when the launcher, project setup, or workbench renders.
 
+`WorkbenchTitleBar` supplies the wordmark and application menu for the launcher
+and setup screens. Setup and review show progress in the page itself. On
+Windows, Electron reserves the bottom two pixels of the title bar for the
+underline below the native window controls.
+
 `ProjectSetupScreen` edits the display name in both initial setup and Project
 Settings. Confirmation trims the name and saves it with the source boundaries;
 blank names cannot be submitted. Electron's folder registration reuses a known
