@@ -25,6 +25,27 @@ test('native catalog discovery opens and closes an empty session without prompti
   const session = await inspectAntigravity({ command: process.execPath, args: [fixture] })
   assert.equal(session.models.availableModels.length, 2)
   assert.equal(session.configOptions[0].id, 'model')
+  // Each model's own options, read by switching the empty session to it.
+  assert.deepEqual(Object.keys(session.optionsByModel), ['gemini-fixture', 'plain-fixture'])
+  const options = antigravityOptions([], session)
+  assert.deepEqual(options.find(item => item.id === 'gemini-fixture').thinkingLevels.map(level => level.id), ['low', 'high'])
+  assert.equal(options.find(item => item.id === 'plain-fixture').thinkingLevels, undefined, 'a model without a thinking level offers none')
+})
+
+test('a thinking level belongs to the model it was reported for, never to every model', () => {
+  const twoModels = structuredClone(catalog)
+  twoModels.configOptions[0].options.push({ value: 'plain', name: 'Plain' })
+  // Only the session's current model is known to have levels without a per-model read.
+  const unread = antigravityOptions(print, twoModels)
+  assert.deepEqual(unread.find(item => item.id === 'offered').thinkingLevels.map(level => level.id), ['low', 'high'])
+  assert.equal(unread.find(item => item.id === 'plain').thinkingLevels, undefined)
+  // With it, each model has exactly the levels it reported (agy: Gemini Flash only).
+  const read = antigravityOptions(print, { ...twoModels, optionsByModel: {
+    offered: [twoModels.configOptions[0]],
+    plain: [twoModels.configOptions[0], { id: 'thought_level', category: 'thought_level', options: [{ value: 'max', name: 'Max' }], currentValue: 'max' }],
+  } })
+  assert.equal(read.find(item => item.id === 'offered').thinkingLevels, undefined)
+  assert.deepEqual(read.find(item => item.id === 'plain').thinkingLevels, [{ id: 'max', label: 'Max' }])
 })
 
 test('catalog discovery unifies model variants with thinking controls and retains print-only models', () => {

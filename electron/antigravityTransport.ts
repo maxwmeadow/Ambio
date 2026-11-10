@@ -12,13 +12,21 @@ export function antigravityOptions(print: ModelOption[], session: any): ModelOpt
   const config: any[] = session?.configOptions ?? []
   const choices = (option: any): any[] => (option?.options ?? []).flatMap((item: any) => Array.isArray(item.options) ? item.options : [item])
   const model = config.find(option => option.category === 'model' || option.id === 'model')
-  const thought = config.find(option => option.category === 'thought_level' || option.id === 'thought_level')
-  const thinkingLevels = choices(thought).map(item => ({ id: item.value, label: item.name }))
-  const acp: ModelOption[] = choices(model).map(item => ({
-    id: item.value, label: item.name, transport: 'acp',
-    aliases: legacy.filter(entry => entry.modelId === item.value || thinkingLevels.some(level => entry.modelId === `${item.value}-${level.id}`)).map(entry => entry.modelId),
-    ...(thinkingLevels.length ? { thinkingLevels, defaultThinking: thought.currentValue } : {}),
-  }))
+  const thoughtIn = (options: any[]) => options.find(option => option.category === 'thought_level' || option.id === 'thought_level')
+  // A thinking level belongs to one model. The session reports it for its
+  // current model; the catalog probe reads every model's (optionsByModel).
+  // Without that, only the current model is known to have one.
+  const byModel: Record<string, any[]> | undefined = session?.optionsByModel
+  const thoughtFor = (id: string) => byModel?.[id] ? thoughtIn(byModel[id]) : id === model?.currentValue ? thoughtIn(config) : undefined
+  const acp: ModelOption[] = choices(model).map(item => {
+    const thought = thoughtFor(item.value)
+    const thinkingLevels = choices(thought).map(level => ({ id: level.value, label: level.name }))
+    return {
+      id: item.value, label: item.name, transport: 'acp' as const,
+      aliases: legacy.filter(entry => entry.modelId === item.value || thinkingLevels.some(level => entry.modelId === `${item.value}-${level.id}`)).map(entry => entry.modelId),
+      ...(thinkingLevels.length ? { thinkingLevels, defaultThinking: thought.currentValue } : {}),
+    }
+  })
   for (const entry of legacy) if (!acp.some(item => item.id === entry.modelId || item.aliases?.includes(entry.modelId))) acp.push({ id: entry.modelId, label: entry.name, transport: 'acp' })
   for (const option of acp) option.printIds = print.filter(item => item.id === option.id || option.aliases?.includes(item.id)).map(item => item.id)
   return [...acp, ...print.filter(entry => !acp.some(item => item.id === entry.id || item.aliases?.includes(entry.id))).map(entry => ({ ...entry, transport: 'print' as const }))]
@@ -66,6 +74,13 @@ export function inspectAntigravity(launcher: DriverLauncher, spawnProcess: typeo
       const lines = buffer.split(/\r?\n/); buffer = lines.pop() ?? ''
       for (const line of lines) client.receive(line)
     })
-    child.once('spawn', () => { void client.open().then(async session => { await client.disposeSession(); finish(session) }, () => finish()).catch(() => finish()) })
+    child.once('spawn', () => {
+      void client.open().then(async session => {
+        // Without this, the current model's options would be taken for every model's.
+        const optionsByModel = await client.optionsByModel().catch(() => undefined)
+        await client.disposeSession()
+        finish(session && optionsByModel ? { ...session, optionsByModel } : session)
+      }, () => finish()).catch(() => finish())
+    })
   })
 }

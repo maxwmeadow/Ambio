@@ -2,16 +2,20 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const lines = require('node:readline')
-const capture = value => fs.appendFileSync(process.env.AMBIO_AGY_CAPTURE, JSON.stringify(value) + '\n')
+// The catalog read switches models too, and runs with no capture file in unit tests.
+const capture = value => { if (process.env.AMBIO_AGY_CAPTURE) fs.appendFileSync(process.env.AMBIO_AGY_CAPTURE, JSON.stringify(value) + '\n') }
 const args = process.argv.slice(2)
 if (args.includes('--version')) { console.log('Antigravity CLI 1.5.0'); process.exit(0) }
 if (args.includes('models')) { console.log('gemini-fixture-high\tGemini Fixture High\ngemini-fixture-low\tGemini Fixture Low\nclaude-fixture\tClaude Fixture'); process.exit(0) }
 if (args.includes('-p')) { capture({ transport: 'print', args }); console.log(JSON.stringify({ event: 'init', init: { conversation_id: 'print-session' } })); process.exit(0) }
 if (!args.includes('acp')) throw new Error('Expected native acp command')
 const sessionId = 'acp-session'
-const configOptions = [
-  { id: 'model', category: 'model', options: [{ value: 'gemini-fixture', name: 'Gemini Fixture' }], currentValue: 'gemini-fixture' },
-  { id: 'thought_level', category: 'thought_level', options: [{ value: 'low', name: 'Low' }, { value: 'high', name: 'High' }], currentValue: 'high' },
+// Like agy 1.5.5: the thinking level is an option of the current model only,
+// so it disappears when the session switches to a model without one.
+let currentModel = 'gemini-fixture'
+const optionsFor = value => [
+  { id: 'model', category: 'model', options: [{ value: 'gemini-fixture', name: 'Gemini Fixture' }, { value: 'plain-fixture', name: 'Plain Fixture' }], currentValue: value },
+  ...(value === 'gemini-fixture' ? [{ id: 'thought_level', category: 'thought_level', options: [{ value: 'low', name: 'Low' }, { value: 'high', name: 'High' }], currentValue: 'high' }] : []),
 ]
 const send = message => console.log(JSON.stringify({ jsonrpc: '2.0', ...message }))
 const update = update => send({ method: 'session/update', params: { sessionId, update } })
@@ -25,12 +29,14 @@ reader.on('line', line => {
   if (method === 'initialize') return send({ id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { resume: {} } } } })
   if (method === 'session/new' || method === 'session/resume') {
     if (params.mcpServers.length) capture({ transport: 'acp', resumed: method === 'session/resume', mcpServers: params.mcpServers, cwd: params.cwd })
-    return send({ id, result: { sessionId, configOptions, models: { availableModels: [{ modelId: 'gemini-fixture-high', name: 'Gemini Fixture High' }, { modelId: 'gemini-fixture-low', name: 'Gemini Fixture Low' }] }, modes: { currentModeId: 'default', availableModes: [{ id: 'default', name: 'Default' }, { id: 'plan', name: 'Plan' }] } } })
+    currentModel = 'gemini-fixture'
+    return send({ id, result: { sessionId, configOptions: optionsFor(currentModel), models: { availableModels: [{ modelId: 'gemini-fixture-high', name: 'Gemini Fixture High' }, { modelId: 'gemini-fixture-low', name: 'Gemini Fixture Low' }] }, modes: { currentModeId: 'default', availableModes: [{ id: 'default', name: 'Default' }, { id: 'plan', name: 'Plan' }] } } })
   }
   if (method === 'session/close') return send({ id, result: {} })
   if (method === 'session/set_config_option') {
     capture({ configId: params.configId, value: params.value })
-    return send({ id, result: { configOptions } })
+    if (params.configId === 'model') currentModel = params.value
+    return send({ id, result: { configOptions: optionsFor(currentModel) } })
   }
   if (method === 'session/set_mode') return send({ id, result: {} })
   if (method === 'session/prompt') {

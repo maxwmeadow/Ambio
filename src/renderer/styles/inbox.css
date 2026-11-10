@@ -337,7 +337,9 @@
 .ambio-guide__body li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; }
 .ambio-guide__body li > span { display: grid; place-items: center; width: 22px; height: 22px; color: #f4f8f0; background: #2f6a5d; border-radius: 50%; font: 700 11px var(--font-mono, monospace); }
 .ambio-guide__body ul li > span { color: #2f6a5d; background: #d6e6db; }
-.ambio-guide-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 24px; background: #0f1d1599; backdrop-filter: blur(3px); animation: ambio-guide-in .18s ease-out; }
+/* no-drag: the guide covers the toolbar, a window drag region, and on Windows a
+   click there moves the window instead of reaching the guide (its close button). */
+.ambio-guide-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 24px; background: #0f1d1599; backdrop-filter: blur(3px); animation: ambio-guide-in .18s ease-out; -webkit-app-region: no-drag; }
 .ambio-guide--intro { width: min(580px, 100%); max-height: calc(100vh - 48px); overflow: auto; box-shadow: 10px 10px 0 #0b161066; font-size: 14px; }
 .ambio-guide--intro .ambio-guide__header { padding: 22px 24px 20px; }
 .ambio-guide--intro .ambio-guide__header h2 { font-size: 24px; }
@@ -484,6 +486,9 @@
 .ambio-inbox__agent-group > .ambio-inbox__model { flex: 0 1 128px; width: 128px; min-width: 76px; }
 .ambio-inbox .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__mode-button { width: 100%; justify-content: space-between; padding: 0 8px 0 9px; font: 600 11px/1 var(--font-ui, sans-serif); color: #2b3833; }
 .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__model-label { flex: 1 1 auto; min-width: 0; max-width: none; text-align: left; }
+/* The pill's text is set solid (line-height 1), but a label that ellipsizes
+   clips to its line box, which cut the descenders off "Antigravity". */
+.ambio-inbox .ambio-agent-menu__trigger > span, .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__model-label { line-height: 1.4; }
 .ambio-inbox .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__model-none, .ambio-inbox .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__model-loading { color: #7b8a82; font-weight: 500; opacity: 1; cursor: default; }
 /* The model menu opens from the pill's left edge, not the model segment's, so it
    stays inside the panel with its checkmark and scrollbar in view. */

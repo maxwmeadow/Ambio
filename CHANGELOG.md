@@ -193,6 +193,13 @@ in the app as "What's New" after updating, so write it for users.
   Django migration headers, `@generated`) are no longer drawn on the map.
 
 ### Fixed
+- Antigravity offers a thinking level only for models that have one (today
+  Gemini 3.8 Flash). Before, every Antigravity model showed Gemini's levels.
+- The agent guide's close button works again on Windows, where the toolbar
+  behind it took the click to move the window.
+- The agent's name in the message box is no longer cut off at the bottom
+  ("Antigravity"), and a model's ID shows under its name only when it says
+  something the name doesn't.
 - Investigations cost your agent less. It now debugs in three steps (run the
   repro with its suspicion, fix, run again and conclude) instead of about
   eight, and a run's report stays short even when it watches a whole file.

@@ -143,6 +143,18 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await page.keyboard.press('Escape')
     await expect(guide).toBeHidden()
     await expect(inbox).toBeVisible()
+    // Once every agent it shows has a level, the guide closes from its corner too,
+    // also after reading about another agent in it.
+    await destination.open()
+    await destination.menu.getByRole('button', { name: 'About Codex CLI' }).click()
+    await guide.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(guide).toBeHidden()
+    await destination.open()
+    await destination.menu.getByRole('button', { name: 'About Codex CLI' }).click()
+    await agentMenu(guide, 'Agent to read about').choose('claude-code')
+    await claudeGuide.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(claudeGuide).toBeHidden()
+    await expect(inbox).toBeVisible()
     for (const [host, label] of [['claude-code', 'Claude Code CLI'], ['codex', 'Codex CLI'], ['grok', 'Grok Build CLI'], ['muse', 'Muse Code CLI'], ['copilot-cli', 'GitHub Copilot CLI']]) {
       await destination.choose(host)
       if (['grok', 'muse', 'copilot-cli'].includes(host)) await confirm()

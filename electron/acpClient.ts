@@ -382,6 +382,25 @@ export class AcpClient {
     return session
   }
 
+  /**
+   * Each model's own options, read by switching the empty session to it: an
+   * agent reports options such as the thinking level for its current model
+   * only (agy 1.5.5 offers one for Gemini Flash and none for its Claude or
+   * GPT-OSS models). Sends no prompt.
+   */
+  async optionsByModel(): Promise<Record<string, any[]>> {
+    const options: any[] = this.configuration?.configOptions ?? []
+    const model = options.find(option => option.category === 'model' || option.id === 'model')
+    if (!model || !this.sessionId) return {}
+    const values = (model.options ?? []).flatMap((item: any) => Array.isArray(item.options) ? item.options : [item]).map((item: any) => item.value)
+    const byModel: Record<string, any[]> = {}
+    for (const value of values) {
+      const result = await this.request('session/set_config_option', { sessionId: this.sessionId, configId: model.id, value })
+      if (Array.isArray(result?.configOptions)) byModel[value] = result.configOptions
+    }
+    return byModel
+  }
+
   /** A catalog probe creates no turn and explicitly closes its empty session. */
   async disposeSession(): Promise<void> {
     if (this.sessionId && !this.closed) await this.request('session/close', { sessionId: this.sessionId })

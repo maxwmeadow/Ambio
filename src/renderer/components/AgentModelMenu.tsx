@@ -84,6 +84,12 @@ export function useAgentModel({ key, hostId, chatOptions, current, context = '',
   }
 }
 
+/** A model's ID is worth a line only when it says more than its name ("GPT-6.1 Terra" is `gpt-6.1-terra`). */
+const idSaysMore = (option: ModelOption) => {
+  const letters = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '')
+  return letters(option.id) !== letters(option.label)
+}
+
 /**
  * The model button beside the request type, opening the agent's models. A model
  * with thinking levels shows its level on the button and as a row at the foot of
@@ -123,7 +129,7 @@ export function AgentModelMenu({ model, disabled }: { model: AgentModelChoice; d
     {open && <div className="ambio-inbox__mode-menu ambio-inbox__model-menu" role="menu" aria-label="Model">
       {choices.map(option => <button key={option.id || 'default'} type="button" role="menuitemradio" aria-checked={model.value === option.id} aria-label={option.label}
         autoFocus={model.value === option.id} onClick={() => { model.set(option.id); if (!option.thinkingLevels?.length) setOpen(false) }}>
-        <strong>{option.label}</strong>{option.id && option.id.toLowerCase() !== option.label.toLowerCase() && <small>{option.id}</small>}{!option.id && <small>Whatever the agent is set to use</small>}
+        <strong>{option.label}</strong>{option.id && idSaysMore(option) && <small>{option.id}</small>}{!option.id && <small>Whatever the agent is set to use</small>}
         {model.value === option.id && <InboxIcon name="check" size={13} />}
       </button>)}
       {levels.length > 0 && <div className="ambio-inbox__model-levels" role="group" aria-label="Thinking">
