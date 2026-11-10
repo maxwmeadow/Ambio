@@ -1,8 +1,12 @@
 # Investigations benchmark
 
-Status: design, 2026-11-10. Nothing here has been run. Tracked as
-`investigation-benchmark` in [WORK.md](../WORK.md); it is the investigations
-slice of `mcp-eval-harness`.
+Status: **future plan**, 2026-11-10. There is no budget for scored runs yet,
+so nothing here has been run and the benchmark is parked
+(`investigation-benchmark` in [WORK.md](../WORK.md), the investigations slice of
+`mcp-eval-harness`). Until then, work goes into making investigations
+stronger, checked the low-cost way described in
+[Before there is a budget](#before-there-is-a-budget). This document is the
+plan to pick up when there is money for API runs.
 
 ## The claim under test
 
@@ -231,6 +235,32 @@ machine is more practical than a laptop. Model choice and budget are Max's
 6. **Publish.** Methodology, task lists, seeds, every transcript and the
    per-task results, so anyone can check them; and submit to leaderboards that
    accept tool-augmented agents (SWE-bench-Live has a leaderboard).
+
+## Before there is a budget
+
+The scored benchmark needs API money; learning what helps does not. Until it
+is funded:
+
+- **Unscored runs on a subscription.** Headless Claude Code (`claude -p`, JSON
+  output includes token usage) and Codex CLI run on the user's plan, not on API
+  billing. A handful of tasks (mini_nightmare and a few SWE-bench-Live bug
+  fixes, cloned and run locally without the Docker harness) with and without
+  Ambio, one run each, gives transcripts to read: where the agent guessed,
+  where an investigation would have settled it, where it ignored the tool, and
+  where a report was too long. These are anecdotes, never a published number.
+- **Ambio's own fixtures.** Every new investigation capability gets a small
+  local bug it must help with (a shared object changed between calls, a double
+  subscription, a race), added next to the existing investigation fixtures, so
+  regressions show without any agent at all.
+- **Token budgets per report.** The run report is already capped at 8 KB;
+  every new op gets its own cap and a test that holds it, since the token claim
+  depends on it.
+- **Build the parts that cost nothing to keep.** The headless runtime
+  (`investigation-bench-runtime`) also makes investigations work in Linux
+  containers and CI, which users need regardless.
+
+When money is available, phase 1 below starts from these transcripts and
+fixtures rather than from zero.
 
 ## What we would be able to say
 
