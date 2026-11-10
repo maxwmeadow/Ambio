@@ -32,7 +32,7 @@ export async function setAgentAccess(scope: Locator, label: string, level: strin
 
 /**
  * The agent menu (message box, guide, first-use introduction), driven like a
- * person would. In the message box it is the Agent row of the one agent and
+ * person would. In the message box it is the Client row of the one client and
  * model control (agentSetup); in a guide it is its own field.
  */
 export function agentMenu(scope: Locator, label = 'Work-order destination') {
@@ -43,8 +43,8 @@ export function agentMenu(scope: Locator, label = 'Work-order destination') {
   const open = async () => {
     if (await menu.isVisible()) return
     if (!composer) { await trigger.click(); return }
-    await setup.open()
-    await setup.panel.getByRole('button', { name: /^Agent: / }).click()
+    await setup.showRows()
+    await setup.panel.getByRole('button', { name: /^Client: / }).click()
   }
   return {
     trigger,
@@ -61,28 +61,31 @@ export function agentMenu(scope: Locator, label = 'Work-order destination') {
 }
 
 /**
- * The message box's one control for the agent, its model and thinking level.
- * Its name reads "Agent and model: <agent>, <model>, <level> thinking".
+ * The message box's one control for the client, its model and thinking level.
+ * Its name reads "Client and model: <client>, <model>, <level> thinking". Every
+ * choice keeps it open where it was made.
  */
 export function agentSetup(scope: Locator) {
-  const trigger = scope.getByRole('button', { name: /^Agent and model:/ })
-  const panel = scope.getByRole('dialog', { name: 'Agent and model' })
+  const trigger = scope.getByRole('button', { name: /^Client and model:/ })
+  const panel = scope.getByRole('dialog', { name: 'Client and model' })
   const open = async () => { if (!(await panel.isVisible())) await trigger.click() }
   const models = scope.getByRole('menu', { name: 'Model' })
+  const back = panel.locator('.ambio-agent-setup__back')
+  /** Open, on its Client, Model and Thinking rows. */
+  const showRows = async () => { await open(); if (await back.isVisible()) await back.click() }
+  const openModels = async () => { if (await models.isVisible()) return; await showRows(); await panel.getByRole('button', { name: /^Model: / }).click() }
   return {
     trigger,
     panel,
     open,
+    showRows,
     close: async () => { if (await panel.isVisible()) await trigger.click() },
     models,
     /** Open the model list (from the control's Model row). */
-    openModels: async () => { if (await models.isVisible()) return; await open(); await panel.getByRole('button', { name: /^Model: / }).click() },
-    /** Choose a model by its label; the control comes back to its rows, open. */
-    chooseModel: async (label: string) => {
-      if (!(await models.isVisible())) { await open(); await panel.getByRole('button', { name: /^Model: / }).click() }
-      await models.getByRole('menuitemradio', { name: label, exact: true }).click()
-    },
-    /** Choose a thinking level by its label; the control closes. */
-    chooseThinking: async (label: string) => { await open(); await panel.getByRole('menuitemradio', { name: `Thinking: ${label}`, exact: true }).click() },
+    openModels,
+    /** Choose a model by its label; the list stays open with it checked. */
+    chooseModel: async (label: string) => { await openModels(); await models.getByRole('menuitemradio', { name: label, exact: true }).click() },
+    /** Choose a thinking level by its label; the rows stay open with it checked. */
+    chooseThinking: async (label: string) => { await showRows(); await panel.getByRole('menuitemradio', { name: `Thinking: ${label}`, exact: true }).click() },
   }
 }

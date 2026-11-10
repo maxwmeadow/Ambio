@@ -80,7 +80,7 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
     // The conversation keeps its agent: the control's Agent row names it instead of listing agents.
     const setup = agentSetup(inbox)
     await setup.open()
-    await expect(setup.panel.getByRole('button', { name: /^Agent: / })).toContainText('Kept for this conversation')
+    await expect(setup.panel.getByRole('button', { name: /^Client: / })).toContainText('Kept for this conversation')
     await expect(inbox.locator('.ambio-inbox__delivery-fixed')).toContainText('My local test service')
     await setup.close()
     await expect(inbox.locator('.ambio-chat__status')).toHaveCount(0)

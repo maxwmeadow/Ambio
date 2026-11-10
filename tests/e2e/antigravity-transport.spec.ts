@@ -57,7 +57,7 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     await setup.chooseModel('Gemini Fixture')
     // The thinking level is chosen in the same control, back on its rows.
     await setup.chooseThinking('Low')
-    await expect(setup.trigger).toHaveAccessibleName('Agent and model: Antigravity CLI, Gemini Fixture, Low thinking')
+    await expect(setup.trigger).toHaveAccessibleName('Client and model: Antigravity CLI, Gemini Fixture, Low thinking')
     // The ACP connection offers the shared access levels; Ask me sends requests to the conversation.
     expect(await setAgentAccess(panel, 'Antigravity CLI', 'Ask me')).toEqual(['ask', 'full'])
     // The message box says nothing about the connection or its access.

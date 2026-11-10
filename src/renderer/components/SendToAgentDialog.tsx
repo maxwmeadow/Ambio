@@ -477,7 +477,9 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           <button type="button" className="ambio-inbox__icon" disabled={locked} aria-label="Attach context" aria-haspopup="dialog" aria-expanded={pickerOpen} title="Attach a sheet (@)" onClick={() => setPickerOpen(!pickerOpen)}><InboxIcon name="attach" size={19} /></button>
           {pickerOpen && <InboxSheetPicker sheets={sheet.sheets} attachedId={effectiveSheetId} onClose={dismissPicker} onSelect={id => { attachSheet(id); dismissPicker() }} />}
         </div><AgentDeliveryDestination hosts={delivery.hosts} hostId={retry.current?.hostId ?? (delivery.hostId.startsWith(`${CHAT_DELIVERY}:`) && !chatProvider ? '' : delivery.hostId)} installedIds={delivery.installedIds} watchers={delivery.watchers} watchingHosts={delivery.watchingHosts} onChange={delivery.setHostId} disabled={locked || !!delivery.busy || inProgress} rootPath={graph.rootPath} onManageConnections={onManageConnections}
-          chatServices={current ? undefined : chat.providers.map(provider => ({ id: provider.id, label: chatAgentLabel(provider, provider.model) }))}
+          chatServices={chat.providers.map(provider => ({ id: provider.id, label: chatAgentLabel(provider, provider.model) }))}
+          // A conversation under way keeps its client; Ambio chat is still offered, as a new conversation.
+          onNewConversation={current ? () => { setCaseTarget(null); setThreadId(null); setError(null) } : undefined}
           onSetUpChat={() => window.dispatchEvent(new Event(OPEN_MODEL_SERVICES))}
           fixed={chatCurrent ? { label: chatAgentLabel(chatProvider, chatCurrent.model), guideId: CHAT_DELIVERY } : undefined} access={agentAccess}
           model={agentModel} modelDisabled={locked || inProgress} /><span>{retry.current && !sending ? 'Send unconfirmed · retry' : steering && sending ? `${workingLabel} reads it at its next step…` : sending || chat.busy ? 'Sending…' : ''}</span><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }}

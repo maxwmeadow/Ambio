@@ -55,10 +55,11 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     // A model's reasoning efforts come from Codex's own list; the choice rides on the turn.
     const setup = agentSetup(inbox)
     await setup.chooseModel('Fixture model')
+    await setup.showRows()
     await expect(setup.panel.getByRole('menuitemradio', { name: 'Thinking: Medium' })).toHaveAttribute('aria-checked', 'true')
     await page.screenshot({ path: 'test-results/agent-setup-codex.png' })
     await setup.chooseThinking('High')
-    await expect(setup.trigger).toHaveAccessibleName('Agent and model: Codex CLI, Fixture model, High thinking')
+    await expect(setup.trigger).toHaveAccessibleName('Client and model: Codex CLI, Fixture model, High thinking')
     const composer = inbox.getByRole('textbox', { name: 'Instruction for your agent' })
     const send = inbox.locator('form').getByRole('button', { name: 'Start Codex CLI', exact: true })
     setMode('hold')

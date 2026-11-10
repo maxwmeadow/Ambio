@@ -173,14 +173,19 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
         expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(panelBox.x + panelBox.width)
         await page.screenshot({ path: 'test-results/model-menu.png' })
         await setup.chooseModel('Opus')
-        // Back on the control's rows: Opus has Claude Code's levels, and none is chosen yet.
+        // Choosing keeps the list open, the new model checked.
+        await expect(setup.models.getByRole('menuitemradio', { name: 'Opus', exact: true })).toHaveAttribute('aria-checked', 'true')
+        await setup.showRows()
+        // On the control's rows: Opus has Claude Code's levels, and none is chosen yet.
         await expect(setup.panel.getByRole('menuitemradio', { name: /^Thinking: / })).toHaveCount(6)
         await expect(setup.panel.getByRole('menuitemradio', { name: 'Thinking: Default' })).toHaveAttribute('aria-checked', 'true')
-        await expect(setup.trigger).toHaveAccessibleName('Agent and model: Claude Code CLI, Opus, Default thinking')
+        await expect(setup.trigger).toHaveAccessibleName('Client and model: Claude Code CLI, Opus, Default thinking')
         await page.screenshot({ path: 'test-results/agent-setup-claude.png' })
         await setup.chooseThinking('Extra high')
-        await expect(setup.panel).toBeHidden()
-        await expect(setup.trigger).toHaveAccessibleName('Agent and model: Claude Code CLI, Opus, Extra high thinking')
+        // So does choosing a level.
+        await expect(setup.panel.getByRole('menuitemradio', { name: 'Thinking: Extra high' })).toHaveAttribute('aria-checked', 'true')
+        await expect(setup.trigger).toHaveAccessibleName('Client and model: Claude Code CLI, Opus, Extra high thinking')
+        await setup.close()
         await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-claude.png' })
       }
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill(`Handle only the ${host} fixture.`)
@@ -217,6 +222,10 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     }
     // The nonzero process exit leaves one saved work order, with output and handoff.
     expect(orders).toHaveLength(5)
+    // A conversation under way still lists Ambio chat; choosing it would start a new conversation.
+    await destination.open()
+    await expect(destination.menu.getByRole('group', { name: 'Built into Ambio' })).toBeVisible()
+    await destination.close()
     // Earlier turns whose runs ended unanswered were withdrawn when the next message went.
     await expect(inbox.locator('.ambio-inbox__turn-status[data-state="stopped"]')).toHaveText(['Cancelled', 'Cancelled', 'Cancelled', 'Cancelled'])
     await expect(inbox.getByRole('button', { name: 'Show output' })).toHaveCount(1)
