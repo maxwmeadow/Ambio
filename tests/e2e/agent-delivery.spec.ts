@@ -177,7 +177,9 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
         await page.screenshot({ path: 'test-results/model-menu.png' })
         await inbox.getByRole('menuitemradio', { name: 'Opus' }).click()
         // Its effort levels are chosen in the same menu; none is chosen for it.
-        await expect(inbox.getByRole('menuitemradio', { name: /^Thinking: / })).toHaveCount(5)
+        await expect(inbox.getByRole('menuitemradio', { name: /^Thinking: / })).toHaveCount(6)
+        await expect(inbox.getByRole('menuitemradio', { name: 'Thinking: Default' })).toHaveAttribute('aria-checked', 'true')
+        await expect(inbox.getByRole('button', { name: 'Model: Opus, Default thinking' })).toBeVisible()
         await inbox.getByRole('menuitemradio', { name: 'Thinking: Extra high' }).click()
         await expect(inbox.getByRole('button', { name: 'Model: Opus, Extra high thinking' })).toBeVisible()
         await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-claude.png' })
