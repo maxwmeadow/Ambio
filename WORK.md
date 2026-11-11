@@ -264,6 +264,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `composer-attachments` Phases 2 to 4 of message attachments (phase 1, by path, is done). 2: send images natively where the agent takes them: Codex App Server `localImage`; ACP agents whose `promptCapabilities.image` is true (and `resource_link`/embedded resources for files); Claude Code stream-json image blocks after testing the reported Windows crash; Ambio chat models with vision. 3: a `/` command menu with Ambio's own commands and the agent's (ACP `available_commands_update`, Codex skills, Claude Code commands and skills). 4: serve attachments through get_inbox for agents in other apps (images as MCP image content) and name them in the copied handoff. The other direction too: agents attaching images (screenshots) to replies. (2026-11-11)
 - ⬜ `metadata-watcher-test-windows` `TestMetadataWatcherIgnoresAStatusInALinkedWorktree` (archd-go/internal/gitworktree) fails every run on Max's Windows machine on main at 91e315a: a status in a linked worktree is taken for a Git metadata change. (2026-11-10)
 - ⬜ `e2e-preexisting-failures` On main at b299fe6 these e2e tests fail: canvas.spec "Delete on a sheet proposes removing live code", canvas.spec "the editor shows where you are...", and both sheet-authoring "keeps the layout after reopening" cases. Found while checking the toolbar change; not caused by it. (2026-11-10)
 - ⬜ `branch-chip-crowding` At ~1400px the toolbar's branch chip squeezes the branch name to "m…" beside "+1 worktree" and "1 shared". Needs Max's call since the toolbar is reference look. (2026-11-10)
@@ -452,6 +453,7 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 
 ## Done log
 
+- 2026-11-11 `composer-attachments` (phase 1) Message box attaches long pasted text, pasted screenshots, and files and folders (drop, paste, Files…/Folder…) as `ambio://path` references; pasted ones are kept in app data; get_inbox gives their path and pasted text in full; archd accepts them. (`main`)
 - 2026-11-11 `agent-log-retired` Agent Log panel removed. MCP actions now record input/result, op-aware summaries with system names and nested targets; Message agent shows outside agents' calls as steps in the turns they took and as lines for work in no conversation, with Show on map. (`main`)
 - 2026-11-11 `floor-containment-shrinks` A system that grows inside a settled parent (files assigned by an agent) no longer breaks out: the parent keeps its size and compresses its contents around its first child, innermost first, and saved layouts that already broke out repair when drawn. Found on team-netjets, where five systems overflowed after one agent session. (`main`)
 - 2026-11-10 `agent-steps-readable` Turn steps redrawn for every agent: no status dots, pills or "done"; one line per step with its verb and target said once; Ambio/MCP calls named and expandable to input and answer (Claude Code, Codex, ACP now record them); failed tools stay steps; thinking in full contrast; Details box sessions and map changes as sentences. (`main`)

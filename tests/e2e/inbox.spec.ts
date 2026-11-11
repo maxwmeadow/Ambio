@@ -1,5 +1,8 @@
 import { _electron as electron, expect, test } from '@playwright/test'
 import { skipAgentGuides } from './agentGuides'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 test('canvas inbox attaches selection, retries a lost response, and restores the reply after reload', async () => {
   const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
@@ -235,5 +238,69 @@ test('the attach picker adds systems and files as context, and the Unsorted wind
     expect(Math.abs((window!.x + window!.width) - (bins!.x + bins!.width))).toBeLessThan(2)
     expect(window!.y + window!.height).toBeLessThanOrEqual(bins!.y)
     expect(bins!.y - (window!.y + window!.height)).toBeLessThan(20)
+  } finally { await app.close() }
+})
+
+test('long pasted text, a pasted screenshot and files from this computer attach and go with the message by path', async () => {
+  const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
+  const appData = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-attach-appdata-'))
+  const picked = path.join(appData, 'design-notes.md')
+  fs.writeFileSync(picked, '# Notes')
+  const app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1' } })
+  try {
+    // Kept files go to a scratch folder, not the real app data.
+    await app.evaluate(({ app }, folder) => app.setPath('userData', folder), appData)
+    const page = await app.firstWindow()
+    await skipAgentGuides(page)
+    await page.setViewportSize({ width: 1400, height: 900 })
+    const sends: any[] = []
+    await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
+      const url = new URL(route.request().url())
+      let body: unknown = url.pathname === '/api/canvas/history' ? { messages: [], nextCursor: '' } : url.pathname === '/api/agent/presence' ? { connections: [] } : []
+      if (url.pathname === '/api/canvas/send') { const sent = route.request().postDataJSON(); sends.push(sent); body = { ...sent, status: 'queued', createdAt: Date.now() } }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+    })
+    await page.reload()
+    await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject?.name)).toBe('Ambio Canvas Fixture')
+    await page.getByRole('button', { name: /^Message agent/ }).click()
+    const panel = page.getByRole('complementary', { name: 'Agent inbox' })
+    const box = panel.getByRole('textbox', { name: 'Instruction for your agent' })
+    const chips = panel.locator('.ambio-inbox__compose .ambio-inbox__targets button')
+
+    // A long block of text attaches instead of filling the box; a short one is typed in.
+    const log = Array.from({ length: 30 }, (_, i) => `at frame ${i} (renderer.ts:${i + 10})`).join('\n')
+    const paste = (text: string | null, image?: boolean) => box.evaluate((element, { text, image }) => {
+      const data = new DataTransfer()
+      if (text) data.setData('text/plain', text)
+      if (image) data.items.add(new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'image.png', { type: 'image/png' }))
+      element.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
+    }, { text, image })
+    await box.fill('Why does this crash?')
+    await paste(log)
+    await expect(chips.filter({ hasText: 'Pasted text, 30 lines' })).toHaveCount(1)
+    await expect(box).toHaveValue('Why does this crash?')
+
+    // A screenshot on the clipboard is saved and attached.
+    await paste(null, true)
+    await expect(chips.filter({ hasText: /^Pasted image/ })).toHaveCount(1)
+
+    // Files from this computer, through the system dialog.
+    await app.evaluate(({ dialog }, file) => { (dialog as any).showOpenDialog = async () => ({ canceled: false, filePaths: [file] }) }, picked)
+    await panel.getByRole('button', { name: 'Attach context' }).click()
+    await panel.getByRole('dialog', { name: 'Attach context' }).getByRole('button', { name: 'Files…' }).click()
+    await expect(chips.filter({ hasText: 'design-notes.md' })).toHaveCount(1)
+    await page.screenshot({ path: 'test-results/attachments-from-computer.png' })
+
+    // Sent, they travel as path references; the pasted text and image are files Ambio kept.
+    await panel.getByRole('button', { name: 'Send to inbox', exact: true }).click()
+    await expect.poll(() => sends.length).toBe(1)
+    const refs: string[] = JSON.parse(sends[0].selection)
+    const paths = refs.filter(ref => ref.startsWith('ambio://path/')).map(ref => decodeURIComponent(/^ambio:\/\/path\/([^?]*)/.exec(ref)![1]))
+    expect(paths).toHaveLength(3)
+    expect(paths).toContain(picked)
+    const pasted = paths.find(item => item.endsWith('.txt'))!
+    expect(pasted.startsWith(path.join(appData))).toBe(true)
+    expect(fs.readFileSync(pasted, 'utf8')).toBe(log)
+    expect(fs.existsSync(paths.find(item => item.endsWith('.png'))!)).toBe(true)
   } finally { await app.close() }
 })

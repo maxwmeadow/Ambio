@@ -34,6 +34,7 @@ import type { ProjectConfig, WsMessage } from '../src/shared/types'
 import { completeSourceBoundaries, mergePersistedProjectConfig } from '../src/shared/projectLifecycle'
 import { buildHosts, detectHosts, inspectHostConfiguration, installFamily } from './agentInstallers'
 import { CLI_CLIENTS, RUN_NEEDS_INSTALL, SHARED_APP_CLIENTS, installerHostId, isAgentAccess } from '../src/shared/agentDelivery'
+import { attachmentsDirectory, describePaths, saveAttachment } from './attachments'
 import { discoverAppClients } from './agentClientDiscovery'
 import { readExecutableOverrides, setExecutableOverride, clearExecutableOverride } from './agentExecutableOverrides'
 import { removeLegacyServer, uninstallAll, uninstallHost } from './agentUninstall'
@@ -1219,6 +1220,28 @@ function setupIPC(): void {
   })
 
   // A folder or file dropped on the window.
+  // What a message brings from outside the map (src/shared/attachments.ts):
+  // pasted text and images are saved first; files and folders are described
+  // where they are.
+  ipcMain.handle('attachments:save', (_event, workspaceId: string, input: { kind: 'text'; text: string } | { kind: 'image'; bytes: Uint8Array; type: string; name?: string }) => {
+    if (typeof workspaceId !== 'string' || !workspaceId || !input || (input.kind !== 'text' && input.kind !== 'image')) throw new Error('Nothing to attach.')
+    if (input.kind === 'text' && typeof input.text !== 'string') throw new Error('Nothing to attach.')
+    if (input.kind === 'image' && !(input.bytes instanceof Uint8Array)) throw new Error('Nothing to attach.')
+    return saveAttachment(attachmentsDirectory(app.getPath('userData'), workspaceId), input)
+  })
+  ipcMain.handle('attachments:describe', (_event, paths: string[]) => describePaths(Array.isArray(paths) ? paths : []))
+  ipcMain.handle('attachments:pick', async (_event, kind: 'files' | 'folder') => {
+    const result = await dialog.showOpenDialog(mainWindow!, kind === 'folder'
+      ? { title: 'Attach a folder', properties: ['openDirectory'] }
+      : { title: 'Attach files', properties: ['openFile', 'multiSelections'] })
+    return result.canceled ? [] : describePaths(result.filePaths)
+  })
+  ipcMain.handle('attachments:open', async (_event, target: string) => {
+    if (typeof target !== 'string' || !target || !fs.existsSync(target)) throw new Error('This attachment is no longer on this computer.')
+    const failure = await shell.openPath(target)
+    if (failure) throw new Error(failure)
+  })
+
   ipcMain.handle('app:open-path', (_event, path: string) => {
     if (typeof path !== 'string' || !path) return
     void handleLaunchRequest({ kind: 'path', path }, 'drop')

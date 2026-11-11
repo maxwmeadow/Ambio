@@ -7,6 +7,9 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Attach files, folders and screenshots to a message: drop them on the message
+  box, paste them, or choose Files… or Folder… under Attach context. Pasting a
+  long block of text attaches it instead of filling the box.
 - Attach context in Message agent finds systems, infrastructure, files and
   functions as well as sheets, and is shorter on words.
 - Unsorted and Documents open right above their buttons, also when the agent or

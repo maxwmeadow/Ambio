@@ -1,6 +1,6 @@
 import { Chevron } from './ui/Chevron'
 
-type IconName = 'close' | 'attach' | 'send' | 'sheet' | 'canvas' | 'chevron' | 'check' | 'copy' | 'help' | 'search' | 'agent' | 'retry' | 'plus' | 'info' | 'stop' | 'code' | 'system' | 'infra' | 'file' | 'symbol'
+type IconName = 'close' | 'attach' | 'send' | 'sheet' | 'canvas' | 'chevron' | 'check' | 'copy' | 'help' | 'search' | 'agent' | 'retry' | 'plus' | 'info' | 'stop' | 'code' | 'system' | 'infra' | 'file' | 'symbol' | 'folder' | 'image' | 'text'
 
 const paths: Record<Exclude<IconName, 'chevron'>, React.ReactNode> = {
   close: <path d="m6 6 12 12M18 6 6 18" />,
@@ -21,6 +21,9 @@ const paths: Record<Exclude<IconName, 'chevron'>, React.ReactNode> = {
   system: <path d="M3 6h7l2 2h9v11H3z" />,
   infra: <><ellipse cx="12" cy="6" rx="7" ry="3" /><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3" /></>,
   file: <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4" /></>,
+  folder: <path d="M3 6h7l2 2h9v11H3z" />,
+  image: <><rect x="3" y="4" width="18" height="16" rx="1.5" /><circle cx="9" cy="10" r="1.8" /><path d="m3 18 5-5 4 4 3-3 6 6" /></>,
+  text: <path d="M5 5h14M5 9h14M5 13h14M5 17h9" />,
   symbol: <path d="M9 4c-3 0-2 4-3 6-.4.8-1 1.5-2 2 1 .5 1.6 1.2 2 2 1 2 0 6 3 6M15 4c3 0 2 4 3 6 .4.8 1 1.5 2 2-1 .5-1.6 1.2-2 2-1 2 0 6-3 6" />,
 }
 

@@ -29,13 +29,15 @@ const ICONS: Partial<Record<SearchResult['kind'], React.ComponentProps<typeof In
  * Attach context to the next message: a sheet, or any system, infrastructure,
  * file, function or class, found the way Find in project finds them.
  */
-export function InboxSheetPicker({ sheets, attachedId, attachedRefs, onSelect, onAttach, onClose }: {
+export function InboxSheetPicker({ sheets, attachedId, attachedRefs, onSelect, onAttach, onFromComputer, onClose }: {
   sheets: Sheet[]
   attachedId: string | null
   /** References already going with the message, so they show as attached. */
   attachedRefs: readonly string[]
   onSelect: (sheetId: string) => void
   onAttach: (reference: string) => void
+  /** Files or a folder from this computer, chosen in the system dialog. */
+  onFromComputer?: (kind: 'files' | 'folder') => void
   onClose: () => void
 }) {
   const [query, setQuery] = useState('')
@@ -101,5 +103,10 @@ export function InboxSheetPicker({ sheets, attachedId, attachedRefs, onSelect, o
       </React.Fragment>)}
       {!matches.length && <p className="ambio-inbox__picker-empty">{query.trim() ? 'Nothing matches.' : 'Nothing to attach yet.'}</p>}
     </div>
+    {onFromComputer && <div className="ambio-inbox__picker-computer">
+      <span>From this computer</span>
+      <button type="button" onClick={() => onFromComputer('files')}><InboxIcon name="file" size={13} />Files…</button>
+      <button type="button" onClick={() => onFromComputer('folder')}><InboxIcon name="folder" size={13} />Folder…</button>
+    </div>}
   </div>
 }

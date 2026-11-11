@@ -4,6 +4,7 @@ import type { AppSettings } from '../src/shared/appSettings'
 import type { CommandId, SystemRole } from '../src/shared/appMenu'
 import type { TerminalBridge, TerminalEvent, TerminalStart } from '../src/shared/terminal'
 import type { DeliveryEvent, DeliveryHost, DeliveryRequest, DeliveryResult, DeliveryRun, ModelOption } from '../src/shared/agentDelivery'
+import type { Attachment } from '../src/shared/attachments'
 import type { ConnectionTestResult } from './agentConnectionTest'
 
 export type { ConnectionCheck, ConnectionTestResult } from './agentConnectionTest'
@@ -212,6 +213,11 @@ contextBridge.exposeInMainWorld('ambio', {
   openPath: (path: string): Promise<void> => ipcRenderer.invoke('app:open-path', path),
   /** The filesystem path of a dropped File (Electron no longer puts it on File). */
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
+  saveAttachment: (workspaceId: string, input: { kind: 'text'; text: string } | { kind: 'image'; bytes: Uint8Array; type: string; name?: string }): Promise<Attachment> =>
+    ipcRenderer.invoke('attachments:save', workspaceId, input),
+  describeAttachments: (paths: string[]): Promise<Attachment[]> => ipcRenderer.invoke('attachments:describe', paths),
+  pickAttachments: (kind: 'files' | 'folder'): Promise<Attachment[]> => ipcRenderer.invoke('attachments:pick', kind),
+  openAttachment: (path: string): Promise<void> => ipcRenderer.invoke('attachments:open', path),
   installCli: (): Promise<{ ok: boolean; path?: string; manual?: string; detail: string }> => ipcRenderer.invoke('cli:install'),
   takeWhatsNew: (): Promise<{ version: string; notes: string } | null> => ipcRenderer.invoke('app:take-whats-new'),
   whatsNew: (): Promise<{ version: string; notes: string } | null> => ipcRenderer.invoke('app:whats-new'),
@@ -453,6 +459,10 @@ declare global {
       onOpenRequest: (callback: () => void) => () => void
       openPath: (path: string) => Promise<void>
       pathForFile: (file: File) => string
+      saveAttachment: (workspaceId: string, input: { kind: 'text'; text: string } | { kind: 'image'; bytes: Uint8Array; type: string; name?: string }) => Promise<Attachment>
+      describeAttachments: (paths: string[]) => Promise<Attachment[]>
+      pickAttachments: (kind: 'files' | 'folder') => Promise<Attachment[]>
+      openAttachment: (path: string) => Promise<void>
       installCli: () => Promise<{ ok: boolean; path?: string; manual?: string; detail: string }>
       takeWhatsNew: () => Promise<{ version: string; notes: string } | null>
       whatsNew: () => Promise<{ version: string; notes: string } | null>

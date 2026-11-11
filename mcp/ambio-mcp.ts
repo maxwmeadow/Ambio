@@ -16,6 +16,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { join } from 'path'
 import { homedir } from 'os'
+import { attachmentTarget } from './inboxTargets.ts'
 import { actionDetail as recordedDetail, actionKind, actionNameIds, actionSummary, actionTargets } from './agentAction.ts'
 import { routeTool } from './toolRouting.ts'
 import { LOOP_PROMPTS, loopPromptText } from './prompts.ts'
@@ -3068,6 +3069,10 @@ Steps to execute:
               let references: unknown
               try { references = JSON.parse(item.selection || '[]') } catch { references = [] }
               const targets = (Array.isArray(references) ? references.filter(ref => typeof ref === 'string') : []).map(reference => {
+                // Something from outside the map: a file, folder or image to read
+                // at its path, or pasted text, given here in full.
+                const outside = attachmentTarget(reference)
+                if (outside) return outside
                 // lines: the part of a file the person attached ("12-20"); read the file there.
                 try { const url = new URL(reference); const lines = url.searchParams.get('lines'); return { reference, type: url.host, id: decodeURIComponent(url.pathname.slice(1)), label: url.searchParams.get('label'), ...(lines ? { lines } : {}) } }
                 catch { return { reference } }
@@ -3077,7 +3082,7 @@ Steps to execute:
               })).toString('base64url') }
             }),
             note: data.messages.length
-              ? 'conversation, when present, is what was already asked and answered in this conversation, oldest first; act on this request in that light. Read any review feedback if this work order was reopened. Submit with reply_to_canvas(messageHandle, body, result) for user review; result may include changedFiles, checks, commit and remaining gaps. Read attached context using get_inbox(messageHandle, contextOffset: 0). For substantial work, call start_work with this messageHandle and pass its returned sessionId to update_work. For sheet work, read edit_sheet(compare) for current nesting/relationship differences; implement and verify, then resolve with the latest revision/token when equivalent. Unapproved proposals are discussion context only. Recheck this exact messageId before the lease expires to renew it. Reading and claiming do not authorize work beyond the instruction.'
+              ? 'conversation, when present, is what was already asked and answered in this conversation, oldest first; act on this request in that light. targets of type path are things the person attached from this computer: read each file, folder or image at its path (they may be outside the project); pasted text is given in full as text. Read any review feedback if this work order was reopened. Submit with reply_to_canvas(messageHandle, body, result) for user review; result may include changedFiles, checks, commit and remaining gaps. Read attached context using get_inbox(messageHandle, contextOffset: 0). For substantial work, call start_work with this messageHandle and pass its returned sessionId to update_work. For sheet work, read edit_sheet(compare) for current nesting/relationship differences; implement and verify, then resolve with the latest revision/token when equivalent. Unapproved proposals are discussion context only. Recheck this exact messageId before the lease expires to renew it. Reading and claiming do not authorize work beyond the instruction.'
               : watching
                 ? 'No request arrived yet. Call get_inbox with watch: true again to keep watching, and stop when the user tells you to.'
                 : 'No open instructions. Addressed work requires the messageId from the user handoff.',

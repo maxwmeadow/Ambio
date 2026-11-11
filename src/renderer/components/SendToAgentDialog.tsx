@@ -27,6 +27,7 @@ import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
 import { ChatTranscript, chatAgentLabel, chatThreadId, OPEN_MODEL_SERVICES, useAgentChat } from './AgentChatPanel'
 import { conversationKey, useConversationPreferences } from '../store/conversationPreferences'
 import { ConversationMenu, type ConversationEntry } from './ConversationMenu'
+import { attachesPaste, attachmentOf, attachmentReference, type Attachment } from '../../shared/attachments'
 import '../styles/inbox.css'
 
 export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResize }: { isOpen: boolean; onClose: () => void; onManageConnections?: () => void; onResize: (width: number) => void }) {
@@ -85,6 +86,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   }, [isOpen, graph.workspaceId, requestedConversation])
   const [mode, setMode] = useState<WorkOrderMode>('build')
   const [pickerOpen, setPickerOpen] = useState(false)
+  // Files being dragged over the message box.
+  const [dropping, setDropping] = useState(false)
   const [unseen, setUnseen] = useState(false)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
   const [excluded, setExcluded] = useState<string[]>([])
@@ -311,9 +314,47 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
     setExcluded(current => [...current, ref])
     setAttachedCode(current => current.filter(item => item !== ref))
   }
-  const chips = (refs: string[], editable = false) => refs.length > 0 && <div className="ambio-inbox__targets">{refs.map(ref => <button type="button" key={ref} disabled={editable && locked} onClick={() => editable ? removeFromMessage(ref) : focus(ref)} title={editable ? `Remove ${referenceTarget(ref).label} from message` : referenceLines(ref) ? 'Open these lines' : 'Show on canvas'}>
-    <InboxIcon name={referenceLines(ref) ? 'code' : 'canvas'} size={12} /><span>{referenceTarget(ref).label}</span>{editable && !locked && <InboxIcon name="close" size={11} />}
-  </button>)}</div>
+  // Things from outside the map go with the message as references, like code
+  // (src/shared/attachments.ts).
+  const attachOutside = (items: Attachment[]) => {
+    if (!items.length) return
+    const refs = items.map(attachmentReference)
+    setExcluded(current => current.filter(item => !refs.includes(item)))
+    setAttachedCode(current => [...new Set([...current, ...refs])])
+  }
+  const attachFailed = (cause: unknown) => setError(`Could not attach that. ${cause instanceof Error ? cause.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(cause)}`)
+  // Dropped or pasted files: those on disk by their path, a pasted screenshot saved first.
+  const attachTransfer = async (files: File[]) => {
+    const onDisk: string[] = [], images: File[] = []
+    for (const file of files) {
+      const path = window.ambio.pathForFile(file)
+      if (path) onDisk.push(path)
+      else if (file.type.startsWith('image/')) images.push(file)
+    }
+    const attached = await window.ambio.describeAttachments(onDisk)
+    for (const image of images) {
+      attached.push(await window.ambio.saveAttachment(graph.workspaceId, {
+        kind: 'image', bytes: new Uint8Array(await image.arrayBuffer()), type: image.type,
+        // A screenshot from the clipboard arrives as "image.png"; that name says nothing.
+        ...(image.name && image.name !== 'image.png' ? { name: image.name } : {}),
+      }))
+    }
+    attachOutside(attached)
+  }
+  const fromComputer = (kind: 'files' | 'folder') => {
+    dismissPicker()
+    void window.ambio.pickAttachments(kind).then(attachOutside, attachFailed)
+  }
+  const chips = (refs: string[], editable = false) => refs.length > 0 && <div className="ambio-inbox__targets">{refs.map(ref => {
+    const outside = attachmentOf(ref)
+    const label = outside?.label ?? referenceTarget(ref).label
+    const icon = outside ? (outside.kind === 'folder' ? 'folder' : outside.kind === 'image' ? 'image' : outside.kind === 'text' ? 'text' : 'file') : referenceLines(ref) ? 'code' : 'canvas'
+    const open = () => outside ? void window.ambio.openAttachment(outside.path).catch(cause => setError(cause instanceof Error ? cause.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(cause))) : focus(ref)
+    return <button type="button" key={ref} data-kind={outside?.kind} disabled={editable && locked} onClick={() => editable ? removeFromMessage(ref) : open()}
+      title={editable ? `Remove ${label} from message${outside ? ` (${outside.path})` : ''}` : outside ? `Open ${outside.path}` : referenceLines(ref) ? 'Open these lines' : 'Show on canvas'}>
+      <InboxIcon name={icon} size={12} /><span>{label}</span>{editable && !locked && <InboxIcon name="close" size={11} />}
+    </button>
+  })}</div>
   const copy = (text: string, id: string) => { void navigator.clipboard.writeText(text).then(() => setCopied(id), () => setError('Clipboard unavailable. Select the visible work order ID and tell your agent to call get_inbox with that messageId.')) }
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -485,7 +526,16 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       {!caseTarget && (readiness => readiness.tone === 'ready' || readiness.tone === 'neutral' ? null : <DeliveryReadiness onFix={onManageConnections} readiness={readiness} />)(deliveryReadiness({ hostId: retry.current?.hostId ?? delivery.hostId, hosts: delivery.hosts, installedIds: delivery.installedIds, configuredIds: delivery.configuredIds, watchers: delivery.watchers, watchingHosts: delivery.watchingHosts,
         chat: toChat ? { service: chatProvider?.name ?? 'this service', auth: chatProvider?.auth, keyMissing: !!chatProvider && !chatProvider.hasKey && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(chatProvider.baseUrl) } : undefined }))}
       {!caseTarget && effectiveSheetId && attachedSheet && <SheetComparison key={effectiveSheetId} workspaceId={graph.workspaceId} sheetId={effectiveSheetId} />}
-      <form className="ambio-inbox__compose" onSubmit={submit}>
+      <form className="ambio-inbox__compose" onSubmit={submit} data-dropping={dropping || undefined}
+        // Files and folders dropped on the message box go with the message.
+        onDragOver={event => { if (caseTarget || locked || !event.dataTransfer.types.includes('Files')) return; event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDropping(true) }}
+        onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropping(false) }}
+        onDrop={event => {
+          setDropping(false)
+          if (caseTarget || locked || !event.dataTransfer.files.length) return
+          event.preventDefault()
+          void attachTransfer([...event.dataTransfer.files]).catch(attachFailed)
+        }}>
         {delivery.notice && <p className="ambio-inbox__notice" role="status">{delivery.notice}</p>}
         {caseTarget && <div className="ambio-inbox__case-context" aria-label="Investigation reply target">
           <span><strong title={caseTarget.name}>{caseTarget.name}</strong><small>{caseAvailable ? 'Reply to the investigating agent, arrives with its next step' : 'Investigation ended or changed, your draft is kept'}</small></span>
@@ -496,7 +546,19 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           {effectiveSheetId && <div className="ambio-inbox__attachment" title={attachedSheet ? `${attachedSheet.name}, revision ${attachedSheet.revision}, snapshot and structural comparison included` : 'This sheet is no longer available'}><span className="ambio-inbox__sheet-icon"><InboxIcon name="sheet" size={16} /></span><span><strong>{attachedSheet?.name ?? 'Sheet unavailable'}</strong><small>{attachedSheet?.resolvedAt ? 'Resolved sheet' : attachedSheet ? 'Sheet' : 'Remove attachment'}</small></span><button className="ambio-inbox__icon" type="button" disabled={locked} aria-label="Remove attached sheet" onClick={() => attachSheet(null)}><InboxIcon name="close" size={13} /></button></div>}
           {chips(effectiveSelection, true)}
         </div>}
-        <textarea ref={textarea} id="ambio-inbox-note" aria-label="Instruction for your agent" value={inProgress && !steering && !caseTarget ? '' : retry.current?.note ?? note} disabled={locked || (caseTarget ? !caseAvailable : inProgress && !steering)} onChange={event => setNote(event.target.value)} maxLength={16000} rows={2} placeholder={caseTarget ? (caseAvailable ? 'A question, correction or hint for this investigation…' : 'Your draft is preserved. Return to conversation to continue.') : steering ? `Send a correction while ${workingLabel} works…` : inProgress ? (workingLabel ? `${workingLabel} is working on your request…` : 'Waiting for your agent to pick up your request…') : shown.length || chat.snapshot?.messages.length ? 'Reply, or ask for the next step…' : 'Describe a change or ask a question…'} onKeyDown={event => {
+        <textarea ref={textarea} id="ambio-inbox-note" aria-label="Instruction for your agent" value={inProgress && !steering && !caseTarget ? '' : retry.current?.note ?? note} disabled={locked || (caseTarget ? !caseAvailable : inProgress && !steering)} onChange={event => setNote(event.target.value)}
+          // A pasted screenshot or copied files attach; so does a long block of
+          // text, which would otherwise bury what the person is asking.
+          onPaste={event => {
+            if (caseTarget) return
+            const files = [...event.clipboardData.files]
+            if (files.length) { event.preventDefault(); void attachTransfer(files).catch(attachFailed); return }
+            const text = event.clipboardData.getData('text/plain')
+            if (!text || !attachesPaste(text)) return
+            event.preventDefault()
+            void window.ambio.saveAttachment(graph.workspaceId, { kind: 'text', text }).then(item => attachOutside([item]), attachFailed)
+          }}
+          maxLength={16000} rows={2} placeholder={caseTarget ? (caseAvailable ? 'A question, correction or hint for this investigation…' : 'Your draft is preserved. Return to conversation to continue.') : steering ? `Send a correction while ${workingLabel} works…` : inProgress ? (workingLabel ? `${workingLabel} is working on your request…` : 'Waiting for your agent to pick up your request…') : shown.length || chat.snapshot?.messages.length ? 'Reply, or ask for the next step…' : 'Describe a change or ask a question…'} onKeyDown={event => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return
           if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit() }
           if (!caseTarget && event.key === '@' && (event.currentTarget.selectionStart === 0 || /\s/.test(note[event.currentTarget.selectionStart - 1]))) { event.preventDefault(); setPickerOpen(true) }
@@ -505,7 +567,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
         <div className={`ambio-inbox__compose-tools${caseTarget ? ' ambio-inbox__compose-tools--case' : ''}`}>{!caseTarget && <><div ref={attachmentArea} className="ambio-inbox__attach-anchor">
           <button type="button" className="ambio-inbox__icon" disabled={locked} aria-label="Attach context" aria-haspopup="dialog" aria-expanded={pickerOpen} title="Attach a sheet, system, file or function (@)" onClick={() => setPickerOpen(!pickerOpen)}><InboxIcon name="attach" size={19} /></button>
           {pickerOpen && <InboxSheetPicker sheets={sheet.sheets} attachedId={effectiveSheetId} attachedRefs={outgoing} onClose={dismissPicker} onSelect={id => { attachSheet(id); dismissPicker() }}
-            onAttach={reference => { setExcluded(current => current.filter(item => item !== reference)); setAttachedCode(current => [...new Set([...current, reference])]); dismissPicker() }} />}
+            onAttach={reference => { setExcluded(current => current.filter(item => item !== reference)); setAttachedCode(current => [...new Set([...current, reference])]); dismissPicker() }}
+            onFromComputer={fromComputer} />}
         </div><AgentDeliveryDestination hosts={delivery.hosts} hostId={retry.current?.hostId ?? (delivery.hostId.startsWith(`${CHAT_DELIVERY}:`) && !chatProvider ? '' : delivery.hostId)} installedIds={delivery.installedIds} watchers={delivery.watchers} watchingHosts={delivery.watchingHosts} onChange={delivery.setHostId} disabled={locked || !!delivery.busy || inProgress} rootPath={graph.rootPath} onManageConnections={onManageConnections}
           chatServices={chat.providers.map(provider => ({ id: provider.id, label: chatAgentLabel(provider, provider.model) }))}
           // A conversation under way keeps its client; Ambio chat is still offered, as a new conversation.

@@ -661,3 +661,11 @@
 .ambio-outside__line strong { color: #26332e; font-weight: 600; }
 .ambio-outside__line small { color: #5f6f67; font: 10.5px var(--font-ui, sans-serif); white-space: nowrap; }
 .ambio-outside__turn { margin: 0 6px 6px; }
+
+/* Attaching from this computer, under the picker's results. */
+.ambio-inbox__picker-computer { display: flex; align-items: center; gap: 6px; padding: 6px 9px; border-top: 1px solid #aeb9ad; background: #e3e2d9; }
+.ambio-inbox__picker-computer > span { flex: 1; color: #586e60; font: 700 8px var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
+.ambio-inbox .ambio-inbox__picker-computer button { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border: 1px solid #a8b4aa; background: #f4f3ec; color: #2f453c; font: 600 11px var(--font-ui, sans-serif); }
+.ambio-inbox .ambio-inbox__picker-computer button:hover { border-color: #3c7d76; background: #fbfaf5; }
+/* Files dragged over the message box. */
+.ambio-inbox__compose[data-dropping] { outline: 2px dashed #3c7d76; outline-offset: -4px; background: #eef3ee; }

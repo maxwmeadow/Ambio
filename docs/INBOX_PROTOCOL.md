@@ -17,7 +17,10 @@ attach their original context and approved build specification. Selecting nothin
 a project instruction. Drafts and uncertain sends are saved per workspace.
 
 Sheets can now be selected explicitly with **Attach context** (the paperclip, or
-`@`), independently of the active canvas. The same picker attaches any system,
+`@`), independently of the active canvas. Below its results, **Files…** and
+**Folder…** attach from this computer. Files and folders can also be dropped on the
+message box; a pasted screenshot or copied files attach, and pasted text of 20 lines
+or 1,500 characters or more attaches instead of filling the box. The same picker attaches any system,
 infrastructure, file, or function or class (as its file and lines), found as
 Find in project finds them; each goes with the message like a canvas selection. The attachment includes a structural comparison snapshot. See
 [SHEET_WORKFLOW.md](SHEET_WORKFLOW.md) for comparison, implementation and checked resolution.
@@ -390,6 +393,13 @@ every requirement. Reopening does not stop an external agent already editing fil
   work. A check cannot include a `messageId` or `messageHandle`.
 - Responses include `protocolVersion`, explicit workspace identity/root, selected targets
   (type, ID, original label), claim expiry, and an opaque `messageHandle`.
+- A target of type `path` is something the person attached from their computer
+  (`src/shared/attachments.ts`): `kind` is `file`, `folder`, `image` or `text`, with its
+  `path` to read. Pasted text also arrives in full as `text` (up to 200,000 characters),
+  and `missing: true` marks one no longer on disk. Files and folders are attached where
+  they are; pasted text and pasted images are kept in Ambio's app-data folder
+  (`attachments/<workspace>`), not in `~/.ambio`, which agents must not read. archd
+  accepts `ambio://path/...` references in a selection without a map lookup.
 - `get_inbox({messageHandle, contextOffset: 0})` fetches original context in pages of at most
   12,000 Unicode characters. Continue from `nextOffset`; `-1` means complete. Fetching
   context does not claim another instruction. The handle must still own the message.

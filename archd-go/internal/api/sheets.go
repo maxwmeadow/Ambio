@@ -1336,6 +1336,16 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "selection requires canonical ambio references", 400)
 			return
 		}
+		// Something from outside the map (src/shared/attachments.ts): a file,
+		// folder, image or pasted text on this computer, which the agent reads
+		// at its path. It names no map node, so there is nothing to look up.
+		if u.Host == "path" {
+			if strings.TrimPrefix(u.Path, "/") == "" {
+				jsonError(w, "an attachment needs its path", 400)
+				return
+			}
+			continue
+		}
 		table := ""
 		switch u.Host {
 		case "file":

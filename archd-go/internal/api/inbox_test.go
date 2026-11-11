@@ -461,6 +461,7 @@ func TestInboxRejectsInvalidBodiesAndForeignTargets(t *testing.T) {
 		{"workspaceId": "ws", "note": "valid", "selection": "{}"},
 		{"workspaceId": "ws", "note": "valid", "selection": "null"},
 		{"workspaceId": "ws", "note": "valid", "selection": "[\"ambio://file/foreign\"]"},
+		{"workspaceId": "ws", "note": "valid", "selection": "[\"ambio://path/?kind=file\"]"},
 		{"workspaceId": "ws", "note": "valid", "status": "answered"},
 		{"workspaceId": "ws", "note": "valid", "deliveryMode": "addressed"},
 		{"workspaceId": "ws", "note": "valid", "deliveryMode": "unknown"},
@@ -470,6 +471,18 @@ func TestInboxRejectsInvalidBodiesAndForeignTargets(t *testing.T) {
 		if r.Code < 400 || r.Code >= 500 {
 			t.Fatal(r.Code, r.Body.String())
 		}
+	}
+}
+
+func TestInboxAcceptsAttachmentsFromOutsideTheMap(t *testing.T) {
+	_, mux, _ := inboxServer(t)
+	selection := `["ambio://path/C%3A%5CUsers%5Cme%5Cnotes.txt?label=notes.txt&kind=text","ambio://path/%2Fhome%2Fme%2Fshot.png?label=shot.png&kind=image"]`
+	r := inboxHTTP(t, mux, "POST", "/api/canvas/send", map[string]any{"id": "with-attachments", "workspaceId": "ws", "note": "Look at these", "selection": selection})
+	if r.Code != 200 {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	if !strings.Contains(r.Body.String(), "notes.txt") {
+		t.Fatal("the message lost its attachments", r.Body.String())
 	}
 }
 
