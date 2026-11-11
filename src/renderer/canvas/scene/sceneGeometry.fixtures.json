@@ -587,11 +587,11 @@
               "width": 620,
               "height": 420,
               "scale": 1,
-              "interiorScale": 1
+              "interiorScale": 0.8523809523809524
             },
             "depth": 0,
             "worldScale": 1,
-            "contentScale": 1
+            "contentScale": 0.8523809523809524
           },
           {
             "id": "orphan",
@@ -614,20 +614,23 @@
             "nodeType": "system",
             "parentId": "a",
             "geometry": {
-              "x": 40,
-              "y": 50,
+              "x": 46.92737430167598,
+              "y": 58.659217877094974,
               "width": 620,
               "height": 420,
               "scale": 1,
               "interiorScale": 1
             },
             "depth": 1,
-            "worldScale": 1,
-            "contentScale": 1
+            "worldScale": 0.8523809523809524,
+            "contentScale": 0.8523809523809524
           }
         ],
         "generated": [],
-        "resized": [],
+        "resized": [
+          "a",
+          "b"
+        ],
         "placements": []
       }
     }

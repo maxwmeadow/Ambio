@@ -257,6 +257,14 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - A frame's own geometry, chrome, and presentation scale are never expressed in
   terms of its `interiorScale`, so compressing an interior cannot disturb the
   frame itself or anything outside it.
+- Containment shrinks inward; it never grows outward (Max, 2026-11-11). When a
+  saved frame's children no longer fit (one grew because files were assigned
+  to it), the frame keeps its size and position and compresses its interior
+  until they do. The shrink is anchored at its children's top-left, so the
+  first child stays where it was, clear of the title, and the arrangement is
+  unchanged. Only the frame that received new children may grow (or compress,
+  hemmed in by neighbours); frames above it never move. A saved layout with a
+  child sticking out is repaired the same way when it is next drawn.
 - Child positions and sizes convert through the parent's **content** scale;
   the parent's own box converts through its own world scale.
 - Every layout write replaces a whole row, so `interiorScale` is mandatory on

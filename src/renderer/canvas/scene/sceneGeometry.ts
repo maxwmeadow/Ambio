@@ -1,7 +1,7 @@
 import type { DbSystem, DbFile, DbInfraNode, DbDependency, FloorLayout, FloorNodeType } from '../../../shared/types'
 import { FRAME_ITEM_GAP, FRAME_ROOT_GAP, frameContentInsets, normalizeGeometry, type FrameGeometry } from '../frameGeometry.ts'
 import { packFrame, placeIncoming } from '../packing.ts'
-import { fitFrameAmongSiblings, orderFramePlacementCandidates, placeInfraBand } from '../incrementalFrameLayout.ts'
+import { compressFrameToContainChildren, fitFrameAmongSiblings, orderFramePlacementCandidates, placeInfraBand } from '../incrementalFrameLayout.ts'
 import { INFRA_CARD_SIZE, PLATFORM_FRAME_SIZE } from '../infraRoles.ts'
 import type { FloorSceneDescriptor } from '../floorSceneProjection'
 
@@ -75,6 +75,7 @@ export interface PreparedFloorGeometry {
   worldScaleById: Map<string, number>
   contentScaleById: Map<string, number>
   generatedLayoutNodeIds: Set<string>
+  /** Frames whose saved geometry this pass changed: containers fitted to their children, and children moved by a compression. */
   resizedContainerIds: Set<string>
   generatedPlacements: Map<string, GeneratedPlacement>
 }
@@ -967,22 +968,49 @@ export function* prepareFloorGeometrySteps(
   }
 
   const resizedContainerIds = new Set<string>()
-  // Initial-index/legacy containers auto-fit their direct children. Persisted
-  // containers retain authored dimensions as a minimum, but may grow when a
-  // newly indexed child would otherwise sit outside their frame.
-  for (const [containerId, children] of siblingsByParent) {
+  // Initial-index/legacy containers auto-fit their direct children. A
+  // persisted container that receives a new child may grow to take it (or
+  // compress, hemmed in by neighbours). A persisted container whose existing
+  // children no longer fit - one of them grew - never grows: it keeps its size
+  // and shrinks its interior, so nothing outside it moves (Max, 2026-11-11).
+  // Innermost containers go first, so a child's growth is known before its
+  // parent is fitted.
+  const nesting = (id: string) => {
+    let depth = 0
+    for (let parent = parentById.get(id) ?? null; parent && depth < 64; parent = parentById.get(parent) ?? null) depth++
+    return depth
+  }
+  const containers = [...siblingsByParent.keys()]
+    .filter((id): id is string => !!id)
+    .map(id => ({ id, depth: nesting(id) }))
+    .sort((a, b) => b.depth - a.depth || a.id.localeCompare(b.id))
+  for (const { id: containerId } of containers) {
+    const children = siblingsByParent.get(containerId) ?? []
     if ((++work & 255) === 0) yield
-    if (!containerId) continue
     const isContainer = systemsById.has(containerId) || infraById.get(containerId)?.category === 'platform'
     if (!isContainer || children.length === 0) continue
     const hasIncomingChild = children.some(childId => !layoutsById.has(childId))
-    if (layoutsById.has(containerId) && !hasIncomingChild) continue
     const container = geometryById.get(containerId)
     if (!container) continue
     const childFrames = children.flatMap(childId => {
       const child = geometryById.get(childId)
       return child ? [child] : []
     })
+    if (layoutsById.has(containerId) && !hasIncomingChild) {
+      const placed = children.filter(childId => geometryById.has(childId))
+      const contained = compressFrameToContainChildren(container, placed.map(childId => geometryById.get(childId)!), insetsOf(containerId).right)
+      if (contained) {
+        geometryById.set(containerId, contained.frame)
+        resizedContainerIds.add(containerId)
+        // The children's positions move toward their first one; they are
+        // saved with the frame (the set names every frame this pass changed).
+        placed.forEach((childId, index) => {
+          geometryById.set(childId, contained.children[index])
+          resizedContainerIds.add(childId)
+        })
+      }
+      continue
+    }
     // A persisted frame hemmed in by neighbours compresses its interior
     // rather than growing over them - an agent assigning a batch of files to
     // a system used to push that system on top of the next one.

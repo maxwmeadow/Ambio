@@ -7,6 +7,9 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- A system that grows when files are added to it stays inside the system
+  around it: that parent keeps its size and shrinks its contents to fit.
+  Systems that had already spilled out are put back when you open the map.
 - Opening Message agent no longer flashes the "Copy the handoff myself"
   introduction before your agent is picked.
 - A step names a file by its name, with its folder after it, and long steps

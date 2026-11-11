@@ -63,6 +63,54 @@ export function growFrameToContainChildren(
   }
 }
 
+/**
+ * Keep a frame's size and shrink everything inside it until its children fit.
+ *
+ * Used when a child outgrows a frame whose own size is settled: growing the
+ * frame would push its neighbours and every frame above it, so the frame's
+ * interior compresses instead (Max, 2026-11-11). The children keep their
+ * arrangement. The shrink is anchored at the top-left of the children, not the
+ * frame's corner, so the first child stays exactly where it is and clear of
+ * the frame's title; the rest close in toward it. Returns undefined when the
+ * children already fit.
+ */
+export function compressFrameToContainChildren(
+  frame: FrameGeometry,
+  children: readonly FrameGeometry[],
+  padding: number,
+): { frame: FrameGeometry; children: FrameGeometry[] } | undefined {
+  if (children.length === 0) return undefined
+  const interior = frame.interiorScale > 0 ? frame.interiorScale : 1
+  // Children in content units; the frame shows them at interiorScale.
+  let left = Infinity, top = Infinity, right = 0, bottom = 0
+  for (const child of children) {
+    left = Math.min(left, child.x)
+    top = Math.min(top, child.y)
+    right = Math.max(right, child.x + child.width * child.scale)
+    bottom = Math.max(bottom, child.y + child.height * child.scale)
+  }
+  const roomX = frame.width - padding
+  const roomY = frame.height - padding
+  // A hair of tolerance: saved sizes carry rounding (269.29999...).
+  if (right * interior <= roomX + 0.5 && bottom * interior <= roomY + 0.5) return undefined
+  // Where the children start, as shown, stays put; the span after it shrinks.
+  const shownLeft = left * interior, shownTop = top * interior
+  const fit = Math.min(
+    interior,
+    right > left ? (roomX - shownLeft) / (right - left) : interior,
+    bottom > top ? (roomY - shownTop) / (bottom - top) : interior,
+  )
+  if (!(fit > 0) || fit >= interior) return undefined
+  // shown = stored * fit: a child's stored position keeps the anchor fixed and
+  // its distance from the anchor, which the new scale shrinks.
+  const moved = children.map(child => ({
+    ...child,
+    x: shownLeft / fit + (child.x - left),
+    y: shownTop / fit + (child.y - top),
+  }))
+  return { frame: { ...frame, interiorScale: fit }, children: moved }
+}
+
 export interface SiblingRect {
   x: number
   y: number

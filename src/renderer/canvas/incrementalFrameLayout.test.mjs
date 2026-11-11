@@ -121,3 +121,30 @@ test('with nothing else on the Floor the band starts at the origin', async () =>
   const band = placeInfraBand([{ id: 'pg', category: 'database', width: 260, height: 160 }], [], 40)
   assert.deepEqual(band.get('pg'), { x: 80, y: 80 })
 })
+
+test('a settled frame whose child outgrew it keeps its size and shrinks its contents around the first child', async () => {
+  const { compressFrameToContainChildren } = await import('./incrementalFrameLayout.ts')
+  // Asset Storage: Training Area Records grew past the bottom when a file was added.
+  const frame = frameAt(0, 0, 832, 597.4)
+  const children = [frameAt(12, 35, 476, 269.3), frameAt(500, 84, 320, 220), frameAt(12, 316.1, 320, 391.3), frameAt(344, 316.1, 320, 220)]
+  const fitted = compressFrameToContainChildren(frame, children, 12)
+  assert.ok(fitted)
+  assert.equal(fitted.frame.width, 832, 'the frame keeps its size')
+  assert.equal(fitted.frame.height, 597.4)
+  assert.ok(fitted.frame.interiorScale < 1)
+  const scale = fitted.frame.interiorScale
+  // The first child is shown exactly where it was, so it stays clear of the title.
+  assert.ok(Math.abs(fitted.children[0].x * scale - 12) < 1e-9 && Math.abs(fitted.children[0].y * scale - 35) < 1e-9)
+  for (const child of fitted.children) {
+    assert.ok((child.x + child.width) * scale <= 832 - 12 + 1e-9)
+    assert.ok((child.y + child.height) * scale <= 597.4 - 12 + 1e-9, 'every child fits inside the frame')
+  }
+  // The arrangement is the same: distances between children only shrink.
+  assert.ok(Math.abs((fitted.children[2].y - fitted.children[0].y) - (316.1 - 35)) < 1e-9)
+})
+
+test('a settled frame whose children fit is left alone', async () => {
+  const { compressFrameToContainChildren } = await import('./incrementalFrameLayout.ts')
+  assert.equal(compressFrameToContainChildren(frameAt(0, 0, 832, 597.4), [frameAt(12, 35, 476, 269.3), frameAt(12, 316.1, 320, 269.3)], 12), undefined)
+  assert.equal(compressFrameToContainChildren(frameAt(0, 0, 300, 200, 0.5), [frameAt(12, 35, 400, 300)], 12), undefined, 'already compressed enough')
+})

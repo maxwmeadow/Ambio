@@ -452,6 +452,7 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 
 ## Done log
 
+- 2026-11-11 `floor-containment-shrinks` A system that grows inside a settled parent (files assigned by an agent) no longer breaks out: the parent keeps its size and compresses its contents around its first child, innermost first, and saved layouts that already broke out repair when drawn. Found on team-netjets, where five systems overflowed after one agent session. (`main`)
 - 2026-11-10 `agent-steps-readable` Turn steps redrawn for every agent: no status dots, pills or "done"; one line per step with its verb and target said once; Ambio/MCP calls named and expandable to input and answer (Claude Code, Codex, ACP now record them); failed tools stay steps; thinking in full contrast; Details box sessions and map changes as sentences. (`main`)
 - 2026-11-10 `git-commit` (part) Source control panel lists changed files with their system, stages and unstages per file or all, discards with confirmation, and commits with a message (Ctrl+Enter); new archd /api/checkouts/changes, stage, discard, commit. (`main`)
 - 2026-11-10 `source-control-panel` Branch popover redrawn as a Source control panel in the sheet rail's style: title bar with fetch/folder/editor, branch switcher, full-width sync action, Remote/Changes/Worktrees sections, rail rows; 380px wide. (`main`)

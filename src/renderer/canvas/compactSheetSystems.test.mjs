@@ -147,3 +147,35 @@ test('real incoming placement marks compressed live context for the sheet body f
   assert.ok(child.y * parent.interiorScale >= frameContentInsets(parent.height, 0).top - 1e-6)
   assert.deepEqual(fitted.geometryById.get('neighbor'), placed.geometryById.get('neighbor'))
 })
+
+test('a system that grew inside a settled parent shrinks the parent contents instead of growing the parent', () => {
+  // Saved after an agent put a file in Training Area Records: it grew past Asset Storage's bottom.
+  const systems = [
+    { id: 'storage', workspaceId: 'ws', parentId: null, width: 832, height: 597.4 },
+    { id: 'neighbor', workspaceId: 'ws', parentId: null, width: 620, height: 420 },
+    { id: 'downloads', workspaceId: 'ws', parentId: 'storage', width: 476, height: 269.3 },
+    { id: 'records', workspaceId: 'ws', parentId: 'storage', width: 320, height: 391.3 },
+  ]
+  const files = ['a', 'b', 'c'].map(id => ({ id, systemId: 'records', width: 220, height: 110 }))
+  const system = (nodeId, parentNodeId, positionX, positionY, width, height) => ({ nodeId, nodeType: 'system', parentNodeId, positionX, positionY, width, height, scale: 1, interiorScale: 1 })
+  const layouts = [
+    system('storage', null, -776, -594, 832, 597.4),
+    system('neighbor', null, 100, -594, 620, 420),
+    system('downloads', 'storage', 12, 35, 476, 269.3),
+    system('records', 'storage', 12, 316.1, 320, 391.3),
+    ...files.map((file, index) => ({ nodeId: file.id, nodeType: 'file', parentNodeId: 'records', positionX: 12, positionY: 25.3 + index * 122, width: 220, height: 110, scale: 1, interiorScale: 1 })),
+  ]
+  const placed = prepareFloorGeometry(systems, files, [], [], layouts, new Map())
+  const storage = placed.geometryById.get('storage'), records = placed.geometryById.get('records'), downloads = placed.geometryById.get('downloads')
+  assert.deepEqual([storage.x, storage.y, storage.width, storage.height], [-776, -594, 832, 597.4], 'the parent neither grows nor moves')
+  assert.ok(storage.interiorScale < 1)
+  assert.ok((records.y + records.height) * storage.interiorScale <= storage.height + 1e-6, 'the grown system is inside its parent')
+  assert.ok(Math.abs(downloads.y * storage.interiorScale - 35) < 1e-6, 'the first system stays where it was, clear of the title')
+  assert.equal(records.height, 391.3, 'the grown system keeps its own size')
+  assert.deepEqual(placed.geometryById.get('neighbor'), { x: 100, y: -594, width: 620, height: 420, scale: 1, interiorScale: 1 })
+  for (const id of ['storage', 'records', 'downloads']) assert.ok(placed.resizedContainerIds.has(id), `${id} is saved`)
+  assert.ok(!placed.resizedContainerIds.has('neighbor'))
+  // Saved and read back, nothing changes again.
+  const saved = layouts.map(row => { const g = placed.geometryById.get(row.nodeId); return { ...row, positionX: g.x, positionY: g.y, width: g.width, height: g.height, interiorScale: g.interiorScale } })
+  assert.equal(prepareFloorGeometry(systems, files, [], [], saved, new Map()).resizedContainerIds.size, 0)
+})
