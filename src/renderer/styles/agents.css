@@ -329,15 +329,16 @@
 /* Source control (docs/GIT_WORKFLOW.md "The branch popover"). Drawn in the
    sheet rail's manner (Max, 2026-11-10: the rail is the reference look): a
    dark title bar, small-caps section labels with a rule and a count, and
-   rows that sit on the rail's panel. The branch is the switcher; the one
-   sync action spans the panel, the way an editor's source control leads
-   with Sync. */
+   rows. It floats over the rail, so it is drawn on brighter paper with a
+   dark edge and a deep shadow, like Find in project, rather than on the
+   rail's own grey. The branch is the switcher; the one sync action spans the
+   panel, the way an editor's source control leads with Sync. */
 .ambio-checkouts {
   --scm-accent: #3c7d76;
   --scm-accent-dark: #2d625c;
-  --scm-panel: #deddd7;
-  --scm-row: #e7e5df;
-  --scm-row-hover: #f1efe8;
+  --scm-panel: #f0eee6;
+  --scm-row: #fbfaf5;
+  --scm-row-hover: #ffffff;
   --scm-ink: #26332f;
   --scm-muted: #46534f;
   --scm-quiet: #6b7671;
@@ -351,10 +352,10 @@
   max-height: calc(100vh - var(--ambio-checkouts-top) - 8px);
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid #5f6b68;
+  border: 1px solid #1d2925;
   border-radius: 2px;
   background: var(--scm-panel);
-  box-shadow: 3px 3px 0 rgba(29, 35, 32, 0.42);
+  box-shadow: 3px 3px 0 rgba(7, 12, 11, 0.55), 0 22px 60px rgba(0, 0, 0, 0.38);
   color: var(--scm-ink);
   font-size: 11px;
 }
