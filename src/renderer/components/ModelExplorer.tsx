@@ -1,4 +1,5 @@
-import { useCanvasFitView } from '../canvas/useCanvasFitView'
+import { Chevron } from './ui/Chevron'
+import { useShowOnMap } from '../canvas/useShowOnMap'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useGraphStore } from '../store/graphStore'
 import { fetchFileSymbols } from '../canvas/symbolCache'
@@ -16,10 +17,7 @@ export function ModelExplorer({ onClose }: { onClose: () => void }) {
   const files = useGraphStore(s => s.files)
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
   const selectedNodeId = useGraphStore(s => s.selectedNodeId)
-  const setSelectedNode = useGraphStore(s => s.setSelectedNode)
-  const toggleSystemExpanded = useGraphStore(s => s.toggleSystemExpanded)
-  const expandedSystemIds = useGraphStore(s => s.expandedSystemIds)
-  const fitView = useCanvasFitView()
+  const showOnMap = useShowOnMap(false, { duration: 600, padding: 0.5, maxZoom: 1.4 })
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const [symbols, setSymbols] = useState<Map<string, DbSymbol[]>>(() => new Map())
@@ -72,10 +70,7 @@ export function ModelExplorer({ onClose }: { onClose: () => void }) {
   const select = (row: OutlineRow) => {
     setActiveId(row.id)
     if (!row.nodeId) { toggle(row); return }
-    const file = files.find(candidate => candidate.id === row.nodeId)
-    if (file?.systemId && !expandedSystemIds.has(file.systemId)) toggleSystemExpanded(file.systemId)
-    setSelectedNode(row.nodeId)
-    setTimeout(() => { void fitView({ nodes: [{ id: row.nodeId! }], duration: 600, padding: 0.5, maxZoom: 1.4 }) }, 50)
+    showOnMap(row.nodeId)
   }
 
   // Selecting on the canvas opens the path to that node's row.
@@ -170,7 +165,7 @@ export function ModelExplorer({ onClose }: { onClose: () => void }) {
               aria-hidden="true"
               onClick={event => { event.stopPropagation(); toggle(row) }}
             >
-              {row.expandable ? (row.expanded ? '▾' : '▸') : ''}
+              {row.expandable && <Chevron size={11} expanded={row.expanded} />}
             </span>
             <span className="ambio-explorer__label" title={row.detail && row.kind === 'file' ? row.detail : row.label}>{row.label}</span>
             {row.detail && row.kind !== 'file' && <small>{row.detail}</small>}

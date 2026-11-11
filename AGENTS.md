@@ -75,6 +75,12 @@ npm run build                    # the app bundles
   prefer a new `op` or `scope` over a new tool.
 - Tests use host paths (`path.resolve`, `path.delimiter`); CI runs on Linux,
   macOS and Windows.
+- Never use the middle dot (U+00B7) as a separator in Ambio-authored UI text,
+  tooltips, accessibility labels or reports. Use spacing, separate fields or
+  natural punctuation. Keep compatibility with stored data and preserve
+  user-authored text.
+- Use the shared `Chevron` for expand and collapse controls and
+  `DisclosureSummary` for native disclosures.
 - Match the surrounding code's naming, comments and idiom.
 
 <!-- ambio:draw-first:v1 sha256=8943cd5d1afd14ce5091f335746208b350f93f20eb8a2a09536e663ebd14fbc1 -->

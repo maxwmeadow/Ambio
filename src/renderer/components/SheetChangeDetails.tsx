@@ -24,7 +24,7 @@ export function SheetChangeDetails() {
   if (edge && (selected === source || selected === target)) return <section className="ambio-sheet-change" aria-label="Selected relationship">
     <strong>{nameOf(source)} {relationshipVerb(edge.kind)} {nameOf(target)}</strong>
     {edge.note && <p>{edge.note}</p>}
-    <small>{edge.approvalStatus === 'pending' ? 'Proposed relationship · needs your review' : 'Part of this plan'}</small>
+    <small>{edge.approvalStatus === 'pending' ? 'Proposed relationship, needs your review' : 'Part of this plan'}</small>
   </section>
   const move = layer.elements.find(element => (element.systemId ?? element.fileId) === selected && element.approvalStatus !== 'rejected')
   const original = systems.find(node => node.id === selected)?.parentId ?? files.find(node => node.id === selected)?.systemId ?? null

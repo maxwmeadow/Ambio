@@ -265,8 +265,13 @@ func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, er
 			}
 			c.Mappings[n.ID] = n.ID
 		}
-		n.ParentID = refValue(l.ParentNodeID)
-		n.Containment = l.ContainmentKind
+		if l.PresentationOnly {
+			if actual, ok := live[l.NodeID]; ok {
+				n.ParentID, n.Containment = actual.ParentID, actual.Containment
+			}
+		} else {
+			n.ParentID, n.Containment = refValue(l.ParentNodeID), l.ContainmentKind
+		}
 		desired[n.ID] = n
 	}
 	for _, n := range desired {

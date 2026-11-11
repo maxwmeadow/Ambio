@@ -68,7 +68,7 @@ export function toolRow(text: string, rootPath?: string): ToolRow {
     // the first part that is a tool); Claude Code does not.
     const tool = parts.findIndex(part => KNOWN_TOOL(part) || part === 'Ambio')
     const named = tool >= 0 ? tool : parts.length > 1 ? 1 : 0
-    subagent = parts.slice(0, named).join(' · ')
+    subagent = parts.slice(0, named).join(', ')
     parts = parts.slice(named)
   }
   if (parts[0] === 'Ambio' && parts.length > 1) return { badge: 'Ambio', tool: parts[1], target: parts.slice(2).join(' · '), ...(subagent !== undefined ? { subagent } : {}) }
@@ -111,4 +111,9 @@ export function stepsSummary(items: Array<{ kind: string; text: string; status?:
   const failed = items.filter(item => item.status && /fail|declin|error/i.test(item.status)).length
   const said = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0] ?? 'Worked'
   return `${said.charAt(0).toUpperCase()}${said.slice(1)}${failed ? `, ${plural(failed, 'one failed', '# failed')}` : ''}`
+}
+
+/** Formats a tool activity label without displaying its stored field separator. */
+export function toolActivityLabel(text: string): string {
+  return text.replaceAll(' \u00b7 ', ', ')
 }

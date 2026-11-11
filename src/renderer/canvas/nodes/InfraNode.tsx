@@ -14,7 +14,7 @@ import { connectionHandleProps } from './connectionChrome'
 import { AmbioNodeResizer } from './AmbioNodeResizer'
 
 // Infra node - Category x Provider x Service (docs/INFRA.md).
-// The CATEGORY drives the glyph and the legend label ("DATABASE · SQL"),
+// The CATEGORY drives the glyph and the legend label ("DATABASE, SQL"),
 // the SERVICE's brand drives the icon and accent color, and STATUS renders
 // proposals ghosted (dashed, dimmed) until confirmed. Drafting-table styling:
 // monochrome single-path brand icons tinted with the brand accent, hairline
@@ -52,7 +52,7 @@ function useInfraFacts(id: string): InfraFacts {
       .map(impl => impl.ref.startsWith('compose:')
         ? `${impl.ref.slice(8)} (compose)`
         : `${fileName(impl.ref).replace(/\.[a-z]+$/, '')} ${impl.kind === 'in-process' ? 'stand-in' : IMPLEMENTATION_LABEL[impl.kind] ?? ''}`.trim())
-      .join(' · ')
+      .join(', ')
     return { users, implementers, local: local || null, gaps: gapKey ? gapKey.split('\n') : [] }
   }, [counts, implementations, gapKey])
 }
@@ -104,7 +104,7 @@ export const InfraNode = React.memo(function InfraNode({ data, selected, width, 
   const glyph = CATEGORY_GLYPHS[d.category] ?? CATEGORY_GLYPHS.api
   const proposed = d.status === 'proposed'
   const shape = d.category === 'database' ? 'cylinder' as const : d.category === 'queue' ? 'hexagon' as const : 'box' as const
-  const legend = [ROLE_LABEL[d.category] ?? d.category, d.subtype].filter(Boolean).join(' · ').toUpperCase()
+  const legend = [ROLE_LABEL[d.category] ?? d.category, d.subtype].filter(Boolean).join(', ').toUpperCase()
   const padX = shape === 'hexagon' ? 30 : 18
   const nameFont = monoFontFittingWidth(d.name, contentW - padX * 2 - 40, 24)
   const users = facts.users

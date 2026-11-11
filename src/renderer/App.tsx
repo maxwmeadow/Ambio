@@ -345,7 +345,7 @@ export default function App() {
   // daily path: Ambio stayed open while an agent changed the architecture.
   useEffect(() => {
     if (E2E_MODE) return
-    return subscribeToDeltaRefresh(window, () => useGraphStore.getState().loadDelta())
+    return subscribeToDeltaRefresh(window, () => { void useGraphStore.getState().loadDelta() })
   }, [])
 
   useEffect(() => {
@@ -774,10 +774,19 @@ export default function App() {
     'view.explorer': () => { if (currentProject) setExplorerOpen(open => !open) },
     'view.agentLog': () => { if (currentProject) setAgentLogOpen(open => !open) },
     'view.documents': () => { if (currentProject) setDocumentsOpen(!useGraphStore.getState().documentsOpen) },
-    'view.reviewChanges': () => {
+    'view.reviewChanges': async () => {
       const store = useGraphStore.getState()
-      if (store.deltaReviewing) store.endDeltaReview(false)
-      else if (store.delta) store.startDeltaReview()
+      if (store.deltaReviewing) {
+        store.endDeltaReview(false)
+        return
+      }
+      const workspaceId = store.currentProject?.id
+      if (!workspaceId) return
+      const loaded = await store.loadDelta()
+      const latest = useGraphStore.getState()
+      if (latest.currentProject?.id !== workspaceId || latest.deltaReviewing) return
+      if (!loaded) raiseFailure('delta-load', 'Could not load Review Changes', 'Open Review Changes again to retry.')
+      else if (latest.delta?.claims?.length) latest.startDeltaReview()
       else raiseNotice('no-delta', 'Nothing to review', 'No architectural changes since your last review.')
     },
     'agent.message': () => { window.dispatchEvent(new Event('ambio:open-agent-dispatch')) },

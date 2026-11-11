@@ -385,7 +385,7 @@ function PlannedDetail({ node }: { node: PlannedNode }) {
                 <strong>{service?.name ?? 'Not assigned'}</strong>
                 {service && (
                   <span>
-                    {service.provider} · {service.category}{service.subtype ? ` / ${service.subtype}` : ''}
+                    {service.provider}, {service.category}{service.subtype ? ` / ${service.subtype}` : ''}
                   </span>
                 )}
               </div>
@@ -735,7 +735,7 @@ function InfraDetail({
         const [one, many] = ITEM_ROLE[kind] ?? [kind.toLowerCase(), kind.toLowerCase()]
         return `${count} ${count === 1 ? one : many}`
       })
-      .join(' · ')
+      .join(', ')
   }
   const itemKinds = [...new Set(items.map(item => item.kind))]
   const needs = requirements.filter(req => req.infraId === infra.id)
@@ -758,7 +758,7 @@ function InfraDetail({
         kicker={infra.status === 'proposed' ? 'Found by Ambio, not confirmed' : ROLE_LABEL[infra.category] ?? 'Infrastructure'}
         name={infra.name}
         detail={[service?.name !== infra.name ? service?.name : '', ROLE_LABEL[infra.category] ?? infra.category, infra.subtype]
-          .filter(Boolean).join(' · ')}
+          .filter(Boolean).join(', ')}
       />
       {infra.status === 'proposed' && (
         <Section title="Decide">
@@ -799,7 +799,7 @@ function InfraDetail({
                 : undefined
               return (
                 <li key={`${impl.kind}-${impl.ref}-${index}`}>
-                  <span className="ambio-inspector-list__kind">{impl.environment} · {IMPLEMENTATION_LABEL[impl.kind] ?? impl.kind}</span>
+                  <span className="ambio-inspector-list__kind">{impl.environment}, {IMPLEMENTATION_LABEL[impl.kind] ?? impl.kind}</span>
                   {fileId
                     ? <button type="button" className="ambio-inspector-link" onClick={() => onOpen(fileId)}>{impl.ref}</button>
                     : <code>{impl.ref.startsWith('compose:') ? `${impl.ref.slice(8)} (docker compose)` : impl.ref}</code>}

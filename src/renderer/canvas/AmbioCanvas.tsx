@@ -1,5 +1,7 @@
 import NoteNode from './nodes/NoteNode'
 import { useCanvasNotes } from './hooks/useCanvasNotes'
+import { scopeSheetScene } from './sheetSceneScope'
+import { sheetMembersFor, sheetSelectionLayouts } from './sheetFromSelection'
 /**
  * Ambio's nested canvas interaction controller. Numeric Floor/sheet geometry is
  * prepared by the shared scene worker. Complete canonical geometry stays
@@ -16,6 +18,7 @@ import { createPortal } from 'react-dom'
 import {
   ReactFlow,
   MarkerType,
+  getNodesBounds,
   getViewportForBounds,
   Background,
   BackgroundVariant,
@@ -23,6 +26,7 @@ import {
   useStoreApi,
   useNodesInitialized,
   type Node,
+  type Viewport,
   type Edge,
   type NodeTypes,
   type OnNodesChange,
@@ -104,7 +108,7 @@ import { surfaceLivingNodeFx } from './livingVisibility'
 import { absoluteRects, withFacingHandles } from './folderAnchors'
 import { plannedFilename, renamePlannedFile, plannedFileProperties, plannedFileSymbols, plannedDescription } from './plannedFileIdentity'
 import { createSheetRelationshipRouter, sheetRelationshipBounds, type SheetRelationshipRoute } from './edges/sheetRelationshipGeometry'
-import { applyDeltaMarks, buildDeltaReview, claimFocusTargets, clampClaimCursor } from './deltaReview'
+import { applyDeltaMarks, buildDeltaReview, claimFocusTargets } from './deltaReview'
 import { applyAgentAttention, surfaceAgentAttention } from './agentAttentionProjection'
 import { useSheetPhase } from './sheetPhase'
 import { stampAgentPresence } from './agentPresence'
@@ -507,14 +511,14 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     activeTrace: liveActiveTrace, runtimeNodes: liveRuntimeNodes,
     dataFlow: liveDataFlow, nodeFx: liveNodeFx, relationshipFx: liveRelationshipFx,
     delta: liveDelta, activeWorkSessions: liveActiveWorkSessions,
-    deltaReviewing: liveDeltaReviewing, deltaCursor: liveDeltaCursor,
+    deltaReviewing: liveDeltaReviewing, deltaClaimId: liveDeltaClaimId,
     agentAttention: liveAgentAttention, isIndexing: liveIsIndexing,
   } = useGraphStore(useShallow(s => ({
     agentAttention:  isolatedScene ? emptyReviewLiveState.agentAttention : s.agentAttention,
     delta:           isolatedScene ? null : s.delta,
     activeWorkSessions: isolatedScene ? emptyReviewLiveState.activeWorkSessions : s.activeWorkSessions,
     deltaReviewing:  isolatedScene ? false : s.deltaReviewing,
-    deltaCursor:     isolatedScene ? 0 : s.deltaCursor,
+    deltaClaimId:    isolatedScene ? null : s.deltaClaimId,
     systems:         s.systems,
     files:           s.files,
     infraNodes:      isolatedScene ? emptyReviewLiveState.infraNodes : s.infraNodes,
@@ -606,7 +610,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const delta = isolatedScene ? null : liveDelta
   const activeWorkSessions = isolatedScene ? emptyReviewLiveState.activeWorkSessions : liveActiveWorkSessions
   const deltaReviewing = isolatedScene ? false : liveDeltaReviewing
-  const deltaCursor = isolatedScene ? 0 : liveDeltaCursor
+  const deltaClaimId = isolatedScene ? null : liveDeltaClaimId
   const agentAttention = isolatedScene ? emptyReviewLiveState.agentAttention : liveAgentAttention
   const isIndexing = isolatedScene ? false : liveIsIndexing
 
@@ -862,25 +866,50 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     setSheetSourceIds([...selectedIdsRef.current].filter(id => !id.startsWith('note:')))
     setSheetDialogOpen(true)
   } })
-  // ── Sheet overlay (REVISION 2: sheets are layers over the Floor) ─────────
+  // ── Sheet overlay ──────────────────────────────────────────────────────
   // The live canvas is the base layer. When a sheet is active: dim non-member
   // live nodes in place (stencil highlight), draw planned UML elements and
   // planned edges on top. Live members keep their Floor positions.
   const liveOverlaySheetId = useSheetStore(s => s.activeSheetId)
   const overlaySheetId = isolatedScene ? null : liveOverlaySheetId
+  const floorViewportRef = useRef<{ projectId: string; viewport: Viewport } | null>(null)
+  const pendingSheetFitRef = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    pendingSheetFitRef.current = overlaySheetId
+    const floorViewport = floorViewportRef.current
+    if (overlaySheetId) {
+      if (floorViewport?.projectId !== sceneProjectId) floorViewportRef.current = { projectId: sceneProjectId, viewport: getViewport() }
+      pendingInitialFitProjectRef.current = null
+      if (cameraFitTimerRef.current) clearTimeout(cameraFitTimerRef.current)
+      cameraFitTimerRef.current = null
+    } else {
+      floorViewportRef.current = null
+      if (floorViewport?.projectId === sceneProjectId) void setViewport(floorViewport.viewport)
+    }
+  }, [overlaySheetId, sceneProjectId, getViewport, setViewport])
   // The live Floor accepts meaning edits; sheets, reviews and the bin do not.
   const floorEditable = !readOnly && !isolatedScene && !overlaySheetId
   // Sheet mode outlives its own exit so the departure can animate. See
   // sheetPhase.ts - a class that vanishes with the state can only fade IN.
   const sheetPhase = useSheetPhase(overlaySheetId)
   const liveVisibleSheetIds = useSheetStore(s => s.visibleSheetIds)
-  const emptyReviewVisibleSheetIds = useMemo<string[]>(() => [], [])
-  const visibleSheetIds = reviewMode ? emptyReviewVisibleSheetIds : liveVisibleSheetIds
+  const emptyVisibleSheetIds = useMemo<string[]>(() => [], [])
+  const visibleSheetIds = overlaySheetId ? liveVisibleSheetIds : emptyVisibleSheetIds
   const layersById = useSheetStore(s => s.layersById)
   const overlayElements = useSheetStore(s => s.elements)
   const liveWorkspaceIdForOverlay = useGraphStore(s => s.currentProject?.id ?? '')
   const workspaceIdForOverlay = reviewScene?.workspaceId ?? liveWorkspaceIdForOverlay
   const canvasNotes = useCanvasNotes(workspaceIdForOverlay, overlaySheetId, visibleSheetIds, !isolatedScene && !binMode && !reviewMode, readOnly)
+
+  const floorPlacementsRef = useRef(new Map<string, GeneratedPlacement>())
+  const floorModel = useMemo<FloorModel | null>(() => deferCanvasMaterialization || systems.length + files.length + infraNodes.length + canvasNotes.floorGeometryNotes.length === 0 ? null : {
+    systems, files, infraNodes, notes: canvasNotes.floorGeometryNotes, dependencies, layouts: floorLayouts, scope: `${sceneProjectId}:floor`,
+  }, [systems, files, infraNodes, canvasNotes.floorGeometryNotes, dependencies, floorLayouts, sceneProjectId, deferCanvasMaterialization])
+  const floorPreparation = usePreparedFloorGeometry(sceneWorker, 'floor', floorModel, floorPlacementsRef.current, preparationRetry, () => currentZoomRef.current,
+    () => layoutBuiltRef.current !== sceneProjectId && systems.length + files.length + infraNodes.length > LARGE_SCENE_NODE_COUNT ? MIN_CANVAS_ZOOM : currentZoomRef.current, canonicalNodeIds)
+  const [adoptedFloorModel, setAdoptedFloorModel] = useState<FloorModel | null>(null)
+  const floorPending = Boolean(floorModel && adoptedFloorModel !== floorModel && !floorPreparation.error)
+
 
   // Resolve bottom-to-top, always applying the primary sheet last. A node has
   // one visual owner, so secondary layers contribute nodes but never create a
@@ -924,6 +953,9 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const focusedRelationship = useSheetView(s => s.relationship)
   useEffect(() => { if (!isolatedScene) useSheetView.setState({ allRelationships: false, relationship: null }) }, [overlaySheetId, isolatedScene])
   const overlayPlannedEdges = useMemo(() => visibleLayers.flatMap(layer => layer.plannedEdges), [visibleLayers])
+  const sheetRemovedIds = useMemo(() => new Set(
+    visibleLayers.flatMap(layer => (layer.removals ?? []).map(removal => removal.nodeId)),
+  ), [visibleLayers])
   const visiblePlannedByNodeId = useMemo(() => new Map(
     overlayPlanned.map(p => [`planned:${p.id}`, p]),
   ), [overlayPlanned])
@@ -937,15 +969,13 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     liveNodeIds: [
       ...systems.map(system => system.id),
       ...files.map(file => file.id),
-      ...infraNodes.map(infra => infra.id),
+      ...liveInfraNodes.map(infra => infra.id),
     ],
     activePlannedNodeIds: activePlannedByNodeId.keys(),
     activeLayoutNodeIds: (layersById[overlaySheetId ?? '']?.layouts ?? []).map(layout => layout.nodeId),
-  }), [overlaySheetId, systems, files, infraNodes, activePlannedByNodeId, layersById])
-  // A sheet is a sparse set of layout opinions over the complete live Floor.
-  // Overlaying those full rows gives the one canonical layout input used by
-  // projection, drag/drop, resize, and tidy. Legacy columns are read only as an
-  // upgrade fallback for a node whose canonical row has not arrived yet.
+  }), [overlaySheetId, systems, files, liveInfraNodes, activePlannedByNodeId, layersById])
+  // Sheet rows override Floor geometry. Legacy element geometry remains a
+  // fallback for sheets without a canonical row.
   /**
    * Nodes a sheet moves to another parent without placing them (an agent's
    * proposed move, db.ProposeSheetMove): node ID -> its new parent. The layout
@@ -966,7 +996,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         if (!nodeId || canonicalIds.has(nodeId) || !isUnplaced(element)) continue
         const current = floorParent.has(nodeId) ? floorParent.get(nodeId)! : semanticParent.get(nodeId) ?? null
         const wanted = element.parentSystemId ?? null
-        if (wanted !== current) moves.set(nodeId, wanted)
+        if (wanted !== current && (element.approvalStatus || wanted !== (semanticParent.get(nodeId) ?? null))) moves.set(nodeId, wanted)
       }
     }
     return moves
@@ -982,12 +1012,12 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     .filter(element => element.systemId && element.proposedName && (element.renameStatus === 'pending' || element.renameStatus === 'approved'))
     .map(element => [element.systemId!, { name: element.proposedName!, pending: element.renameStatus === 'pending' }] as const))), [visibleLayers])
 
-  const sheetEffectiveLayouts = useMemo<FloorLayout[]>(() => {
+  const layeredLayouts = useMemo<FloorLayout[]>(() => {
     if (!visibleLayers.length) return floorLayouts
     const byId = new Map(floorLayouts.map(layout => [layout.nodeId, layout]))
     const liveSystems = new Map(systems.map(system => [system.id, system]))
     const liveFiles = new Map(files.map(file => [file.id, file]))
-    const liveInfra = new Map(infraNodes.map(infra => [infra.id, infra]))
+    const liveInfra = new Map(liveInfraNodes.map(infra => [infra.id, infra]))
     const plannedInfraIds = new Set(overlayPlanned
       .filter(node => node.kind === 'infra')
       .map(node => `planned:${node.id}`))
@@ -1063,23 +1093,10 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       for (const layout of layer.layouts) byId.set(layout.nodeId, layout)
     }
     return [...byId.values()]
-  }, [floorLayouts, systems, files, infraNodes, overlayPlanned, visibleLayers, workspaceIdForOverlay, sheetMoves])
-  const sheetSystemIds = useMemo(() => new Set(visibleLayers.length ? [
-    ...systems.map(system => system.id),
-    ...overlayPlanned.filter(node => node.kind === 'system').map(node => `planned:${node.id}`),
-  ] : []), [systems, overlayPlanned, visibleLayers])
-  const sheetFileIds = useMemo(() => new Set(visibleLayers.length ? [
-    ...files.map(file => file.id),
-    ...overlayPlanned.filter(node => node.kind !== 'system' && node.kind !== 'infra').map(node => `planned:${node.id}`),
-  ] : []), [files, overlayPlanned, visibleLayers])
-  const sheetInfraIds = useMemo(() => new Set(visibleLayers.length ? [
-    ...infraNodes.map(infra => infra.id),
-    ...overlayPlanned.filter(node => node.kind === 'infra').map(node => `planned:${node.id}`),
-  ] : []), [infraNodes, overlayPlanned, visibleLayers])
+  }, [floorLayouts, systems, files, liveInfraNodes, overlayPlanned, visibleLayers, workspaceIdForOverlay, sheetMoves])
   const [isTransitioningLayout, setIsTransitioningLayout] = useState(false)
   // Placements decided for nodes with no persisted row. Refs, not state: they
   // must survive every reprojection without causing one. See GeneratedPlacement.
-  const floorPlacementsRef = useRef(new Map<string, GeneratedPlacement>())
   const sheetPlacementsRef = useRef(new Map<string, GeneratedPlacement>())
   // True for the whole of any drag gesture, including a box-selection drag.
   // Reconciliation easing must be off for the entire scene while dragging or
@@ -1109,7 +1126,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // selection. In particular, do not inherit rfNodes here: its visibility flags
   // change during a camera flight and used to rebuild the entire sheet.
   const sheetModel = useMemo<FloorModel | null>(() => {
-    if (visibleLayers.length === 0) return null
+    if (!overlaySheetId) return null
     recordSheetLayoutBuild()
 
     const visiblePlanned = overlayPlanned.filter(p => p.status !== 'flattened')
@@ -1178,17 +1195,65 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           positionY: p.positionY,
         }
       })
-    const virtualInfra = infraNodes.map(infra => ({ ...infra })).concat(plannedInfra)
-    const authored = new Set(visibleLayers.flatMap(layer => layer.layouts.map(layout => layout.nodeId)))
+    const virtualInfra = liveInfraNodes.concat(plannedInfra)
+    const admitted = new Set(effectiveElements.keys())
+    for (const planned of visiblePlanned) {
+      admitted.add(`planned:${planned.id}`)
+      if (planned.parentSystemId) admitted.add(planned.parentSystemId)
+    }
+    for (const edge of overlayPlannedEdges) {
+      if (edge.approvalStatus === 'rejected') continue
+      if (edge.srcLive) admitted.add(edge.srcLive)
+      if (edge.dstLive) admitted.add(edge.dstLive)
+    }
+    for (const parent of sheetMoves.values()) if (parent) admitted.add(parent)
+    for (const note of canvasNotes.sheetGeometryNotes) admitted.add(note.id)
+    const floorParents = new Map(floorLayouts.map(layout => [layout.nodeId, layout.parentNodeId]))
+    const semanticParents = new Map([
+      ...systems.map(system => [system.id, system.parentId] as const),
+      ...files.map(file => [file.id, file.systemId] as const),
+    ])
+    const authored = new Set<string>()
+    for (const layer of visibleLayers) {
+      for (const layout of layer.layouts) {
+        authored.add(layout.nodeId)
+        admitted.add(layout.nodeId)
+        if (!layout.presentationOnly && layout.parentNodeId && layout.parentNodeId !== floorParents.get(layout.nodeId)
+          && layout.parentNodeId !== semanticParents.get(layout.nodeId)) admitted.add(layout.parentNodeId)
+      }
+    }
+    const scoped = scopeSheetScene({ systems: virtualSystems, files: virtualFiles, infraNodes: virtualInfra,
+      dependencies, layouts: layeredLayouts }, admitted, sheetMoves, floorPreparation.value?.nodes ?? [], workspaceIdForOverlay)
     const automatic = new Set([
-      ...[...sheetMoves.keys()].filter(id => virtualSystems.some(system => system.id === id)),
+      ...scoped.systems.filter(system => sheetMoves.has(system.id)).map(system => system.id),
       ...visiblePlanned.filter(node => node.kind === 'system' && isUnplaced(node)).map(node => `planned:${node.id}`),
     ].filter(id => !authored.has(id)))
-    const compact = compactSheetSystems(virtualSystems, virtualFiles, sheetEffectiveLayouts, automatic, canvasNotes.geometryNotes)
-    return { systems: compact.systems, files: virtualFiles, infraNodes: virtualInfra, notes: canvasNotes.geometryNotes, dependencies,
-      layouts: compact.layouts, automaticSheetSystems: automatic, scope: `${sceneProjectId}:sheets:${visibleSheetIds.join('|')}` }
-  }, [visibleLayers, systems, files, infraNodes, canvasNotes.geometryNotes, dependencies, overlayPlanned, sheetEffectiveLayouts, sheetMoves, sceneProjectId, visibleSheetIds])
+    const compact = compactSheetSystems(scoped.systems, scoped.files, scoped.layouts, automatic, canvasNotes.sheetGeometryNotes)
+    return { ...scoped, ...compact, notes: canvasNotes.sheetGeometryNotes,
+      automaticSheetSystems: automatic, scope: `${sceneProjectId}:sheets:${sheetComposition}` }
+  }, [overlaySheetId, visibleLayers, systems, files, liveInfraNodes, floorLayouts, floorPreparation.value, workspaceIdForOverlay,
+    canvasNotes.sheetGeometryNotes, dependencies, effectiveElements, overlayPlanned, overlayPlannedEdges, layeredLayouts, sheetMoves, sceneProjectId, sheetComposition])
+  const sheetEffectiveLayouts = sheetModel?.layouts ?? floorLayouts
+  const sheetSystemIds = useMemo(() => new Set(sheetModel?.systems.map(system => system.id)), [sheetModel])
+  const sheetFileIds = useMemo(() => new Set(sheetModel?.files.map(file => file.id)), [sheetModel])
+  const sheetInfraIds = useMemo(() => new Set(sheetModel?.infraNodes.map(infra => infra.id)), [sheetModel])
   const sheetPreparation = usePreparedFloorGeometry(sceneWorker, 'sheet', sheetModel, sheetPlacementsRef.current, preparationRetry, () => currentZoomRef.current)
+  useEffect(() => {
+    if (!overlaySheetId || pendingSheetFitRef.current !== overlaySheetId || !sheetPreparation.current || !sheetPreparation.value) return
+    const roots = sheetPreparation.value.nodes.filter(node => !node.parentId && !sheetRemovedIds.has(node.id))
+    const frame = requestAnimationFrame(() => {
+      if (pendingSheetFitRef.current !== overlaySheetId) return
+      pendingSheetFitRef.current = null
+      if (!roots.length) return
+      // Fit the prepared geometry, including roots outside Flow's mount budget.
+      const canvas = reactFlowStore.getState()
+      if (!canvas.width || !canvas.height) return
+      const viewport = getViewportForBounds(getNodesBounds(roots), canvas.width, canvas.height, MIN_CANVAS_ZOOM, 1, 0.2)
+      canvas.domNode?.dispatchEvent(new Event('ambio:camera-navigation', { bubbles: true }))
+      void setViewport(viewport, { duration: 400 })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [overlaySheetId, sheetPreparation.current, sheetPreparation.value, sheetRemovedIds, reactFlowStore, setViewport])
   const sheetBaseNodes = useMemo(() => {
     if (!sheetModel || !sheetPreparation.value) return null
     const { input, geometry } = sheetPreparation.value
@@ -1200,14 +1265,16 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     ])
     const proposedParents = new Map<string, string | null>([
       ...virtualSystems.map(node => [node.id, node.parentId] as const), ...virtualFiles.map(node => [node.id, node.systemId] as const),
-      ...input.layouts.map(row => [row.nodeId, row.parentNodeId] as const),
+      ...layeredLayouts.map(row => [row.nodeId, row.parentNodeId] as const),
     ])
+    const presentationOnly = new Map(visibleLayers.flatMap(layer => layer.layouts.map(row => [row.nodeId, row.presentationOnly] as const)))
     const morphed = sheetLayout.map(sheetNode => {
       const planned = visiblePlannedByNodeId.get(sheetNode.id)
       const editablePlanned = activePlannedByNodeId.get(sheetNode.id)
       const sheetElement = effectiveElements.get(sheetNode.id)
       const editableElement = activeElementByNodeId.get(sheetNode.id)
-      const isMoved = !planned && !!sheetElement && originalParents.get(sheetNode.id) !== proposedParents.get(sheetNode.id)
+      const isMoved = !planned && !!sheetElement && !presentationOnly.get(sheetNode.id)
+        && (originalParents.get(sheetNode.id) ?? null) !== (proposedParents.get(sheetNode.id) ?? null)
       const metadata = planned ? plannedMetadata(planned) : undefined
       const liveDesignMetadata = sheetElement ? sheetElementMetadata(sheetElement) : undefined
       const suppliedSymbols = planned && planned.kind !== 'system' && planned.kind !== 'infra'
@@ -1359,7 +1426,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       }
     })
     return morphed
-  }, [sheetModel, sheetPreparation.value, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts, sheetMoves, pendingMoveIds, floorLayouts, sheetRenames])
+  }, [sheetModel, sheetPreparation.value, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, workspaceIdForOverlay, setInfraPickerNode, pendingMoveIds, floorLayouts, layeredLayouts, visibleLayers, sheetRenames])
 
   const [sheetVisibility, setSheetVisibility] = useState<{ source: Node[]; nodes: Node[] } | null>(null)
   useEffect(() => { if (!sheetBaseNodes) setSheetVisibility(null) }, [sheetBaseNodes])
@@ -1376,14 +1443,16 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const [sheetMeasurements, setSheetMeasurements] = useState(new Map<string, Node['measured']>())
   useEffect(() => setSheetMeasurements(new Map()), [overlaySheetId, sceneProjectId])
   const composedNodes = useMemo(() => {
-    const presented = visibleSheetNodes ? sheetPresentation.current(visibleSheetNodes, rfNodes, selectedIdsRef.current, activeNodeIds, sheetMeasurements) : rfNodes
+    const presented = overlaySheetId
+      ? visibleSheetNodes ? sheetPresentation.current(visibleSheetNodes, rfNodes, selectedIdsRef.current, activeNodeIds, sheetMeasurements) : []
+      : rfNodes
     return isTransitioningLayout
       ? presented.map(node => ({ ...node, style: { ...node.style, transition: 'transform 500ms cubic-bezier(0.16, 1, 0.3, 1), width 500ms cubic-bezier(0.16, 1, 0.3, 1), height 500ms cubic-bezier(0.16, 1, 0.3, 1), opacity 400ms ease-in-out' } }))
       : presented
-  }, [visibleSheetNodes, rfNodes, selectionRevision, isTransitioningLayout, activeNodeIds, sheetMeasurements])
+  }, [overlaySheetId, visibleSheetNodes, rfNodes, selectionRevision, isTransitioningLayout, activeNodeIds, sheetMeasurements])
 
   const [sheetInteractionNodes, setSheetInteractionNodes] = useState<Node[] | null>(null)
-  useEffect(() => setSheetInteractionNodes(null), [overlaySheetId, visibleSheetIds.join('|')])
+  useLayoutEffect(() => setSheetInteractionNodes(null), [sheetComposition, sceneProjectId])
   // A sheet drop's geometry is prepared in the scene worker. Until that
   // projection lands, the prepared nodes still hold the pre-drag layout, so
   // releasing the snapshot at pointer-up snapped the node back to where the
@@ -1493,10 +1562,10 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     [delta, deltaReviewing, deltaKnownNodeIds],
   )
   const deltaFocusTargets = useMemo(() => {
-    const claims = [...deltaReview.claims, ...deltaReview.internalClaims]
-    const index = clampClaimCursor(claims, deltaCursor)
-    return claimFocusTargets(index >= 0 ? claims[index] : null, deltaKnownNodeIds)
-  }, [deltaReview, deltaCursor, deltaKnownNodeIds])
+    const claim = deltaReview.claims.find(item => item.id === deltaClaimId)
+      ?? deltaReview.internalClaims.find(item => item.id === deltaClaimId)
+    return claimFocusTargets(claim ?? null, deltaKnownNodeIds)
+  }, [deltaReview, deltaClaimId, deltaKnownNodeIds])
   const reviewDisplayNodes = useMemo(
     () => applyDeltaMarks(livingDisplayNodes, deltaReview, deltaFocusTargets),
     [livingDisplayNodes, deltaReview, deltaFocusTargets],
@@ -1551,9 +1620,16 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
 
   const routeSheetRelationships = useMemo(() => createSheetRelationshipRouter(), [])
   const displayEdges = useMemo(() => {
-    const surfacedRfEdges = withFacingHandles(rfEdges, navigableDisplayNodes)
-    if (visibleLayers.length === 0) return surfacedRfEdges
-    const visibleIds = new Set(navigableDisplayNodes.filter(n => !n.hidden && n.style?.opacity !== 0).map(n => n.id))
+    if (!overlaySheetId) return withFacingHandles(rfEdges, navigableDisplayNodes)
+    const visibleIds = new Set(navigableDisplayNodes.filter(n => !n.hidden && n.style?.opacity !== 0 && !sheetRemovedIds.has(n.id)).map(n => n.id))
+    const incident = (edge: Edge) => selectedIdsRef.current.has(edge.source) || selectedIdsRef.current.has(edge.target)
+    const liveEdges: Edge[] = []
+    for (const edge of sheetModel?.dependencies ?? []) {
+      if (edge.status === 'dismissed' || !visibleIds.has(edge.src) || !visibleIds.has(edge.dst)) continue
+      const flowEdge: Edge = { id: edge.id, source: edge.src, target: edge.dst, type: 'orthogonal' }
+      if (allSheetRelationships || (!relationshipEndpoints.length && incident(flowEdge))) liveEdges.push(flowEdge)
+    }
+    const present = new Set(navigableDisplayNodes.map(node => node.id))
     const topology: Edge[] = overlayPlannedEdges.filter(edge => edge.approvalStatus !== 'rejected').map(edge => {
       const focused = edge.id === focusedRelationship && relationshipEndpoints.length === 2
       return {
@@ -1564,21 +1640,17 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           opacity: relationshipEndpoints.length && !focused ? .2 : 1 },
         zIndex: focused ? 10002 : 10000,
       }
-    })
+    }).filter(edge => present.has(edge.source) && present.has(edge.target))
     const requested = topology.filter(edge => {
       if (allSheetRelationships) return true
       if (relationshipEndpoints.length) return edge.id === `pedge:${focusedRelationship}`
-      return selectedIdsRef.current.has(edge.source) || selectedIdsRef.current.has(edge.target)
+      return incident(edge)
     }).filter(edge => visibleIds.has(edge.source) && visibleIds.has(edge.target))
     // Route and filter the same revealed scene that is painted. Semantic zoom
     // must not hide a selected connection after its endpoints were revealed.
     const plannedRf = routeSheetRelationships(requested, navigableDisplayNodes, topology)
-    return [
-      ...surfacedRfEdges.map(e => visibleIds.has(e.source) && visibleIds.has(e.target) && (allSheetRelationships || (!relationshipEndpoints.length && (selectedIdsRef.current.has(e.source) || selectedIdsRef.current.has(e.target))))
-        ? e : { ...e, style: { ...e.style, opacity: 0 }, selectable: false }),
-      ...plannedRf,
-    ]
-  }, [rfEdges, visibleLayers, overlayPlannedEdges, navigableDisplayNodes, allSheetRelationships, focusedRelationship, relationshipEndpoints, selectionRevision, routeSheetRelationships])
+    return [...withFacingHandles(liveEdges, navigableDisplayNodes), ...plannedRf]
+  }, [rfEdges, overlaySheetId, sheetModel, sheetRemovedIds, overlayPlannedEdges, navigableDisplayNodes, allSheetRelationships, focusedRelationship, relationshipEndpoints, selectionRevision, routeSheetRelationships])
 
   const focusedConnectionRoute = displayEdges.find(edge => edge.id === `pedge:${focusedRelationship}`)?.data?.sheetRoute as SheetRelationshipRoute | null | undefined
   useEffect(() => {
@@ -1969,8 +2041,8 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     try {
       const store = useSheetStore.getState()
       const name = untakenSheetName(store.sheets, `Remove ${label}`)
-      const sheet = await store.createSheet(workspaceId, name, `Take ${label} out of the code`, [])
-      await store.openSheet(workspaceId, sheet.id)
+      const sheet = await store.createSheet(workspaceId, name, `Take ${label} out of the code`, sheetMembersFor([nodeId], useGraphStore.getState()))
+      await store.openSheet(workspaceId, sheet.id, { exclusive: true })
       await proposeSheetRemoval(workspaceId, sheet.id, nodeId)
       window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', { detail: { sheetId: sheet.id, note: instruction } }))
     } catch (error) {
@@ -1990,8 +2062,8 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     if (!from || !to) return
     try {
       const store = useSheetStore.getState()
-      const sheet = await store.createSheet(workspaceId, untakenSheetName(store.sheets, `${from} uses ${to}`), `${from} should depend on ${to}`, [])
-      await store.openSheet(workspaceId, sheet.id)
+      const sheet = await store.createSheet(workspaceId, untakenSheetName(store.sheets, `${from} uses ${to}`), `${from} should depend on ${to}`, sheetMembersFor([sourceId, targetId], graph))
+      await store.openSheet(workspaceId, sheet.id, { exclusive: true })
       await store.createPlannedEdge(workspaceId, sheet.id, { kind: 'DEPENDS_ON', srcLive: sourceId, dstLive: targetId })
       window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', {
         detail: { sheetId: sheet.id, note: `Make ${from} use ${to}, as drawn on the attached sheet. Keep the dependency in that direction only.` },
@@ -2008,7 +2080,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       const store = useSheetStore.getState()
       const sheet = await store.createSheet(workspaceId, 'New system', 'A system to build: name it, then send it to an agent', [])
       pendingNewSystem.current = { sheetId: sheet.id, point }
-      await store.openSheet(workspaceId, sheet.id)
+      await store.openSheet(workspaceId, sheet.id, { exclusive: true })
     } catch (error) {
       pendingNewSystem.current = null
       raiseFailure('new-system-sheet', 'Could not start a new system', error instanceof Error ? error.message : String(error))
@@ -2484,13 +2556,6 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   }, [])
 
 
-  const floorModel = useMemo<FloorModel | null>(() => deferCanvasMaterialization || systems.length + files.length + infraNodes.length + canvasNotes.floorGeometryNotes.length === 0 ? null : {
-    systems, files, infraNodes, notes: canvasNotes.floorGeometryNotes, dependencies, layouts: floorLayouts, scope: `${sceneProjectId}:floor`,
-  }, [systems, files, infraNodes, canvasNotes.floorGeometryNotes, dependencies, floorLayouts, sceneProjectId, deferCanvasMaterialization])
-  const floorPreparation = usePreparedFloorGeometry(sceneWorker, 'floor', floorModel, floorPlacementsRef.current, preparationRetry, () => currentZoomRef.current,
-    () => layoutBuiltRef.current !== sceneProjectId && systems.length + files.length + infraNodes.length > LARGE_SCENE_NODE_COUNT ? MIN_CANVAS_ZOOM : currentZoomRef.current, canonicalNodeIds)
-  const [adoptedFloorModel, setAdoptedFloorModel] = useState<FloorModel | null>(null)
-  const floorPending = Boolean(floorModel && adoptedFloorModel !== floorModel && !floorPreparation.error)
 
   useEffect(() => {
     if (deferCanvasMaterialization) {
@@ -2711,7 +2776,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // across consecutive frames, then fit exactly once for this project.
   useEffect(() => {
     const fitNodes = rfNodes.filter(node => !node.hidden)
-    if (pendingInitialFitProjectRef.current !== sceneProjectId || fitNodes.length === 0) {
+    if (overlaySheetId || pendingInitialFitProjectRef.current !== sceneProjectId || fitNodes.length === 0) {
       return
     }
 
@@ -2769,7 +2834,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
 
     frame = requestAnimationFrame(sampleMeasuredScene)
     return () => cancelAnimationFrame(frame)
-  }, [fitView, getInternalNode, getViewport, nodesInitialized, rfNodes, sceneProjectId])
+  }, [fitView, getInternalNode, getViewport, nodesInitialized, rfNodes, sceneProjectId, overlaySheetId])
 
   // Live reframing - as files stream in from the watcher, gently fit the growing
   // graph so new nodes come into view at a sensible zoom, instead of leaving the
@@ -2785,10 +2850,10 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       suppressGrowthFitRef.current = false
       return
     }
-    if (deferCanvasMaterialization || reviewMode) return
+    if (deferCanvasMaterialization || reviewMode || overlaySheetId) return
     if (prev === 0 || count <= prev) return
     queueCameraFit(1800, { padding: 0.28, duration: 1100, maxZoom: 1.0 })
-  }, [systems.length, files.length, infraNodes.length, queueCameraFit, deferCanvasMaterialization, reviewMode])
+  }, [systems.length, files.length, infraNodes.length, queueCameraFit, deferCanvasMaterialization, reviewMode, overlaySheetId])
 
   // Revealing a node from outside the canvas - search, the agent log, the
   // detail panel - selects it, exactly as clicking it would.
@@ -3047,6 +3112,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     wheelLatchRef.current = null
 
     e.preventDefault()
+    pendingSheetFitRef.current = null
 
     const currentViewport = getViewport()
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
@@ -3101,6 +3167,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       event.stopPropagation()
       manualCameraProjectRef.current = sceneProjectId
       pendingInitialFitProjectRef.current = null
+      pendingSheetFitRef.current = null
       if (smoothZoomRafRef.current !== null) cancelAnimationFrame(smoothZoomRafRef.current)
       smoothZoomRafRef.current = null
       targetZoomRef.current = null
@@ -3135,6 +3202,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
 
     // Cancel smooth zoom animation if movement is driven by user interaction (drag, pinch, etc.)
     if (event) {
+      pendingSheetFitRef.current = null
       lastUserMoveAtRef.current = Date.now()
       if (smoothZoomRafRef.current !== null) {
         cancelAnimationFrame(smoothZoomRafRef.current)
@@ -3932,10 +4000,6 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
 
   // A removal takes the node out of the sheet's picture only (contract: "a
   // proposal never touches reality"); what sits inside it goes with it.
-  const sheetRemovedIds = useMemo(() => new Set(
-    overlaySheetId ? visibleLayers.flatMap(layer => (layer.removals ?? []).map(removal => removal.nodeId)) : [],
-  ), [overlaySheetId, visibleLayers])
-
   const renderedNodes = useMemo(() => {
     if (!overlaySheetId) return attentionNodes
     const parentOf = new Map(attentionNodes.map(n => [n.id, n.parentId]))
@@ -4313,6 +4377,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       {...{ [CANVAS_SCOPE_ATTR]: '' }}
       data-canonical-node-count={renderedNodes.length}
       data-scene-preparing={floorPending || sheetPreparation.pending || floorPreparation.error || sheetPreparation.error ? 'true' : undefined}
+      data-active-sheet={overlaySheetId ?? undefined}
       className={[
         reviewMode ? 'ambio-canvas-review' : '',
         reviewMode && reviewLayoutReady ? 'ambio-canvas-review-ready' : '',
@@ -4467,7 +4532,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         <>
           <InfraSidebarLinks
             nodes={livingDisplayNodes}
-            dependencies={dependencies}
+            dependencies={sheetModel?.dependencies ?? dependencies}
             files={files}
             systems={systems}
             selectedNodeId={selectedNodeId ?? null}
@@ -4565,9 +4630,11 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         isOpen={sheetDialogOpen}
         onClose={() => setSheetDialogOpen(false)}
         nodeIds={sheetSourceIds}
+        memberLayouts={members => sheetSelectionLayouts(members, rfNodesRef.current)}
         onSuccess={() => {
           setRfNodes(nodes => nodes.map(n => ({ ...n, selected: false })))
           commitSelection(emptySelection())
+          setSelectedNode(null)
           useGraphStore.getState().setSelectionMode(false)
         }}
       />}

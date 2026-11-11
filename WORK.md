@@ -263,6 +263,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `sheet-bin-native-drop` The native drag payload handler in `AmbioCanvas` can call the Floor file-assignment path while a sheet is active. Check which bin drag sources still emit that payload. (2026-11-10)
+
 - ⬜ `server-run-flush-under-load` A run against a server can lose the server's evidence under load: `serverFlush` (1.2s, `internal/runtime/server.go`) assumes the recorder's 1s flusher has written after the command, but on a busy Windows runner `TestRunAgainstAServerRecordsTheServer` saw `price recorded 0 calls` 3 times in 80 runs (diagnostic CI run, 2026-11-09). Waiting for a flush newer than the command's end, with a cap, would fix it; uninstrumented servers must not pay the cap. (2026-11-09)
 - ⬜ `canvas-pan-load-flake` canvas-pan's "floor mouse camera pan" timed out in `waitForFunction(canvasViewportSettled)` (line 64) in a full e2e run on 2026-11-07 after `codex/stabilize-e2e-main` merged, but passed 12/12 alone (`--repeat-each=3`). Settling under full-suite load still needs a bound the test can rely on. (2026-11-07)
 - ⬜ `investigation-case-hydration` `loadCase` checks replay only before fetching; its response can overwrite a newer case, a switched project or an entered replay. Add response-generation/context guards with recovery tests when revisiting live-case hydration. (2026-11-03)
@@ -382,7 +384,6 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `chat-windows-stamp` **Windows process stamps block the main process.** `processStamp` in `electron/agentChat.ts` runs PowerShell synchronously (up to 3 s) after every harness launch and when checking a leftover receipt. If the stamp could not be read at launch, a recycled PID leaves the project blocked with "could not be verified" until that unrelated process exits. Make the launch stamp asynchronous and retry it, and let Stop clear a receipt whose stamp was never recorded once the PID is gone or belongs to another executable. (2026-10-09, chat review)
 - ⬜ `chat-orphan-work-order` **A Build message that fails to send leaves its work order on the canvas.** `AgentChatPanel` creates the work order before `sendChat`; a refusal (another agent busy, missing key) leaves it addressed to nobody. Retrying reuses the same ID, so it is not duplicated. Either check availability before creating it or offer to send it elsewhere. (2026-10-09, chat review)
 
-- ⬜ `bin-sheet-layer-isolation` **Check sheet layers leaking into the isolated bin canvas.** `AmbioCanvas` clears `overlaySheetId` for isolated scenes but excludes visible layers only for review mode, so an open bin may consume live sheet layers. (2026-10-20, performance audit)
 
 - ⬜ `chatgpt-native-live-validation` **Verify ChatGPT sign-in and native plan usage with real accounts on packaged macOS/Windows/Linux.** Check browser consent, completed native Ask/Propose/Build, account-pinned history, renewal, limits, cancellation and revocation. [Windows development results](docs/testing/CHATGPT_WINDOWS_SMOKE.md) verify real-account sign-in, models, Ask/follow-up/tools, Propose, restart persistence, Build with action approvals, accepted review and a follow-up Build. Packaged cross-platform and OS keychain upgrades remain unverified. See [docs/CHATGPT_PLAN.md](docs/CHATGPT_PLAN.md). (2026-10-19, native ChatGPT integration)
 
@@ -447,6 +448,12 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 
 ## Done log
 
+- 2026-11-10 `scoped-sheet-selection` Sheets draw their members, descendants and proposal context. New sheets from selection preserve world spacing, size and nesting and frame the group on open. Schema v14 stores initial layout as presentation and keeps it out of structural comparison.
+- 2026-11-10 `bin-sheet-layer-isolation` The isolated bin reads its own scene while the main canvas has an active sheet.
+- 2026-11-10 `review-seen-controls` Labeled the row action Mark seen, hid Hide seen until a change is marked, and showed Clear filters only when a filter is applied. (`main`)
+- 2026-11-10 `review-controls-and-disclosures` Simplified Review Changes, styled its filter menus and seen toggle, shared the sheet chevron across disclosure controls, and removed middle-dot separators from Ambio copy. (`main`)
+- 2026-11-10 `review-changes-accuracy` Restyled Review Changes to match the workbench, led with indexed claims, moved agent reports beside their claims, and refreshed on open. Filters preserve claim identity on the map, and dependency transitions require before-and-after evidence. (`main`)
+- 2026-11-10 `terminal-tab-overflow` Kept crowded terminal tabs on one line with a slim horizontal scrollbar, truncated labels, and automatic scrolling to the active tab. (`main`)
 - 2026-11-10 `startup-splash-handoff` Kept the branded splash visible through startup routing to eliminate the dark frame before the project or launcher appears. (`main`)
 - 2026-11-10 `titlebar-underline-full-width` Title bar bottom underline (highlight + border) extends continuously across the top-right corner under the native Windows caption controls; retired passive setup/indexing status indicator from WorkbenchTitleBar. (`codex/remove-field-agent-04`)
 - 2026-11-10 `setup-pill-border-width` Increased connector pill border width from 1px to 5px to make availability colors easier to see. (`codex/remove-field-agent-04`)

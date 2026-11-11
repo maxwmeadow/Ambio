@@ -285,7 +285,7 @@ test('a run reports the side effect reading the code would have to infer', async
     op: 'run', command: 'node billing/repro.js', watch: ['billing/ledger.js:applyLateFee'], hypothesis: 'H1',
   }, 60000)
   assert.equal(run.isError, false, run.text)
-  assert.match(run.text, /^Run R1 · `node billing\/repro\.js` · exit 0/)
+  assert.match(run.text, /^Run R1, `node billing\/repro\.js`, exit 0/)
   assert.match(run.text, /`applyLateFee` changes its argument `table\.fees\.late` on all 4 calls: \(absent\) → 5, 5 → 10/)
   assert.match(run.text, /receives the same `table` object again on 3 of 4 calls/)
   assert.match(run.text, /If this explains it: fix it, run the repro again, then conclude \{text: root cause, hypothesis: "H1"/)
@@ -467,7 +467,7 @@ test('the short loop opens, tests, settles and saves a case in three calls', asy
     hypothesis: 'applyLateFee() keeps adding to the shared DEFAULT_FEES table',
   }, 60000)
   assert.equal(first.isError, false, first.text)
-  assert.match(first.text, /^H1 recorded on billing\/ledger\.js › applyLateFee\.\nRun R1 · `node billing\/repro\.js` · exit 0 · [^\n]* · testing H1/)
+  assert.match(first.text, /^H1 recorded on billing\/ledger\.js › applyLateFee\.\nRun R1, `node billing\/repro\.js`, exit 0, [^\n]*, testing H1/)
 
   const verify = await client.callTool('investigation', { op: 'run', command: 'node billing/repro.js', watch: ['billing/ledger.js:applyLateFee'] }, 60000)
   assert.equal(verify.isError, false, verify.text)

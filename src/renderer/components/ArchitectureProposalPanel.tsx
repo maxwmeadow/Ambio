@@ -328,8 +328,8 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
 
       <footer className="ambio-proposal__footer">
         <span>{embedded
-          ? 'W A S D pan · J K review · Enter approve · R send back'
-          : 'J K move · Enter approve · R send back · Esc leave'}</span>
+          ? 'W A S D pan, J K review, Enter approve, R send back'
+          : 'J K move, Enter approve, R send back, Esc leave'}</span>
       </footer>
     </aside>
   )

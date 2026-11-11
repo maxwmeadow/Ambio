@@ -381,9 +381,9 @@ func meaningClaim(change MeaningChange) Claim {
 		focus = append(focus, change.SubjectID)
 	case "grouped":
 		kind = ClaimGrouped
-		title = fmt.Sprintf("New system · %s", change.SubjectLabel)
+		title = fmt.Sprintf("New system %s", change.SubjectLabel)
 		if n := len(change.FileIDs); n > 0 {
-			title = fmt.Sprintf("New system · %s, grouping %s", change.SubjectLabel, pluralFiles(n))
+			title = fmt.Sprintf("New system %s, grouping %s", change.SubjectLabel, pluralFiles(n))
 		}
 		for i, fileID := range change.FileIDs {
 			evidence = append(evidence, Evidence{Kind: "file.moved", Label: change.FileLabels[i], FileIDs: []string{fileID}})

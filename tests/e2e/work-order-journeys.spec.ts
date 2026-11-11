@@ -100,7 +100,7 @@ test('Harbor Checkout: sheet request, linked work, structural match, submission 
     await expect(inbox.getByText('Structure matches the live canvas')).toBeVisible({ timeout: 12000 })
     await inbox.getByRole('button', { name: /Structure matches the live canvas/ }).click()
     await inbox.getByRole('button', { name: 'Resolve sheet' }).click()
-    await expect(inbox.getByText('Sheet resolved · saved in history')).toBeVisible()
+    await expect(inbox.getByText('Sheet resolved, saved in history')).toBeVisible()
     orders[0].status = 'answered'; orders[0].sessions[0].endedAt = Date.now(); orders[0].sessions[0].summary = 'Checkout flow implemented.'
     orders[0].reply = { body: 'Checkout flow is implemented and the sheet is resolved.', agent: 'Codex', createdAt: Date.now(), result: { changedFiles: ['src/checkout/retry.ts'], checks: [{ command: 'npm test -- checkout', outcome: 'passed' }], remaining: [] } }
     orders[0].changes = [{ kind: 'file.updated', subjectLabel: 'retry.ts', count: 1, at: Date.now() }]
@@ -143,7 +143,7 @@ test('Northstar API: selected systems, failed check, feedback, second attempt an
     await inbox.getByRole('button', { name: 'Request changes' }).click()
     await inbox.getByLabel('What needs to change?').fill('Fix the integration check before I accept this.')
     await inbox.getByRole('button', { name: 'Reopen work order' }).click()
-    await expect(inbox.getByText('Changes requested · waiting for agent')).toBeVisible()
+    await expect(inbox.getByText('Changes requested, waiting for agent')).toBeVisible()
     orders[0].status = 'delivered'; orders[0].agent = 'Codex'; orders[0].leaseExpiresAt = Date.now() + 60000
     orders[0].sessions.push({ id: 'api-2', agent: 'Codex', goal: 'Fix integration check', notes: [{ ts: Date.now(), text: 'Reproduced the failure.' }], startedAt: Date.now(), endedAt: 0 })
     await expect(inbox.getByRole('region', { name: 'Work progress: Fix integration check' })).toBeVisible({ timeout: 12000 })

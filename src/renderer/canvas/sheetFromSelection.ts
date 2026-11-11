@@ -1,3 +1,7 @@
+import type { Node } from '@xyflow/react'
+import type { FloorLayout } from '../../shared/types'
+import { absoluteRects, nodeSize } from './folderAnchors.ts'
+
 /**
  * "New Sheet from Selection": what is selected on the Floor becomes the new
  * sheet's members - systems, files and infrastructure alike - so a sheet can
@@ -7,6 +11,60 @@
  * picked it too.
  */
 export type SheetMember = { fileId: string } | { systemId: string } | { infraId: string }
+export type SheetMemberLayout = Omit<FloorLayout, 'workspaceId' | 'updatedAt'>
+
+export function sheetSelectionLayouts(members: SheetMember[], nodes: readonly Node[]): SheetMemberLayout[] {
+  if (!members.length) return []
+  const byId = new Map(nodes.map(node => [node.id, node]))
+  const rects = absoluteRects(nodes)
+  const selected = new Set(members.map(member => 'systemId' in member ? member.systemId
+    : 'fileId' in member ? member.fileId : member.infraId))
+  let minX = Infinity, minY = Infinity
+  for (const id of selected) {
+    const rect = rects.get(id)
+    if (!rect) continue
+    minX = Math.min(minX, rect.x)
+    minY = Math.min(minY, rect.y)
+  }
+
+  const layouts: SheetMemberLayout[] = []
+  for (const id of selected) {
+    const node = byId.get(id)
+    const rect = rects.get(id)
+    if (!node || !rect) continue
+    // A selected ancestor already carries its descendants. Retain their
+    // parent-relative coordinates, including any intermediate system.
+    let parent = byId.get(node.parentId ?? '')
+    while (parent && !selected.has(parent.id) && parent.type === 'system') {
+      parent = byId.get(parent.parentId ?? '')
+    }
+    const keepParent = Boolean(parent && selected.has(parent.id))
+    const layout = layoutForSceneNode(node, byId.get(node.parentId ?? ''))
+    layouts.push(keepParent ? layout : {
+      ...layout, parentNodeId: null, parentNodeType: null, containmentKind: 'root',
+      positionX: rect.x - minX, positionY: rect.y - minY,
+      scale: Number(node.data.worldScale ?? layout.scale),
+    })
+  }
+  return layouts
+}
+
+export function layoutForSceneNode(node: Node, parent: Node | undefined): SheetMemberLayout {
+  const nodeType = node.data.umlKind === 'infra' || node.type === 'infra' ? 'infra'
+    : node.type === 'system' || node.type === 'note' ? node.type : 'file'
+  const parentNodeType = parent ? (parent.type === 'infra' || parent.data.umlKind === 'infra' ? 'infra' : 'system') : null
+  const scale = Number(node.data.frameScale ?? 1)
+  const worldScale = Number(node.data.worldScale ?? scale)
+  const parentScale = parent ? worldScale / scale : 1
+  const { width, height } = nodeSize(node)
+  return {
+    nodeId: node.id, nodeType, parentNodeId: parent?.id ?? null, parentNodeType,
+    containmentKind: parentNodeType === 'infra' ? 'hosted_by' : parentNodeType === 'system' ? 'part_of' : 'root',
+    positionX: node.position.x / parentScale, positionY: node.position.y / parentScale,
+    width: width / worldScale, height: height / worldScale, scale,
+    interiorScale: Number(node.data.interiorScale ?? 1),
+  }
+}
 
 export function sheetMembersFor(
   ids: Iterable<string>,
@@ -24,7 +82,7 @@ export function sheetMembersFor(
     else if (files.has(id)) members.push({ fileId: id })
     else if (infra.has(id)) members.push({ infraId: id })
   }
-  // Systems first, then files, then infrastructure: the order they are laid out.
+  // Keep the member list stable across selection order by grouping node kinds.
   const rank = (member: SheetMember) => ('systemId' in member ? 0 : 'fileId' in member ? 1 : 2)
   return members.sort((a, b) => rank(a) - rank(b))
 }

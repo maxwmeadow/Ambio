@@ -49,7 +49,7 @@ export class ChatProviders {
     let subscriptions: ChatProvider[] = []
     try {
       subscriptions = this.chatgpt?.state().profiles.filter(profile => profile.model).map(profile => ({
-        id: profile.id, name: `ChatGPT · ${profile.label}`, kind: 'openai', auth: 'chatgpt',
+        id: profile.id, name: `ChatGPT (${profile.label})`, kind: 'openai', auth: 'chatgpt',
         baseUrl: 'https://api.openai.com/v1', model: profile.model!, models: profile.models,
         hasKey: profile.sharing, persistentKey: profile.sharing,
       })) ?? []
@@ -120,6 +120,6 @@ export class ChatProviders {
     let body: { data?: Array<{ id: string }>; models?: Array<{ name: string }> }
     try { body = await response.json() } catch { throw new Error('The service returned an invalid model list. Check the service URL.') }
     const models = (Array.isArray(body?.data) ? body.data.map(item => item?.id) : Array.isArray(body?.models) ? body.models.map(item => typeof item?.name === 'string' ? item.name.replace(/^models\//, '') : '') : []).filter(item => typeof item === 'string' && item.length > 0).map(item => this.redact(item)).sort()
-    return { models, detail: models.length ? `Connected · ${models.length} models available` : 'Connected. Enter a model ID supplied by your service.' }
+    return { models, detail: models.length ? `Connected, ${models.length} models available` : 'Connected. Enter a model ID supplied by your service.' }
   }
 }

@@ -98,7 +98,7 @@ export function infraLinks(input: InfraLinkInput): InfraLink[] {
       infraId: group.infraId,
       kinds: [...group.kinds],
       files: count,
-      label: count > 1 ? `${words.join(' · ')} · ${count} files` : words.join(' · '),
+      label: count > 1 ? `${words.join(', ')}, ${count} files` : words.join(', '),
       generic: specific.length === 0,
     }
   })

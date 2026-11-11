@@ -58,7 +58,7 @@ export function SentPlanComparison({ workspaceId, messageId }: { workspaceId: st
     {expanded && <div className="ambio-inbox__sent-check-detail">
       {comparison && <p>{comparison.checked} sent structural {comparison.checked === 1 ? 'requirement' : 'requirements'} checked against the current indexed model.</p>}
       {error && <p role="alert">{error}</p>}
-      {!!comparison?.differences.length && <ul>{comparison.differences.slice(0, 100).map((difference, index) => <li key={`${difference.nodeId}:${difference.kind}:${index}`}><strong>{difference.name} · {difference.kind}</strong><span>{difference.detail}</span></li>)}</ul>}
+      {!!comparison?.differences.length && <ul>{comparison.differences.slice(0, 100).map((difference, index) => <li key={`${difference.nodeId}:${difference.kind}:${index}`}><strong>{difference.name}, {difference.kind}</strong><span>{difference.detail}</span></li>)}</ul>}
       {(comparison?.differences.length ?? 0) > 100 && <small>Showing the first 100 differences.</small>}
       <small>This checks structure and indexed source contracts. The agent's tests and prose claims need separate review.</small>
     </div>}

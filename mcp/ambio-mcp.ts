@@ -2151,7 +2151,7 @@ Steps to execute:
           gaps.length ? `\nAmbio's infra map flags these contract gaps; check whether one is the cause:\n${gaps.map(line => `  ! ${line}`).join('\n')}` : '',
           '',
           'Next: op "run" with the command that reproduces the problem, `watch` on the functions you suspect, and `hypothesis`: what you suspect, in one sentence.',
-          commands.length ? `Commands in this project: ${commands.join(' · ')}` : '',
+          commands.length ? `Commands in this project: ${commands.join(', ')}` : '',
         ].filter(Boolean).join('\n')
         await postAgentActivity(project.workspaceId, `Agent opened a case: ${data.name}`, 'success')
         break

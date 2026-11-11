@@ -455,10 +455,10 @@ func renderSheetASM(sqlDB *sql.DB, sheet *db.Sheet) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "sheet: %q - rev %d", sheet.Name, sheet.Revision)
 	if ghosts > 0 {
-		fmt.Fprintf(&b, " · %d ghost", ghosts)
+		fmt.Fprintf(&b, ", %d ghost", ghosts)
 	}
 	if tombstones > 0 {
-		fmt.Fprintf(&b, " · %d deleted", tombstones)
+		fmt.Fprintf(&b, ", %d deleted", tombstones)
 	}
 	b.WriteString("\n")
 	if sheet.Purpose != nil && *sheet.Purpose != "" {

@@ -74,7 +74,7 @@ export function SheetPalette({ onCreate, disabled = false }: { onCreate: (stenci
           aria-label={`Add ${stencil.label}`}
           disabled={disabled}
           onClick={() => onCreate(stencil)}
-          title={`${stencil.hint} · click to add to the selected system, or drag to place`}
+          title={`${stencil.hint}, click to add to the selected system, or drag to place`}
           draggable={!disabled}
           onDragStart={event => {
             event.dataTransfer.setData('application/ambio-stencil', JSON.stringify(stencil))

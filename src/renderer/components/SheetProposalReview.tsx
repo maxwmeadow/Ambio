@@ -198,7 +198,7 @@ function SheetReviewContent({ workspaceId, layer, closing, root }: { workspaceId
           const description = root ? plannedDescription(root, plannedMetadata(root)) : ''
           return <li className="ambio-sheet-review-group" key={group.key}>
             <button type="button" disabled={closing} className="ambio-sheet-rail__review-label" onClick={() => showOnMap(group.focus)} title="Show proposed change"><span>{group.name}</span></button>
-            {counts.length > 0 && <p className="ambio-sheet-review-summary">{counts.join(' · ')}</p>}
+            {counts.length > 0 && <p className="ambio-sheet-review-summary">{counts.join(', ')}</p>}
             {description && <p className="ambio-sheet-review-intent" title={description}>{description}</p>}
             <button type="button" disabled={closing} className="ambio-sheet-review-inspect" aria-label={`Inspect changes for ${group.name}`} onClick={event => { inspectButton.current = event.currentTarget; setInspecting(group.key); showOnMap(group.focus) }}>Inspect changes <span aria-hidden="true">→</span></button>
             {actions(group)}

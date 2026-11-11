@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { useGraphStore } from '../store/graphStore'
 import { useSheetStore } from '../store/sheetStore'
-import { describeSheetMembers, sheetMembersFor } from '../canvas/sheetFromSelection'
+import { describeSheetMembers, sheetMembersFor, type SheetMember, type SheetMemberLayout } from '../canvas/sheetFromSelection'
 import { DialogActions, DialogButton, DialogError, DialogField, DialogForm, DialogFrame, DialogNote } from './ui/DialogPrimitives'
 
 interface NewSheetDialogProps {
@@ -11,10 +11,11 @@ interface NewSheetDialogProps {
   onClose: () => void
   /** What was selected (or right-clicked) on the Floor: systems, files, infrastructure. */
   nodeIds: string[]
+  memberLayouts: (members: SheetMember[]) => SheetMemberLayout[]
   onSuccess: () => void
 }
 
-export function NewSheetDialog({ isOpen, onClose, nodeIds, onSuccess }: NewSheetDialogProps) {
+export function NewSheetDialog({ isOpen, onClose, nodeIds, memberLayouts, onSuccess }: NewSheetDialogProps) {
   const [name, setName] = useState('')
   const [purpose, setPurpose] = useState('')
   const [loading, setLoading] = useState(false)
@@ -39,12 +40,12 @@ export function NewSheetDialog({ isOpen, onClose, nodeIds, onSuccess }: NewSheet
     setLoading(true)
     setError(null)
     try {
-      const sheet = await createSheet(workspaceId, name.trim(), purpose.trim(), members)
+      const sheet = await createSheet(workspaceId, name.trim(), purpose.trim(), members, memberLayouts(members))
       setName('')
       setPurpose('')
       onSuccess()
       onClose()
-      void openSheet(workspaceId, sheet.id)
+      void openSheet(workspaceId, sheet.id, { exclusive: true })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create sheet')
     } finally {

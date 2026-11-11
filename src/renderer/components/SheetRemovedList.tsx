@@ -12,7 +12,7 @@ export function SheetRemovedList({ workspaceId }: { workspaceId: string }) {
   if (!sheetId || !removals?.length) return null
   return (
     <section className="ambio-sheet-rail__removed" aria-label="Removed on this sheet">
-      <div className="ambio-sheet-rail__removed-heading">Removed on this sheet · {removals.length}</div>
+      <div className="ambio-sheet-rail__removed-heading">Removed on this sheet, {removals.length}</div>
       <ul>
         {removals.map(removal => (
           <li key={removal.nodeId} data-done={removal.done ? 'true' : undefined}>

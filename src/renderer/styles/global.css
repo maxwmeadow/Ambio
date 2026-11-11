@@ -1202,11 +1202,7 @@ a { color: var(--accent); text-decoration: none; }
   white-space: nowrap;
 }
 
-.ambio-investigations-menu__item-meta > * + *::before {
-  content: '\00b7';
-  margin: 0 6px;
-  color: #a3aaa6;
-}
+.ambio-investigations-menu__item-meta > * + * { margin-left: 8px; }
 
 .ambio-investigations-menu__item-meta code {
   overflow: hidden;
@@ -5647,16 +5643,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   box-shadow: inset 0 1px #fff;
 }
 
-.ambio-setup-tree__expand span {
-  transform: rotate(90deg);
-  font-size: 18px;
-  line-height: 1;
-}
-
-[aria-expanded="true"] > .ambio-setup-tree__row .ambio-setup-tree__expand span {
-  transform: rotate(-90deg);
-}
-
 .ambio-setup-tree__expand:disabled {
   visibility: hidden;
 }
@@ -6076,14 +6062,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   background: #d7d9d2;
 }
 
-.ambio-source-browser__tree .ambio-setup-tree__expand span {
-  transform: none;
-}
-
-.ambio-source-browser__tree [aria-expanded='true'] > .ambio-setup-tree__row .ambio-setup-tree__expand span {
-  transform: rotate(90deg);
-}
-
 .ambio-source-browser__tree .ambio-setup-tree__check,
 .ambio-source-browser__tree .ambio-setup-tree__check input,
 .ambio-source-browser__tree .ambio-setup-tree__check span {
@@ -6170,10 +6148,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   font-size: 13px;
   text-align: left;
   cursor: pointer;
-}
-
-.ambio-setup-tree__skipped-toggle[aria-expanded='true'] .ambio-setup-tree__expand span {
-  transform: rotate(90deg);
 }
 
 .ambio-setup-tree__skipped-summary {
@@ -6964,177 +6938,8 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 
 
 
-/* ─── Morning Delta ─────────────────────────────────────────────────────────
-   A review surface, not chrome. The rest of the workbench uses 8px monospace
-   because it labels controls you already recognise; this panel is prose you
-   have to read and act on, so it sets its own type scale and ignores the
-   toolbar's. Legibility beats stylistic consistency here. Sage is the mode
-   accent (replay owns amber). */
-.ambio-delta {
-  --delta-ink:      #1f2a26;
-  --delta-ink-soft: #55635d;
-  --delta-paper:    #eceae3;
-  --delta-rule:     #c3c1b9;
-  position: absolute;
-  z-index: 1200;
-  border: 1px solid #4f5d58;
-  border-radius: 3px;
-  background: var(--delta-paper);
-  box-shadow: 3px 3px 0 rgba(7, 12, 11, 0.46), 0 18px 44px rgba(0, 0, 0, 0.34);
-  font-family: var(--font-mono);
-}
-
-/* The collapsed "delta waiting" strip lived here, absolutely positioned at
-   top-centre. It is gone: the invitation is now a tenant of the interruption
-   lane (styles/spine.css), which owns that space exclusively. Re-adding a
-   surface at top:14px/left:50% recreates the exact collision the lane was
-   built to end. */
-
-/* ── Expanded review rail ────────────────────────────────────────────────── */
-.ambio-delta--panel {
-  top: 14px;
-  right: 14px;
-  bottom: 14px;
-  display: flex;
-  width: 460px;
-  max-width: calc(100vw - 28px);
-  flex-direction: column;
-  overflow: hidden;
-  border-top: 2px solid #4f8279;
-}
-
-.ambio-delta__header {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 11px;
-  padding: 11px 10px 11px 12px;
-  border-bottom: 1px solid #1d2925;
-  background: linear-gradient(180deg, #4a5652 0%, #2d3834 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-}
-
-.ambio-delta__mode {
-  flex: 0 0 auto;
-  padding: 4px 6px;
-  border: 1px solid #6f9c92;
-  background: #2f5a53;
-  color: #dcf0ea;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.ambio-delta__identity {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.ambio-delta__identity strong {
-  overflow: hidden;
-  color: #fffdf5;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ambio-delta__identity span {
-  color: #a9bab4;
-  font-size: 11px;
-}
-
-.ambio-delta__close {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  place-items: center;
-  padding: 0;
-  border: 1px solid #18231f;
-  background: linear-gradient(180deg, #667570 0%, #3c4945 100%);
-  color: #f2efe6;
-  font-size: 18px;
-  line-height: 1;
-}
-
-.ambio-delta__close:hover { border-color: #7fb3a8; }
-
-/* ── Work sessions: what an agent said it was doing ──────────────────────── */
-.ambio-delta__sessions {
-  display: flex;
-  max-height: 42%;
-  flex: 0 0 auto;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  border-bottom: 1px solid var(--delta-rule);
-  background: #e3e1d9;
-  list-style: none;
-}
-
-.ambio-delta__session {
-  padding: 11px 12px 12px;
-  border-bottom: 1px dashed var(--delta-rule);
-  border-left: 3px solid #7a6ea8;
-}
-
-.ambio-delta__session:last-child { border-bottom: 0; }
-
-.ambio-delta__session-goal {
-  display: block;
-  color: var(--delta-ink);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
-.ambio-delta__session-meta {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 5px;
-  color: var(--delta-ink-soft);
-  font-size: 11px;
-}
-
-.ambio-delta__session-summary {
-  display: block;
-  margin-top: 7px;
-  padding-left: 9px;
-  border-left: 2px solid #b9b4cf;
-  color: #3c4844;
-  font-size: 12px;
-  font-style: italic;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.ambio-delta__session-notes {
-  margin: 6px 0 0;
-  padding: 0 0 0 9px;
-  border-left: 2px solid #d0cdc4;
-  list-style: none;
-}
-
-.ambio-delta__session-notes li {
-  padding: 2px 0;
-  color: #4c5a55;
-  font-size: 12px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
-/* ── Claim list ──────────────────────────────────────────────────────────── */
-.ambio-delta__claims {
+/* Branch review shares the claim class names. */
+.ambio-checkouts__review .ambio-delta__claims {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -7145,98 +6950,14 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   list-style: none;
 }
 
-.ambio-delta__claim {
+.ambio-checkouts__review .ambio-delta__claim {
   position: relative;
   border-bottom: 1px solid var(--delta-rule);
   border-left: 3px solid #9aa39e;
   background: var(--delta-paper);
 }
 
-/* Seen claims stay in the list, quieter, until "Hide seen" takes them out. */
-.ambio-delta__claim[data-seen] { opacity: 0.55; }
-.ambio-delta__claim[data-seen][data-active] { opacity: 0.8; }
-
-.ambio-delta__seen {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 1px 6px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: #66716c;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  opacity: 0;
-}
-
-.ambio-delta__claim:hover .ambio-delta__seen,
-.ambio-delta__claim[data-active] .ambio-delta__seen,
-.ambio-delta__seen[aria-pressed="true"],
-.ambio-delta__seen:focus-visible {
-  border-color: #a9b0ac;
-  opacity: 1;
-}
-
-.ambio-delta__filters {
-  display: flex;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--delta-rule);
-  background: #ebe9e2;
-  font-size: 11px;
-}
-
-.ambio-delta__filter {
-  max-width: 150px;
-  padding: 2px 4px;
-  border: 1px solid #a9b0ac;
-  background: #f7f6f1;
-  color: #1f2a26;
-  font-size: 11px;
-}
-
-.ambio-delta__filter-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: #45524d;
-}
-
-.ambio-delta__filter-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  color: #45524d;
-  font-family: var(--font-mono);
-}
-
-.ambio-delta__filter-count button {
-  padding: 0 6px;
-  border: 1px solid #a9b0ac;
-  background: #f7f6f1;
-  font-size: 10px;
-}
-
-.ambio-delta__claim[data-tone="coupling"]   { border-left-color: #2fa35d; }
-.ambio-delta__claim[data-tone="decoupling"] { border-left-color: #b6534b; }
-.ambio-delta__claim[data-tone="structural"] { border-left-color: #4f8279; }
-.ambio-delta__claim[data-tone="membership"] { border-left-color: #3c8f92; }
-.ambio-delta__claim[data-tone="pending"]    { border-left-color: #a8803c; }
-.ambio-delta__claim[data-tone="internal"]   { border-left-color: #9aa39e; opacity: 0.75; }
-.ambio-delta__claim[data-cycle]             { border-left-color: #c0392b; border-left-width: 5px; }
-
-.ambio-delta__claim[data-active] {
-  background: #2d3834;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.ambio-delta__claim-head {
+.ambio-checkouts__review .ambio-delta__claim-head {
   display: flex;
   width: 100%;
   flex-direction: column;
@@ -7248,9 +6969,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   text-align: left;
 }
 
-/* Titles wrap. A claim names real systems and real paths, and truncating them
-   to fit a strip is what made the first version useless. */
-.ambio-delta__claim-title {
+.ambio-checkouts__review .ambio-delta__claim-title {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
@@ -7263,9 +6982,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   overflow-wrap: anywhere;
 }
 
-.ambio-delta__claim[data-active] .ambio-delta__claim-title { color: #f6f4ec; }
-
-.ambio-delta__cycle {
+.ambio-checkouts__review .ambio-delta__cycle {
   padding: 2px 5px;
   border: 1px solid #e08074;
   background: #8c2f24;
@@ -7275,223 +6992,280 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   letter-spacing: 0.08em;
 }
 
-/* The agent's own words about why this happened. */
-.ambio-delta__claim-why {
-  color: #45524d;
-  font-size: 12px;
-  font-style: italic;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.ambio-delta__claim[data-active] .ambio-delta__claim-why { color: #c6d4ce; }
-
-.ambio-delta__claim-meta {
+.ambio-checkouts__review .ambio-delta__claim-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 9px;
 }
 
-.ambio-delta__claim-sub {
+.ambio-checkouts__review .ambio-delta__claim-sub {
   color: var(--delta-ink-soft);
   font-size: 11px;
 }
 
-.ambio-delta__claim[data-active] .ambio-delta__claim-sub { color: #a9bab4; }
-
-.ambio-delta__actor {
-  flex: 0 0 auto;
-  padding: 2px 6px;
-  border: 1px solid #a9b2ac;
-  color: var(--delta-ink-soft);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-}
-
-.ambio-delta__actor[data-actor="agent"] {
-  border-color: #c79a3f;
-  background: #f0e2c2;
-  color: #6b4d16;
-}
-
-/* An unexplained change is itself information: nobody narrated this one. */
-.ambio-delta__unexplained {
-  flex: 0 0 auto;
-  padding: 2px 6px;
-  border: 1px dashed #b08a52;
-  color: #7d5c1f;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-}
-
-.ambio-delta__intent {
-  flex: 0 0 auto;
-  padding: 2px 6px;
-  border: 1px solid #718c75;
-  color: #49664e;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-}
-
-.ambio-delta__intent[data-status="unexpected"] {
-  border-color: #a55d54;
-  background: #ead7d2;
-  color: #813c35;
-}
-
-.ambio-delta__undo-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px 6px;
-  font-size: 11px;
-}
-
-.ambio-delta__undo {
-  padding: 2px 9px;
-  border: 1px solid #8a948f;
-  background: #f7f6f1;
-  color: #1f2a26;
-  font-size: 11px;
-}
-
-.ambio-delta__undo:hover:not(:disabled) { border-color: #2f5f56; }
-.ambio-delta__undo:disabled { opacity: 0.6; }
-.ambio-delta__undone { color: #2f5f56; font-family: var(--font-mono); letter-spacing: 0.04em; }
-.ambio-delta__undo-error { color: #8a3b30; }
-.ambio-delta__code-fit {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px 6px;
-  font-size: 11px;
-  color: #6d4a2a;
-}
-.ambio-delta__code-fit span { flex: 1; overflow-wrap: anywhere; }
-
-.ambio-delta__evidence-toggle {
-  width: 100%;
-  padding: 2px 12px 10px;
-  border: 0;
-  background: transparent;
-  color: #5f6d67;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.03em;
-  text-align: left;
-}
-
-.ambio-delta__evidence-toggle:hover { color: #2f5a53; }
-.ambio-delta__claim[data-active] .ambio-delta__evidence-toggle { color: #9fb0aa; }
-
-.ambio-delta__evidence {
-  margin: 0;
-  padding: 8px 12px 11px 18px;
-  border-top: 1px dashed var(--delta-rule);
-  background: #e2e0d8;
-  list-style: none;
-}
-
-.ambio-delta__evidence li {
+/* Review Changes uses the workbench chrome around paper claim rows. */
+.ambio-delta--panel {
+  --delta-paper: #f1efe8;
+  --delta-ink: #26332f;
+  --delta-muted: #57655e;
+  --delta-rule: #c4c9c1;
+  --delta-accent: #3c7d76;
+  position: absolute;
+  z-index: 1200;
+  top: 12px;
+  right: 12px;
   display: flex;
   flex-direction: column;
-  padding: 4px 0;
-  gap: 2px;
+  width: min(424px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow: hidden;
+  border: 1px solid #4f5d58;
+  border-radius: 3px;
+  background: var(--delta-paper);
+  box-shadow: 3px 3px 0 #1f2b2540, 0 14px 32px #0c151338;
+  color: var(--delta-ink);
+  font: 13px/1.4 var(--font-ui);
 }
 
-.ambio-delta__evidence-label {
-  color: #26312d;
-  font-size: 12.5px;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-
-.ambio-delta__evidence-detail {
-  color: #66736e;
-  font-size: 11px;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-
-/* ── Footer ──────────────────────────────────────────────────────────────── */
+.ambio-delta__header,
+.ambio-delta__filters,
 .ambio-delta__footer {
   display: flex;
-  flex: 0 0 auto;
+  flex: none;
   align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.ambio-delta__header {
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px;
-  border-top: 1px solid #1d2925;
-  background: linear-gradient(180deg, #4a5652 0%, #2d3834 100%);
+  background: linear-gradient(90deg, #26332f, #2d3b37);
+  box-shadow: inset 0 -1px #46534f;
+  color: #f2f1eb;
 }
 
-.ambio-delta__reveal {
-  padding: 6px 8px;
-  border: 1px dashed #7f8f89;
-  background: transparent;
-  color: #c2d0cb;
-  font-family: var(--font-mono);
-  font-size: 11px;
+.ambio-delta__header h2 { margin: 0; font-size: 14px; line-height: 1.35; }
+.ambio-delta__close {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: inherit;
+  font-size: 19px;
+  line-height: 1;
 }
+.ambio-delta__close:hover { border-color: #6e9183; background: #415b51; }
 
-.ambio-delta__reveal:hover { border-color: #a8d0c6; color: #f0f6f3; }
-
-.ambio-delta__footer-actions {
+.ambio-delta__filter-area {
   display: flex;
-  align-items: center;
-  gap: 9px;
+  flex: none;
+  flex-direction: column;
+  min-width: 0;
+  border-bottom: 1px solid var(--delta-rule);
 }
-
-.ambio-delta__hint {
-  padding: 3px 6px;
-  border: 1px solid #6b7a74;
-  border-radius: 2px;
-  color: #9fb3ac;
-  font-family: var(--font-mono);
-  font-size: 10px;
-}
-
-.ambio-delta__button {
-  min-height: 30px;
-  padding: 6px 13px;
-  border: 1px solid #7f8984;
-  border-radius: 2px;
-  background: linear-gradient(180deg, #f7f5ee 0%, #d2d0c9 100%);
-  box-shadow: inset 0 1px 0 #fff, 1px 1px 0 rgba(58, 69, 64, 0.2);
-  color: #3c4944;
-  font-family: var(--font-mono);
+.ambio-delta__filters {
+  flex-wrap: wrap;
+  gap: 5px;
+  color: var(--delta-muted);
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
+}
+.ambio-delta__filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 3px 8px;
+  border: 1px solid #b9c3ba;
+  border-radius: 3px;
+  background: #f8f7f1;
+  color: #3a4b43;
+  font: 600 11px/1.4 var(--font-ui);
+}
+.ambio-delta__filter-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ambio-delta__filter-chip:hover { border-color: var(--delta-accent); }
+.ambio-delta__filter-chip:is([aria-pressed='true'], [aria-expanded='true'], [data-selected]) {
+  border-color: #8ca89a;
+  background: #e2ece5;
+  color: #25584d;
+}
+.ambio-delta__filter-count { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+
+.ambio-delta__filter-menu {
+  display: grid;
+  max-height: min(200px, 30vh);
+  margin: 0 12px 8px;
+  overflow-y: auto;
+  border: 1px solid #aebbb1;
+  border-radius: 3px;
+  background: #f8f7f1;
+}
+.ambio-delta__filter-menu button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 13px;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  color: var(--delta-ink);
+  font: 12px/1.35 var(--font-ui);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.ambio-delta__filter-menu button + button { border-top: 1px solid #e1e4dc; }
+.ambio-delta__filter-menu button:is(:hover, :focus-visible, [aria-checked='true']) { background: #e5eee8; }
+.ambio-delta__filter-menu small { color: var(--delta-muted); font-size: 10px; }
+
+.ambio-delta__body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.ambio-delta--panel .ambio-delta__claims { margin: 0; padding: 0; list-style: none; }
+.ambio-delta--panel .ambio-delta__claim {
+  position: relative;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #dadcd3;
+  background: #f8f7f1;
+}
+.ambio-delta--panel .ambio-delta__claim:last-child { border-bottom: 0; }
+.ambio-delta--panel .ambio-delta__claim[data-active] {
+  background: #e5eee8;
+  box-shadow: inset 3px 0 var(--delta-accent);
+}
+.ambio-delta--panel .ambio-delta__claim[data-cycle] { box-shadow: inset 3px 0 #a94e43; }
+.ambio-delta--panel .ambio-delta__claim[data-seen]:not([data-active]) .ambio-delta__claim-title { color: var(--delta-muted); }
+
+.ambio-delta--panel .ambio-delta__claim-head {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 9px 84px 5px 13px;
+  color: inherit;
+  text-align: left;
+}
+.ambio-delta--panel .ambio-delta__claim-head:hover { background: #3c7d760d; }
+.ambio-delta--panel .ambio-delta__claim-title {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.ambio-delta--panel .ambio-delta__claim-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 7px;
+  color: var(--delta-muted);
+  font-size: 11px;
+}
+.ambio-delta--panel .ambio-delta__cycle,
+.ambio-delta__actor,
+.ambio-delta__intent,
+.ambio-delta__unexplained {
+  padding: 0 4px;
+  border: 1px solid #b8c3ba;
+  border-radius: 2px;
+  font: 600 9px/1.55 var(--font-mono);
+  text-transform: uppercase;
+}
+.ambio-delta--panel .ambio-delta__cycle { margin-right: 6px; border-color: #d4a49e; color: #8b3c32; }
+.ambio-delta__actor[data-actor="agent"] { border-color: #c9b888; color: #6e531d; }
+.ambio-delta__unexplained { border-color: #c9b888; color: #6e531d; }
+.ambio-delta__intent[data-status="drifted"] { border-color: #d4a49e; color: #8b3c32; }
+
+.ambio-delta__seen {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
 }
 
-.ambio-delta__button:not(:disabled):hover {
-  border-color: #61736d;
-  background: linear-gradient(180deg, #fffef8 0%, #dad8d1 100%);
+.ambio-delta__seen,
+.ambio-delta__undo,
+.ambio-delta__filter-count button {
+  padding: 2px 6px;
+  border: 1px solid var(--delta-rule);
+  border-radius: 2px;
+  background: #faf9f4;
+  color: var(--delta-ink);
+  font-size: 11px;
 }
+.ambio-delta__seen:hover,
+.ambio-delta__undo:hover:not(:disabled),
+.ambio-delta__filter-count button:hover { border-color: var(--delta-accent); }
+.ambio-delta__seen[aria-pressed="true"] { background: #dce9e1; color: #24564d; }
 
-.ambio-delta__button--primary {
-  border-color: #285a53;
-  background: linear-gradient(180deg, #527f77 0%, #356b63 100%);
-  color: #fffdf6;
-  text-shadow: 0 1px 0 #1d443f;
+.ambio-delta__undo-row,
+.ambio-delta__code-fit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 13px;
+  font-size: 11px;
 }
+.ambio-delta__code-fit { color: #694b28; }
+.ambio-delta__code-fit span { flex: 1 1 160px; overflow-wrap: anywhere; }
+.ambio-delta__undone { color: #2d625c; }
+.ambio-delta__undo-error { color: #8a3b30; }
 
-/* The generic hover above out-specifies the primary rule, so without this the
-   primary button hovers to a pale cream ground while keeping its near-white
-   ink - the label disappears under the cursor. Primary hovers lighter sage. */
-.ambio-delta__button--primary:not(:disabled):hover {
-  border-color: #1d443f;
-  background: linear-gradient(180deg, #5f8e85 0%, #3d7a71 100%);
-  color: #fffdf6;
+.ambio-delta__evidence-toggle,
+.ambio-delta__report summary,
+.ambio-delta__other-work summary {
+  color: #30665c;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
 }
+.ambio-delta__evidence-toggle { display: flex; align-items: center; gap: 6px; padding: 3px 13px; }
+.ambio-delta__report { padding: 3px 13px; }
+.ambio-delta__other-work { padding: 8px 13px; border-top: 1px solid var(--delta-rule); }
+.ambio-delta__evidence-toggle:hover,
+.ambio-delta__report summary:hover,
+.ambio-delta__other-work summary:hover { text-decoration: underline; }
 
-@media (max-width: 1180px) {
-  .ambio-delta--panel { width: 384px; }
+.ambio-delta__session,
+.ambio-delta__evidence {
+  display: grid;
+  gap: 4px;
+  margin: 5px 0 0;
+  padding: 6px 8px;
+  border-left: 2px solid #93aea1;
+  background: #edf0e9;
+  overflow-wrap: anywhere;
+}
+.ambio-delta__session { font-size: 12px; }
+.ambio-delta__session-meta { color: var(--delta-muted); font-size: 11px; }
+.ambio-delta__session p { margin: 0; }
+.ambio-delta__session ul { margin: 0; padding-left: 15px; }
+.ambio-delta__evidence { margin: 5px 13px 2px; list-style: none; }
+.ambio-delta__evidence li { display: grid; gap: 2px; }
+.ambio-delta__evidence-label { font-size: 12px; }
+.ambio-delta__evidence-detail { color: var(--delta-muted); font-size: 11px; }
+.ambio-delta__empty { margin: 0; padding: 14px; color: var(--delta-muted); }
+
+.ambio-delta__footer {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--delta-rule);
+  background: #e7e7df;
+}
+.ambio-delta__button {
+  min-height: 29px;
+  padding: 4px 10px;
+  border: 1px solid #a9b2a9;
+  border-radius: 2px;
+  background: #f8f7f1;
+  color: var(--delta-ink);
+  font: 600 11px/1.4 var(--font-ui);
+}
+.ambio-delta__button:hover { border-color: var(--delta-accent); }
+.ambio-delta__button--primary { border-color: #285a53; background: #34736a; color: #fffdf6; }
+.ambio-delta__button--primary:hover { background: #295f57; }
+.ambio-delta--panel :is(button, select, summary):focus-visible {
+  outline: 2px solid var(--delta-accent);
+  outline-offset: -2px;
 }
 
 /* ─── Agent activity log ────────────────────────────────────────────────────

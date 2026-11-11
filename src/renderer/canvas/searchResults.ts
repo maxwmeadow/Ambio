@@ -118,7 +118,7 @@ export function buildSearchResults(input: {
   const infra = ranked(input.infraNodes, node => matchRank(node.name, needle), node => node.name, LIMITS.infra)
     .map((node): SearchResult => ({
       kind: 'infra', id: node.id, nodeId: node.id, title: node.name,
-      detail: [node.provider, node.category].filter(Boolean).join(' · '),
+      detail: [node.provider, node.category].filter(Boolean).join(', '),
     }))
   // A path fragment like "canvas/Ambio" matches the path; the name ranks first.
   const files = ranked(input.files, file => {
@@ -135,7 +135,7 @@ export function buildSearchResults(input: {
     .slice(0, LIMITS.symbol)
     .map((symbol): SearchResult => ({
       kind: 'symbol', id: `symbol:${symbol.id}`, nodeId: symbol.fileId, title: symbol.name,
-      detail: `${symbol.kind} · ${symbol.relPath}:${symbol.lineStart}`, symbol,
+      detail: `${symbol.kind}, ${symbol.relPath}:${symbol.lineStart}`, symbol,
     }))
   return [...systems, ...infra, ...files, ...symbols]
 }

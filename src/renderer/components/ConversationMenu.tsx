@@ -1,3 +1,4 @@
+import { DisclosureSummary } from './ui/Chevron'
 import { useEffect, useRef, useState } from 'react'
 import { conversationStageCounts, WORK_ORDER_STAGES, type WorkOrderStage } from './inboxModel'
 import { InboxIcon } from './InboxIcon'
@@ -40,7 +41,7 @@ export function ConversationMenu({ entries, currentId, project, disabled, onOpen
       {entries.length > 0 && <InboxIcon name="chevron" size={11} />}
     </button>
     {open && <div className="ambio-inbox__conversation-menu" role="menu" aria-label="Conversations">
-      <details className="ambio-inbox__conversation-filters"><summary>Filter conversations</summary>
+      <details className="ambio-inbox__conversation-filters"><DisclosureSummary>Filter conversations</DisclosureSummary>
         <div className="ambio-inbox__stages" role="group" aria-label="Show conversations">
           <button type="button" aria-pressed={stage === null} onClick={() => setStage(null)}>All <span>{entries.length}</span></button>
           {WORK_ORDER_STAGES.filter(item => counts[item.stage] > 0 || stage === item.stage).map(item => <button key={item.stage} type="button" aria-pressed={stage === item.stage} onClick={() => setStage(stage === item.stage ? null : item.stage)}>{item.label} <span>{counts[item.stage]}</span></button>)}

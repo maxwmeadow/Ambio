@@ -1,3 +1,4 @@
+import { Chevron } from './ui/Chevron'
 import { useEffect, useMemo, useState } from 'react'
 import { isDocumentationFile } from '../../shared/fileKinds'
 import type { DbFile } from '../../shared/types'
@@ -136,7 +137,7 @@ export function DocumentsPanel({ onClose }: { onClose: () => void }) {
               onClick={() => setBrowsing(value => !value)}
               aria-expanded={browsing}
             >
-              {browsing ? '‹ Hide list' : '☰ All documents'}
+              {browsing ? <><Chevron direction="left" /> Hide list</> : '☰ All documents'}
             </button>
             {selected && <span className="ambio-docs__path">{selected.relPath}</span>}
           </div>

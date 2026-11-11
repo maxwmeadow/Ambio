@@ -97,7 +97,7 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     await panel.getByRole('button', { name: 'Request changes' }).click()
     await panel.getByLabel('What needs to change?').fill('Include the timeout path.')
     await panel.getByRole('button', { name: 'Reopen work order' }).click()
-    await expect(panel.locator('.ambio-inbox__turn-status')).toContainText('Changes requested · waiting for agent.')
+    await expect(panel.locator('.ambio-inbox__turn-status')).toContainText('Changes requested, waiting for agent.')
     await expect(panel.getByText('Include the timeout path.')).toBeVisible()
     await expect(panel.getByRole('button', { name: 'Copy handoff' })).toBeVisible()
     messages[0].status = 'answered'

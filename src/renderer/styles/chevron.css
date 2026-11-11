@@ -1,0 +1,25 @@
+.ambio-chevron {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  transition: transform 120ms ease;
+}
+
+.ambio-chevron[data-direction='down'],
+.ambio-chevron[data-expanded],
+details[open] > .ambio-disclosure-summary > .ambio-chevron { transform: rotate(90deg); }
+.ambio-chevron[data-direction='left'] { transform: rotate(180deg); }
+.ambio-chevron[data-direction='up'] { transform: rotate(-90deg); }
+
+.ambio-disclosure-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  cursor: pointer;
+}
+.ambio-disclosure-summary::-webkit-details-marker { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ambio-chevron { transition: none; }
+}

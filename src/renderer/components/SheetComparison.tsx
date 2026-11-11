@@ -1,3 +1,4 @@
+import { DisclosureSummary } from './ui/Chevron'
 import { useEffect, useState } from 'react'
 import { useSheetStore } from '../store/sheetStore'
 import { InboxIcon } from './InboxIcon'
@@ -56,13 +57,13 @@ export function SheetComparison({ workspaceId, sheetId }: { workspaceId: string;
   return <section className="ambio-inbox__comparison" aria-label="Sheet comparison">
     <button type="button" className="ambio-inbox__comparison-summary" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
       <span className={`ambio-inbox__comparison-glyph${comparison?.equivalent ? ' ambio-inbox__comparison-glyph--match' : ''}`}><InboxIcon name={comparison?.equivalent ? 'check' : 'sheet'} size={16} /></span>
-      <span><strong>{error ? 'Sheet comparison unavailable' : comparison?.resolvedAt ? 'Sheet resolved · saved in history' : comparison?.equivalent ? 'Structure matches the live canvas' : comparison ? `${comparison.differences.length} structural ${comparison.differences.length === 1 ? 'difference' : 'differences'}` : 'Comparing sheet with live canvas…'}</strong><small>{comparison?.name ?? 'Attached sheet'} · live comparison</small></span><InboxIcon name="chevron" size={15} />
+      <span><strong>{error ? 'Sheet comparison unavailable' : comparison?.resolvedAt ? 'Sheet resolved, saved in history' : comparison?.equivalent ? 'Structure matches the live canvas' : comparison ? `${comparison.differences.length} structural ${comparison.differences.length === 1 ? 'difference' : 'differences'}` : 'Comparing sheet with live canvas…'}</strong><small>{comparison?.name ?? 'Attached sheet'}, live comparison</small></span><InboxIcon name="chevron" size={15} />
     </button>
     {expanded && <div className="ambio-inbox__comparison-detail">
-      {comparison && <small>Revision {comparison.revision} · {comparison.checked} requirements checked. Position and size are ignored.</small>}
+      {comparison && <small>Revision {comparison.revision}, {comparison.checked} requirements checked. Position and size are ignored.</small>}
       {error && <p role="alert">{error}</p>}
-      {!!comparison?.differences.length && <details open><summary>Show remaining differences</summary><ul>{comparison.differences.slice(0,100).map((difference,index) => <li key={`${difference.nodeId}:${difference.kind}:${index}`}>
-        <strong>{difference.name} · {difference.kind}</strong><span>{difference.detail}</span>
+      {!!comparison?.differences.length && <details open><DisclosureSummary>Show remaining differences</DisclosureSummary><ul>{comparison.differences.slice(0,100).map((difference,index) => <li key={`${difference.nodeId}:${difference.kind}:${index}`}>
+        <strong>{difference.name}, {difference.kind}</strong><span>{difference.detail}</span>
         {(difference.kind === 'nesting' || difference.kind === 'parent') && <span>{label(difference.actual)} → {label(difference.expected)}</span>}
       </li>)}</ul>{comparison.differences.length>100 && <small>Showing the first 100 differences. The agent can read the full comparison.</small>}</details>}
       <div className="ambio-inbox__comparison-actions"><button type="button" onClick={() => { void useSheetStore.getState().openSheet(workspaceId, null) }}>Watch live canvas</button>

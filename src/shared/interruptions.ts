@@ -16,11 +16,11 @@
 /**
  * Why something is interrupting, in descending order of claim on attention.
  *
- * · decision   - work is blocked until the user answers. An agent is waiting.
- * · failure    - something broke. The user must know; nothing is waiting on them.
- * · invitation - an offer to act, valuable but never urgent.
- * · progress   - ongoing work, only when it needs a visible status or action.
- * · notice     - confirmation of something that already succeeded.
+ * - decision: work is blocked until the user answers.
+ * - failure: something broke and needs attention.
+ * - invitation: an offer to act when convenient.
+ * - progress: ongoing work that needs a visible status or action.
+ * - notice: confirmation that something succeeded.
  */
 export type InterruptionKind = 'decision' | 'failure' | 'invitation' | 'progress' | 'notice'
 

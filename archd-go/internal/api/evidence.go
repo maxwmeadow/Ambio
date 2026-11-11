@@ -861,12 +861,12 @@ func renderRunReport(rep *RunReport, requestedWatches int) string {
 	if rep.Server != nil && rep.Server.Failed != "" {
 		status = "not run"
 	}
-	fmt.Fprintf(&b, "Run R%d · `%s` · %s · %s", rep.N, rep.Command, status, humanMs(rep.DurationMs))
+	fmt.Fprintf(&b, "Run R%d, `%s`, %s, %s", rep.N, rep.Command, status, humanMs(rep.DurationMs))
 	if rep.Server != nil {
-		fmt.Fprintf(&b, " · against `%s`", rep.Server.Command)
+		fmt.Fprintf(&b, ", against `%s`", rep.Server.Command)
 	}
 	if rep.HypothesisID != "" {
-		fmt.Fprintf(&b, " · testing %s", rep.HypothesisID)
+		fmt.Fprintf(&b, ", testing %s", rep.HypothesisID)
 	}
 	b.WriteString("\n")
 
@@ -903,12 +903,12 @@ func renderRunReport(rep *RunReport, requestedWatches int) string {
 				continue
 			}
 			detailed := b.Len() <= reportDetailBudget
-			fmt.Fprintf(&b, "• %s  %s · %d calls", w.Anchor.Symbol, where(w.Anchor), w.Calls)
+			fmt.Fprintf(&b, "• %s  %s, %d calls", w.Anchor.Symbol, where(w.Anchor), w.Calls)
 			if w.Errors > 0 {
-				fmt.Fprintf(&b, " · %d %s", w.Errors, failedVerb(firstFailure(w)))
+				fmt.Fprintf(&b, ", %d %s", w.Errors, failedVerb(firstFailure(w)))
 			}
 			if w.Returns != "" && detailed {
-				fmt.Fprintf(&b, " · returns %s", clip(w.Returns, 120))
+				fmt.Fprintf(&b, ", returns %s", clip(w.Returns, 120))
 			}
 			b.WriteString("\n")
 			if !detailed {

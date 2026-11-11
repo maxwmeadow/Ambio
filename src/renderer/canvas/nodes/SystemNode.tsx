@@ -365,7 +365,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
     }}>
       {isRepository && (
         <span className="ambio-repository-kicker" style={{ fontSize: Math.max(9, bigTitleFont * 0.26) }}>
-          Repository{repositoryBranch ? ` · ${repositoryBranch}` : ''}
+          Repository{repositoryBranch ? `, ${repositoryBranch}` : ''}
         </span>
       )}
       <EditableNodeTitle value={name} onRename={containerAlpha < 0.2 ? onRename : undefined} style={{
@@ -472,7 +472,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
           title={repositoryBranch ? `A repository, on ${repositoryBranch}` : 'A repository in this project'}
           style={{ fontSize: badgeFont * 0.85, padding: `${badgeFont * 0.12}px ${badgeFont * 0.5}px` }}
         >
-          REPO{repositoryBranch ? ` · ${repositoryBranch}` : ''}
+          REPO{repositoryBranch ? `, ${repositoryBranch}` : ''}
         </span>
       )}
       {collisionBadge(badgeFont * 0.85)}
@@ -642,7 +642,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
         const summarise = windows.length > 2
         const kinds = new Set(windows.map(window => livingActivityLabel(window.kind)))
         const summary = kinds.size === 1
-          ? `${[...kinds][0]} · ${windows.length} files`
+          ? `${[...kinds][0]}, ${windows.length} files`
           : `${windows.length} files changed`
         const closing = livingWindowsClosing ? ' ambio-living-inspection-layer--closing' : ''
         return (

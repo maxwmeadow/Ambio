@@ -367,7 +367,7 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
         useGraphStore.setState({
           delta: null,
           deltaReviewing: false,
-          deltaCursor: -1,
+          deltaClaimId: null,
           deltaDeferredUntil: 0,
         })
       }

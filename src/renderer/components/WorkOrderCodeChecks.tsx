@@ -14,7 +14,7 @@ const STATE_LABEL: Record<CodeCheckResult['state'], string> = {
  */
 export function WorkOrderCodeChecks({ checks }: { checks: CodeCheckResult[] }) {
   return <section className="ambio-inbox__code-checks" aria-label="Code checked by Ambio">
-    <div className="ambio-inbox__evidence-label">Checked by Ambio <span>· against the indexed code</span></div>
+    <div className="ambio-inbox__evidence-label">Checked by Ambio <span>against the indexed code</span></div>
     <p>{codeCheckHeadline(checks)}</p>
     <ul>{checks.map((check, index) => <li key={`${check.sent.fileId}:${check.sent.kind}:${index}`} data-state={check.state}>
       <strong>{STATE_LABEL[check.state]}</strong> {check.now}

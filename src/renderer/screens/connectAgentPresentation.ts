@@ -202,8 +202,8 @@ export function orderAgentFamilies<T extends { id: string; label: string; modali
 
 /** A family's row in a few words; `available` is how many more surfaces could be installed. */
 export function familySummary(presentation: AgentFamilyPresentation, available: number): string {
-  if (presentation.state === 'installed' && available > 0) return `Installed · ${available} more available`
-  if (presentation.state === 'live' && available > 0) return `Connected now · ${available} more available`
+  if (presentation.state === 'installed' && available > 0) return `Installed, ${available} more available`
+  if (presentation.state === 'live' && available > 0) return `Connected now, ${available} more available`
   return AGENT_STATE_LABEL[presentation.state]
 }
 

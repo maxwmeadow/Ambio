@@ -272,7 +272,7 @@ export function InfraPickerDialog(props: InfraPickerDialogProps) {
                       <span className="ambio-infra-picker__service-copy">
                         <strong>{service.name}</strong>
                         <span>
-                          {service.provider} · {TYPE_NAMES[service.category] ?? service.category}{service.subtype ? ` / ${service.subtype}` : ''}
+                          {service.provider}, {TYPE_NAMES[service.category] ?? service.category}{service.subtype ? ` / ${service.subtype}` : ''}
                         </span>
                       </span>
                     </button>

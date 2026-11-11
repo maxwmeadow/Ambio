@@ -2,10 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   applyDeltaMarks,
-  claimRationale,
   buildDeltaReview,
   claimFocusTargets,
-  clampClaimCursor,
   deltaAttribution,
   deltaHeadline,
   deltaWindow,
@@ -44,7 +42,7 @@ test('internal churn is held back from the main list', () => {
   const review = buildDeltaReview(summary({
     claims: [
       claim({ id: 'c1' }),
-      claim({ id: 'c2', kind: 'system.internal', internal: true, title: 'Api · 3 files edited' }),
+      claim({ id: 'c2', kind: 'system.internal', internal: true, title: '3 files edited in Api' }),
     ],
   }), new Set())
 
@@ -71,7 +69,7 @@ test('a cycle is called out in the headline', () => {
   const review = buildDeltaReview(summary({
     claims: [claim({ createsCycle: true }), claim({ id: 'b' })],
   }), new Set())
-  assert.equal(deltaHeadline(review), '2 changes to review · 1 cycle')
+  assert.equal(deltaHeadline(review), '2 changes to review, 1 cycle')
 })
 
 test('a boundary claim frames both systems, not its files', () => {
@@ -172,30 +170,7 @@ test('a claim inherits the agent account of the work that produced it', () => {
     }],
   }), new Set())
 
-  assert.equal(claimRationale(review.claims[0], review), 'handlers now read through TaskStore')
-})
-
-test('an in-flight session explains itself with its goal', () => {
-  const review = buildDeltaReview(summary({
-    claims: [claim({ sessionId: 'w1' })],
-    sessions: [{
-      id: 'w1', workspaceId: 'ws', goal: 'Refactor auth', summary: '',
-      notes: [], startedAt: 0, endedAt: 0,
-    }],
-  }), new Set())
-
-  assert.equal(claimRationale(review.claims[0], review), 'Refactor auth')
-})
-
-test('an unnarrated change has no rationale to show', () => {
-  const review = buildDeltaReview(summary({ claims: [claim()] }), new Set())
-  assert.equal(claimRationale(review.claims[0], review), null)
-})
-
-test('cursor clamps inside the claim list', () => {
-  assert.equal(clampClaimCursor([claim()], -5), 0)
-  assert.equal(clampClaimCursor([claim()], 99), 0)
-  assert.equal(clampClaimCursor([], 0), -1)
+  assert.equal(review.sessions.get(review.claims[0].sessionId)?.summary, 'handlers now read through TaskStore')
 })
 
 test('every realization state explains the evidence threshold it represents', () => {

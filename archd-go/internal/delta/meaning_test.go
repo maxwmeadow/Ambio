@@ -112,7 +112,7 @@ func TestAnAgentsGroupingIsOneClaimWithItsFiles(t *testing.T) {
 	if len(claims) != 1 || claims[0].Kind != ClaimGrouped {
 		t.Fatalf("want one grouping claim, got %+v", claims)
 	}
-	if claims[0].Title != "New system · Checkout, grouping 2 files" || claims[0].Subtitle != "by codex" {
+	if claims[0].Title != "New system Checkout, grouping 2 files" || claims[0].Subtitle != "by codex" {
 		t.Fatalf("claim reads %q / %q", claims[0].Title, claims[0].Subtitle)
 	}
 	if len(claims[0].UndoEventIDs) != 3 || len(claims[0].Evidence) != 2 {

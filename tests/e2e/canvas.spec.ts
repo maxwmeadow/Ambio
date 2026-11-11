@@ -2340,7 +2340,7 @@ test('opens source symbols in the workbench code preview without losing syntax c
   const preview = page.getByRole('dialog', { name: /renderCanvas in src\/renderer\/canvas\/AmbioCanvas\.tsx/ })
   const code = preview.locator('.source-preview-code')
   await expect(preview).toBeVisible()
-  await expect(preview.getByText('function renderCanvas · lines 3–6')).toBeVisible()
+  await expect(preview.getByText('function renderCanvas, lines 3–6')).toBeVisible()
   await expect(preview.getByRole('button', { name: 'Close source preview' })).toBeFocused()
   await expect(code).toContainText('const ready = true')
   await expect(code.locator('.source-preview-line-highlighted')).toHaveCount(4)
@@ -2727,7 +2727,12 @@ test('a nested proposal keeps compressed live context below its title and leaves
     await page.evaluate(() => (window as any).__ambioGraphStore.getState().setSelectedNode(null))
     await page.getByRole('button', { name: 'Fit view', exact: true }).click()
     await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
-    // At overview zoom both nested files begin below the semantic threshold.
+    // The sheet fits only its scope, so step out to an overview zoom where
+    // both nested files begin below the semantic threshold.
+    for (let step = 0; step < 6 && !/scale\(0\./.test(await page.locator('.react-flow__viewport').getAttribute('style') ?? ''); step++) {
+      await page.keyboard.press('ControlOrMeta+-')
+      await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+    }
     await expect(page.locator('.react-flow__viewport')).toHaveAttribute('style', /scale\(0\./)
     await page.getByRole('button', { name: label, exact: true }).click()
     const edge = page.locator(`.react-flow__edge[data-id="pedge:${id}"]`)
@@ -2868,7 +2873,7 @@ test('compact sheet review retains exact decisions and navigates approved conten
   await expect(review.locator('.ambio-sheet-review-group')).toHaveCount(1)
   await expect(review.getByRole('button', { name: 'Confirm replay_scene.py', exact: true })).not.toBeVisible()
   expect((await review.boundingBox())!.height).toBeLessThan(210)
-  await expect(review).toContainText('1 system · 3 files · 4 connections')
+  await expect(review).toContainText('1 system, 3 files, 4 connections')
   await expect(review.locator('details')).toHaveCount(0)
   await review.getByRole('button', { name: 'Inspect changes for Add Replay Tool', exact: true }).click()
   const reviewPanel = page.getByRole('dialog', { name: 'Review Add Replay Tool' })
@@ -3092,7 +3097,13 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
     const system = state.systems.find((candidate: { id: string }) => candidate.id === file.systemId)
     return { systemId: system.id as string, parentId: (system.parentId ?? null) as string | null }
   })
-  const floorBox = await page.locator(`.react-flow__node[data-id="${systemId}"]`).boundingBox()
+  const memberNode = page.locator(`.react-flow__node[data-id="${systemId}"]`)
+  const worldBox = (node: Locator) => node.evaluate(element => {
+    const style = getComputedStyle(element)
+    const position = new DOMMatrixReadOnly(style.transform)
+    return [position.e, position.f, parseFloat(style.width), parseFloat(style.height)]
+  })
+  const floorBox = await worldBox(memberNode)
   const agentSheet = {
     id: 'sheet_split', workspaceId: 'demo', name: 'Split Payments', purpose: '', kind: 'structure',
     folder: '', createdBy: 'agent', revision: 1, createdAt: 9, updatedAt: 9,
@@ -3137,9 +3148,7 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toHaveCount(0)
   // The named system has not moved or resized.
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
-  const sheetBox = await page.locator(`.react-flow__node[data-id="${systemId}"]`).boundingBox()
-  expect(floorBox && sheetBox).toBeTruthy()
-  for (const key of ['x', 'y', 'width', 'height'] as const) expect(Math.abs(sheetBox![key] - floorBox![key])).toBeLessThan(2)
+  expect(await worldBox(memberNode)).toEqual(floorBox)
   // It shows the proposed name, the one the map has today, and that it is a proposal.
   const renamedSystem = page.locator(`.react-flow__node[data-id="${systemId}"]`)
   await expect(renamedSystem).toHaveAttribute('data-proposal-kind', 'rename')
@@ -3287,16 +3296,10 @@ test('Review Changes: undo a map change, make the code match, copy as Markdown',
       ask: 'Move src/renderer/canvas/AmbioCanvas.tsx to src/shared/AmbioCanvas.tsx and update every import of it.',
     }],
   }
-  await page.evaluate(summary => {
-    const store = (window as unknown as { __ambioGraphStore: { setState: (s: unknown) => void; getState: () => { startDeltaReview: () => void } } }).__ambioGraphStore
-    store.setState({ delta: summary })
-  }, { since: 1, until: 3, files: [], edges: [], systems: [], claims: [moved], sessions: [], counts, empty: false })
-  await expect(page.locator('.ambio-lane')).toHaveCount(0)
-  // Further code updates must stay quiet too; review remains explicitly available.
-  await page.evaluate(() => {
-    const store = (window as any).__ambioGraphStore
-    store.setState({ delta: { ...store.getState().delta, until: 4 } })
-  })
+  const summary = { since: 1, until: 4, files: [], edges: [], systems: [], claims: [moved], sessions: [], counts, empty: false }
+  await page.route(/\/api\/delta\?/, route => route.fulfill({ json: summary }))
+  await page.evaluate(cached => (window as any).__ambioGraphStore.setState({ delta: cached }),
+    { ...summary, until: 3, claims: [{ ...moved, title: 'Cached change' }] })
   await expect(page.locator('.ambio-lane')).toHaveCount(0)
   await expect(reviewButton).not.toHaveClass(/ambio-chrome-button--active/)
   await expect(reviewButton).toHaveAttribute('aria-expanded', 'false')
@@ -3304,6 +3307,7 @@ test('Review Changes: undo a map change, make the code match, copy as Markdown',
 
   const panel = page.getByRole('complementary', { name: 'Reviewing changes' })
   await expect(panel).toBeVisible()
+  await expect(panel).toContainText(moved.title)
   await expect(reviewButton).toHaveClass(/ambio-chrome-button--active/)
   await expect(reviewButton).toHaveAttribute('aria-expanded', 'true')
   await page.locator('.ambio-toolbar').screenshot({ path: 'test-results/review-button-open.png' })
@@ -3341,7 +3345,7 @@ test('Review Changes: undo a map change, make the code match, copy as Markdown',
   expect(acknowledged).toEqual([])
   await reviewButton.click()
   await expect(panel).toBeVisible()
-  await panel.getByRole('button', { name: 'Accept all', exact: true }).click()
+  await panel.getByRole('button', { name: 'Mark reviewed', exact: true }).click()
   await expect(panel).toHaveCount(0)
   await expect(reviewButton).not.toHaveClass(/ambio-chrome-button--active/)
   await expect(reviewButton).toHaveAttribute('aria-expanded', 'false')
@@ -3363,21 +3367,84 @@ test('Review Changes narrows by who made a change and hides what you have seen',
 
   const panel = page.getByRole('complementary', { name: 'Reviewing changes' })
   const titles = panel.locator('.ambio-delta__claim-title')
+  const hideSeen = panel.getByRole('button', { name: 'Hide seen' })
+  const clearFilters = panel.getByRole('button', { name: 'Clear filters' })
   await expect(titles).toHaveCount(2)
-  await panel.getByRole('combobox', { name: 'Who filter' }).selectOption({ label: 'Unexplained (1)' })
+  await expect(hideSeen).toBeHidden()
+  await expect(clearFilters).toBeHidden()
+  const who = panel.getByRole('button', { name: 'Who filter' })
+  await who.click()
+  const menu = panel.getByRole('menu', { name: 'Filter by who' })
+  await expect(menu.getByRole('menuitemradio', { name: /Everyone/ })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(menu).toBeHidden()
+  await expect(who).toBeFocused()
+  await who.click()
+  await menu.getByRole('menuitemradio', { name: /Unexplained/ }).click()
   await expect(titles).toHaveText(['MCP Server now depends on Shared Types'])
+  await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().deltaClaimId)).toBe('claim:agent')
   await expect(panel).toContainText('1 of 2')
-  await panel.getByRole('button', { name: 'Clear' }).click()
+  await clearFilters.click()
   await expect(titles).toHaveCount(2)
+  await expect(clearFilters).toBeHidden()
 
   await panel.getByRole('button', { name: '1 unexplained' }).click()
   await expect(titles).toHaveText(['MCP Server now depends on Shared Types'])
   await panel.getByRole('button', { name: '1 unexplained' }).click()
   await expect(titles).toHaveCount(2)
 
-  await panel.getByRole('button', { name: 'Mark “Canvas Renderer renamed to Canvas” seen' }).click()
-  await panel.getByRole('checkbox', { name: /Hide seen/ }).check()
+  const markSeen = panel.getByRole('button', { name: 'Mark “Canvas Renderer renamed to Canvas” seen' })
+  await expect(markSeen).toHaveText('Mark seen')
+  await markSeen.click()
+  await hideSeen.click()
+  await expect(hideSeen).toHaveAttribute('aria-pressed', 'true')
+  await expect(clearFilters).toBeHidden()
+  await expect(panel).toContainText('1 of 2')
   await expect(titles).toHaveText(['MCP Server now depends on Shared Types'])
+  await panel.getByRole('button', { name: 'Mark “MCP Server now depends on Shared Types” seen' }).click()
+  await expect(panel).toContainText('All matching changes are marked seen.')
+  await hideSeen.click()
+  await expect(titles).toHaveCount(2)
+  await expect(panel.getByRole('button', { name: 'Mark “Canvas Renderer renamed to Canvas” unseen' })).toHaveText('Seen')
+})
+
+test('Review Changes leads with observed internal changes and folds agent reports', async () => {
+  const now = Date.now()
+  const session = { id: 'fix', workspaceId: 'demo', agent: 'Codex', goal: 'Fix the type error',
+    summary: 'Updated the compass diagnostic.', startedAt: now - 60000, endedAt: now, notes: [], focusSystemIds: [], focusFileIds: [] }
+  const claim = { id: 'claim:internal', title: '1 file edited in Canvas Renderer', subtitle: 'no boundary crossed',
+    kind: 'system.internal', internal: true, actor: 'agent', sessionId: session.id, ts: now,
+    severity: 1, score: 1, createsCycle: false, focusSystemIds: ['sys_canvas'],
+    evidence: [{ kind: 'file.updated', label: 'AmbioCanvas.tsx', detail: 'edited' }] }
+  await page.route(/\/api\/delta\?/, route => route.fulfill({ json: {
+    since: now - 12 * 86400000, until: now, files: [], edges: [], systems: [],
+    claims: [claim, { ...claim, id: 'claim:shared', title: '1 file edited in Shared Types', focusSystemIds: ['sys_shared'] }],
+    sessions: [session, { ...session, id: 'diagnosis', goal: 'Diagnose the error', summary: 'Read-only diagnosis.' }],
+    counts: { agentFiles: 1 }, empty: false,
+  } }))
+  await page.getByRole('button', { name: 'Review Changes', exact: true }).click()
+  const panel = page.getByRole('complementary', { name: 'Reviewing changes' })
+  await expect(panel.getByText(claim.title, { exact: true })).toBeVisible()
+  await expect(panel.locator('header')).toHaveText(/^Review Changes\s*×$/)
+  await expect(panel).not.toContainText('No changes across system boundaries')
+  const firstClaim = panel.locator('.ambio-delta__claim').first()
+  await expect(firstClaim.getByText(session.summary, { exact: true })).toBeHidden()
+  await expect(panel.getByText('Read-only diagnosis.', { exact: true })).toBeHidden()
+  await panel.screenshot({ path: 'test-results/review-internal-changes.png' })
+  const system = panel.getByRole('button', { name: 'System filter' })
+  await expect(system).toHaveText('System')
+  await system.click()
+  await panel.screenshot({ path: 'test-results/review-system-filter.png' })
+  await panel.getByRole('menuitemradio', { name: /Canvas Renderer/ }).click()
+  await expect(system).toHaveText('Canvas Renderer')
+  await expect(panel.getByText('1 file edited in Shared Types', { exact: true })).toBeHidden()
+  await firstClaim.getByText('Codex report', { exact: true }).click()
+  await expect(firstClaim.getByText(session.summary, { exact: true })).toBeVisible()
+  await expect(firstClaim.locator('.ambio-delta__report .ambio-chevron')).toHaveCSS('transform', 'matrix(0, 1, -1, 0, 0, 0)')
+  await panel.getByText('Other agent activity (1)', { exact: true }).click()
+  await expect(panel.getByText('Read-only diagnosis.', { exact: true })).toBeVisible()
+  await panel.getByRole('button', { name: 'Copy as Markdown' }).click()
+  await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toContain(claim.title)
 })
 
 test('Zoom to Selection frames what is selected, and the empty-canvas menu offers Tidy Layout', async () => {
@@ -3419,18 +3486,110 @@ test('a sheet can start from a right-clicked system, with the system on it', asy
   expect(posted!.createdBy).toBe('user')
 })
 
-test('culls a large planned sheet over a small Floor and retains measurements during zoom', async () => {
-  // Keep the compact file and its facing port in clear viewport space. An
-  // oversized source that overlaps the Floor is automatically displaced, and
-  // a visible sliver of its card does not guarantee a visible clipped line.
-  const placement = await page.locator('.react-flow').first().evaluate(root => {
-    const matrix = new DOMMatrixReadOnly(getComputedStyle(root.querySelector('.react-flow__viewport')!).transform)
-    return { x: (root.clientWidth * .12 - matrix.e) / matrix.a, y: (80 - matrix.f) / matrix.a }
+test('a sheet from two systems preserves their layout, fits its scope, and returns to the Floor', async () => {
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  await page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    const systems = ['first', 'second', 'outside'].map(id => ({ ...state.systems[0], id, name: id, parentId: null, width: 380, height: 260 }))
+    const files = systems.map(system => ({ ...state.files[0], id: `${system.id}-file`, systemId: system.id, relPath: `${system.id}.ts` }))
+    const row = (id: string, x: number, y: number, parent: string | null = null) => ({
+      workspaceId: 'demo', nodeId: id, nodeType: parent ? 'file' : 'system', parentNodeId: parent,
+      parentNodeType: parent ? 'system' : null, containmentKind: parent ? 'part_of' : 'root',
+      positionX: x, positionY: y, width: parent ? 220 : 380, height: parent ? 110 : 260,
+      scale: 1, interiorScale: 1, updatedAt: 0,
+    })
+    const floorLayouts = [row('first', -200, 200), row('second', 350, -100), row('outside', 940, 50),
+      ...files.map(file => row(file.id, 40, 60, file.systemId))]
+    const dependency = (src: string, dst: string) => ({ id: `${src}-${dst}`, workspaceId: 'demo', src, dst, srcType: 'system', dstType: 'system', dependencyType: 'DEPENDS_ON', weight: 1, createdBy: 'user' })
+    state.applySnapshot({ systems, files, floorLayouts, infraNodes: [], dependencies: [dependency('first', 'second'), dependency('first', 'outside')] })
   })
+  const node = (id: string) => page.locator(`.react-flow__node[data-id="${id}"]`)
+  const pane = page.locator('.react-flow').first()
+  const viewport = () => pane.locator('.react-flow__viewport').evaluate(element => (element as HTMLElement).style.transform)
+  await expect(node('outside')).toBeVisible()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const beforeFit = await viewport()
+  await page.getByRole('button', { name: 'Fit view', exact: true }).click()
+  await expect.poll(viewport).not.toBe(beforeFit)
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const floorViewport = await viewport()
+  const floorLayouts = await page.evaluate(() => (window as any).__ambioGraphStore.getState().floorLayouts)
+  const created: Record<string, any> = {}
+  await page.route(/\/api\/sheets(?:\?[^/]*|\/scoped-\d+\?[^/]*)?$/, async route => {
+    const url = new URL(route.request().url())
+    if (route.request().method() === 'POST') {
+      const input = route.request().postDataJSON()
+      const id = `scoped-${Object.keys(created).length}`
+      const sheet = { id, workspaceId: 'demo', name: input.name, kind: 'structure', folder: '', createdBy: 'user', revision: 2, createdAt: 1, updatedAt: 1 }
+      const elements = input.elements.map((member: { systemId: string }) => ({ ...member, sheetId: id, id: `member-${member.systemId}`, label: member.systemId, parentSystemId: null, positionX: 0, positionY: 0 }))
+      const layouts = (input.layouts ?? []).map((layout: object) => ({ ...layout, sheetId: id, workspaceId: 'demo', presentationOnly: true, updatedAt: 1 }))
+      created[id] = { sheet, elements, layouts, planned: [], plannedEdges: [], annotations: [], removals: [] }
+      return route.fulfill({ json: sheet })
+    }
+    if (url.pathname === '/api/sheets') return route.fulfill({ json: Object.values(created).map(value => value.sheet) })
+    return route.fulfill({ json: created[url.pathname.split('/').at(-1)!] })
+  })
+
+  await node('first').click({ position: { x: 30, y: 12 } })
+  await node('second').click({ position: { x: 30, y: 12 }, modifiers: [process.platform === 'darwin' ? 'Meta' : 'Control'] })
+  await page.getByRole('button', { name: 'New Sheet', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'New Sheet' })
+  await expect(dialog).toContainText('Starting the sheet with 2 systems')
+  await dialog.getByRole('textbox', { name: 'Sheet name' }).fill('Selected systems')
+  await dialog.getByRole('button', { name: 'Create Sheet' }).click()
+  const rail = page.getByRole('complementary', { name: 'Drawings' })
+  await expect(rail.getByRole('button', { name: 'Selected systems', exact: true })).toHaveAttribute('aria-current', 'page')
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  await expect(node('outside')).toHaveCount(0)
+  await expect(node('outside-file')).toHaveCount(0)
+  expect(created['scoped-0'].layouts).toEqual(expect.arrayContaining([
+    expect.objectContaining({ nodeId: 'first', positionX: 0, positionY: 300, width: 380, height: 260 }),
+    expect.objectContaining({ nodeId: 'second', positionX: 550, positionY: 0, width: 380, height: 260 }),
+  ]))
+  const [first, second, surface] = await Promise.all([node('first').boundingBox(), node('second').boundingBox(), pane.boundingBox()])
+  const zoom = first!.width / 380
+  expect((second!.x - first!.x) / zoom).toBeCloseTo(550, 1)
+  expect((first!.y - second!.y) / zoom).toBeCloseTo(300, 1)
+  expect(Math.abs((first!.x + second!.x + second!.width) / 2 - (surface!.x + surface!.width / 2))).toBeLessThan(3)
+  expect(Math.abs((second!.y + first!.y + first!.height) / 2 - (surface!.y + surface!.height / 2))).toBeLessThan(3)
+  await node('first').click({ position: { x: 30, y: 12 } })
+  await expect(pane.locator('.react-flow__edge[data-id="first-second"]')).toBeAttached()
+  await expect(pane.locator('.react-flow__edge[data-id="first-outside"]')).toHaveCount(0)
+  // Files mount only once the camera reaches them; showing one keeps the sheet.
+  for (const file of ['first-file', 'second-file']) {
+    await revealFileNode(file)
+    await expect(rail.getByRole('button', { name: 'Selected systems', exact: true })).toHaveAttribute('aria-current', 'page')
+  }
+  await expect(node('outside-file')).toHaveCount(0)
+
+  await rail.getByRole('button', { name: 'Create new overlay sheet' }).click()
+  const blank = rail.getByRole('textbox', { name: 'New sheet name' })
+  await blank.fill('Blank scope')
+  await blank.press('Enter')
+  await expect(rail.getByRole('button', { name: 'Blank scope', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(pane.locator('.react-flow__node')).toHaveCount(0)
+  await expect(page.locator('.ambio-sheet-palette')).toBeVisible()
+
+  await rail.getByRole('button', { name: /^The Floor/ }).click()
+  await expect(node('outside')).toBeVisible()
+  await expect.poll(viewport).toBe(floorViewport)
+  expect(await page.evaluate(() => (window as any).__ambioGraphStore.getState().floorLayouts)).toEqual(floorLayouts)
+  await rail.getByRole('button', { name: 'Selected systems', exact: true }).click()
+  await expect(node('outside')).toHaveCount(0)
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('outside')
+  await page.getByRole('option').first().click()
+  await expect(rail.getByRole('button', { name: /^The Floor/ })).toHaveAttribute('aria-current', 'page')
+  await expect(node('outside')).toBeVisible()
+})
+
+test('culls a large planned sheet and retains measurements during zoom', async () => {
+  // Put the compact source near the center of the sheet's opening camera.
+  // The target is beyond the view at the minimum zoom.
   const planned = Array.from({ length: 180 }, (_, i) => ({
     id: `large-planned-${i}`, workspaceId: 'demo', sheetId: 'sheet_runtime', name: `Planned ${i}`,
     kind: i === 0 ? 'file' : 'system', status: 'planned', approvalStatus: 'approved', parentPlannedId: null,
-    positionX: i === 0 ? placement.x : 1500 + i * 800, positionY: i === 0 ? placement.y : 1200,
+    positionX: i === 0 ? 72_300 : 1500 + i * 800, positionY: i === 0 ? 100 : 1200,
     width: i === 0 ? 220 : 620, height: i === 0 ? 110 : 420, scale: 1,
     metadata: {}, createdBy: 'user', createdAt: 1, updatedAt: 1,
   }))
@@ -3443,7 +3602,6 @@ test('culls a large planned sheet over a small Floor and retains measurements du
   } }))
   await page.getByRole('button', { name: 'Runtime Draft', exact: true }).click()
   const canvas = page.locator('[data-ambio-canvas]').first()
-  await expect.poll(() => canvas.locator('.react-flow__node').count()).toBeLessThan(80)
   // A line into off-screen space must retain its endpoint handle geometry.
   await page.getByRole('button', { name: 'Expand Runtime Draft', exact: true }).click()
   await page.getByRole('button', { name: 'Show All Sheet Relationships', exact: true }).click()
@@ -3453,7 +3611,8 @@ test('culls a large planned sheet over a small Floor and retains measurements du
   const compactFile = canvas.locator('.react-flow__node[data-id="planned:large-planned-0"]')
   await expect(compactFile.locator('[data-render-tier]')).toBeAttached()
   await expect(compactFile.locator('.ambio-sheet-change-badge')).toHaveText('Added')
-  await page.waitForTimeout(650)
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  await expect.poll(() => canvas.locator('.react-flow__node').count()).toBeLessThan(80)
   await expect(canvas.locator('.react-flow__node[data-id="planned:large-planned-179"]')).toHaveCount(0)
   await expect(relationship).toBeAttached()
   expect(await relationship.getAttribute('d')).not.toContain('NaN')
@@ -4142,7 +4301,7 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   await expect(activity).toContainText('Claude Code CLI is mapping the project')
   await expect(activity).toContainText('get_architecture')
   // A later event shows up without leaving the step, with the project's own path.
-  await expect(activity).toContainText('Read · src/app.ts', { timeout: 10_000 })
+  await expect(activity).toContainText('Read, src/app.ts', { timeout: 10_000 })
   // Rows already shown are updated in place: the text being written becomes
   // the whole message, and a tool call shows how it went.
   const rows = activity.getByRole('listitem')
@@ -4152,7 +4311,7 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   // Each agent's tools get their own badge, a subagent's work is marked, and a failure is said.
   const tests = rows.filter({ hasText: 'npm test' })
   await expect(tests.locator('.ambio-map-activity__badge')).toHaveText('Run')
-  await expect(tests).toContainText('failed · exit 1')
+  await expect(tests).toContainText('failed, exit 1')
   await expect(tests).toHaveAttribute('data-status', 'failed')
   const grep = rows.filter({ hasText: 'TODO' })
   await expect(grep.locator('.ambio-map-activity__badge')).toHaveText('Search')
@@ -4595,7 +4754,7 @@ test('a function an agent names opens at its definition; an ambiguous name stays
   await expect(prose.locator('code')).toHaveText(['0.1', 'update'])
   await prose.getByRole('button', { name: 'evaluate_scene()' }).click()
   const source = page.getByRole('dialog', { name: `evaluate_scene in ${file}` })
-  await expect(source.locator('.source-preview-location')).toHaveText('function evaluate_scene · lines 3–6')
+  await expect(source.locator('.source-preview-location')).toHaveText('function evaluate_scene, lines 3–6')
   await expect(source.locator('.source-preview-line-highlighted')).toHaveCount(4)
   await source.getByRole('button', { name: 'Close source preview' }).click()
   await expect(source).toHaveCount(0)
@@ -4747,7 +4906,7 @@ test('the editor shows where you are, follows definitions, reloads disk changes 
   await expect(dialog.locator('.source-preview-notice')).toHaveText('This is where renderCanvas is defined.')
   await dialog.locator('.cm-line', { hasText: '<Canvas />' }).getByText('Canvas', { exact: true }).click({ modifiers: ['ControlOrMeta'] })
   const docs = page.getByRole('dialog', { name: 'Canvas in docs/ARCHITECTURE.md' })
-  await expect(docs.locator('.source-preview-location')).toHaveText('class Canvas · lines 2–3')
+  await expect(docs.locator('.source-preview-location')).toHaveText('class Canvas, lines 2–3')
 
   // The file it came from stays open in a tab of its own; Ctrl+Tab and the tabs move between them.
   const tabs = docs.getByRole('tablist', { name: 'Open files' })

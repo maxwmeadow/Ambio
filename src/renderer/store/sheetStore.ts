@@ -4,7 +4,7 @@
 import { handlePermissionPatch } from './agentPermissionStore.ts'
 import { create } from 'zustand'
 import { plannedFilename } from '../canvas/plannedFileIdentity.ts'
-import type { SheetMember } from '../canvas/sheetFromSelection'
+import type { SheetMember, SheetMemberLayout } from '../canvas/sheetFromSelection'
 import { conversationKey, useConversationPreferences } from './conversationPreferences.ts'
 import { workOrderNotice } from './workOrderNotice.ts'
 import type { CodeCheckResult, DeltaWorkSession, FloorLayout } from '../../shared/types'
@@ -234,13 +234,14 @@ export interface PlannedEdge {
   createdBy?: string
 }
 
-/** Proposal-local geometry. Aside from sheetId, this is exactly FloorLayout. */
+/** Proposal-local geometry. */
 export interface SheetLayout extends FloorLayout {
   sheetId: string
+  presentationOnly?: boolean
 }
 
 /** A complete canonical row; identity/timestamps are supplied by the API. */
-export type SheetLayoutMutation = Omit<SheetLayout, 'sheetId' | 'workspaceId' | 'updatedAt'>
+export type SheetLayoutMutation = Omit<SheetLayout, 'sheetId' | 'workspaceId' | 'updatedAt' | 'presentationOnly'>
 
 export function plannedMembers(n: PlannedNode): PlannedMember[] {
   if (Array.isArray(n.members)) return n.members
@@ -399,7 +400,7 @@ interface SheetState {
   loadSheetContents: (workspaceId: string, sheetId: string) => Promise<void>
   toggleSheetVisibility: (workspaceId: string, sheetId: string) => Promise<void>
   /** Members are file ids or typed members (sheetFromSelection.ts). */
-  createSheet: (workspaceId: string, name: string, purpose: string, members: Array<string | SheetMember>) => Promise<Sheet>
+  createSheet: (workspaceId: string, name: string, purpose: string, members: Array<string | SheetMember>, layouts?: SheetMemberLayout[]) => Promise<Sheet>
   deleteSheet: (workspaceId: string, sheetId: string) => Promise<void>
   previewElementPosition: (elementId: string, x: number, y: number) => void
   updateElementLayout: (workspaceId: string, elementId: string, x: number, y: number, parentSystemId: string | null, width?: number, height?: number, scale?: number) => void
@@ -479,6 +480,17 @@ function mergeNoteLayout<T extends FloorLayout>(rows: T[], note: T): T[] {
   const previous = rows.find(row => row.nodeId === note.nodeId && row.nodeType === 'note')
   if (previous && previous.updatedAt > note.updatedAt) return rows
   return [...rows.filter(row => row.nodeId !== note.nodeId || row.nodeType !== 'note'), note]
+}
+
+function previewSheetLayouts(layer: SheetLayerData, workspaceId: string, sheetId: string, layouts: SheetLayoutMutation[]): SheetLayout[] {
+  const byId = new Map(layer.layouts.map(layout => [layout.nodeId, layout]))
+  const updatedAt = Date.now()
+  for (const layout of layouts) {
+    const previous = byId.get(layout.nodeId)
+    const presentationOnly = previous?.presentationOnly && previous.parentNodeId === layout.parentNodeId
+    byId.set(layout.nodeId, { ...layout, sheetId, workspaceId, updatedAt, ...(presentationOnly && { presentationOnly }) })
+  }
+  return [...byId.values()]
 }
 async function acceptFloorNoteLayout(note: SheetAnnotation) {
   if (note.sheetId || !note.layout || useSheetStore.getState().workspaceId !== note.workspaceId) return
@@ -876,12 +888,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     set(state => {
       const layer = state.layersById[sheetId]
       if (!layer) return state
-      const byId = new Map(layer.layouts.map(layout => [layout.nodeId, layout]))
-      const updatedAt = Date.now()
-      for (const layout of layouts) {
-        byId.set(layout.nodeId, { ...layout, sheetId, workspaceId, updatedAt })
-      }
-      return commitSheetLayer(state, sheetId, { ...layer, layouts: [...byId.values()] })
+      return commitSheetLayer(state, sheetId, { ...layer, layouts: previewSheetLayouts(layer, workspaceId, sheetId, layouts) })
     })
   },
 
@@ -906,12 +913,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     set(state => {
       const layer = state.layersById[sheetId]
       if (!layer) return state
-      const byId = new Map(layer.layouts.map(layout => [layout.nodeId, layout]))
-      const updatedAt = Date.now()
-      for (const layout of layouts) {
-        byId.set(layout.nodeId, { ...layout, sheetId, workspaceId, updatedAt })
-      }
-      return commitSheetLayer(state, sheetId, { ...layer, layouts: [...byId.values()] })
+      return commitSheetLayer(state, sheetId, { ...layer, layouts: previewSheetLayouts(layer, workspaceId, sheetId, layouts) })
     })
     const predecessor = sheetLayoutSaveQueues.get(sheetId) ?? Promise.resolve()
     let releaseQueue!: () => void
@@ -1006,7 +1008,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   // Throws on refusal. The server rejects duplicate names, and "a sheet named X
   // already exists" is the only useful thing to say at that moment - swallowing
   // it into a null would leave the caller guessing that archd was down.
-  createSheet: async (workspaceId, name, purpose, members) => {
+  createSheet: async (workspaceId, name, purpose, members, layouts) => {
     const res = await fetch(`${archdApi()}/api/sheets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1014,11 +1016,8 @@ export const useSheetStore = create<SheetState>((set, get) => ({
         workspaceId, name,
         purpose: purpose || null,
         createdBy: 'user',
-        elements: members.map((member, i) => ({
-          ...(typeof member === 'string' ? { fileId: member } : member),
-          // starting grid so a fresh sheet isn't a stack at 0,0
-          x: 40 + (i % 5) * 220, y: 40 + Math.floor(i / 5) * 120,
-        })),
+        elements: members.map(member => typeof member === 'string' ? { fileId: member } : member),
+        layouts,
       }),
     })
     if (!res.ok) throw new Error(await refusalReason(res, 'Create failed'))

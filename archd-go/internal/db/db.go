@@ -27,7 +27,7 @@ const (
 // stamped into every database (PRAGMA user_version) once migration succeeds.
 // Bump it whenever migrate gains a table, column, index or data rewrite, so an
 // older Ambio can recognise a database written by a newer one.
-const SchemaVersion = 13 // 13: notes participate in native Floor and sheet layouts
+const SchemaVersion = 14 // 14: sheet layouts can record presentation without proposing placement
 
 // ErrNewerSchema reports a database written by a newer Ambio. Opening it
 // with this build could silently drop what the newer schema added, so it is
@@ -930,6 +930,9 @@ func migrate(db *sql.DB) error {
 	}
 	if err := migrateNoteLayouts(db); err != nil {
 		return err
+	}
+	if _, err := db.Exec(`ALTER TABLE sheet_layouts ADD COLUMN presentation_only INTEGER NOT NULL DEFAULT 0`); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return fmt.Errorf("migrate sheet layout presentation: %w", err)
 	}
 	if err := RepairUnplacedSheetLayouts(db); err != nil {
 		return err

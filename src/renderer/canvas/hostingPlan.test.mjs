@@ -13,8 +13,8 @@ const files = [
   { id: 'f4', relPath: 'packages/types/index.ts', systemId: 'shared' },
 ]
 const platforms = [
-  { id: 'docker_api', key: 'docker/docker#api', name: 'Docker · api', hosts: [{ dir: 'api' }] },
-  { id: 'docker_worker', key: 'docker/docker#worker', name: 'Docker · worker', hosts: [{ dir: 'worker' }] },
+  { id: 'docker_api', key: 'docker/docker#api', name: 'Docker / api', hosts: [{ dir: 'api' }] },
+  { id: 'docker_worker', key: 'docker/docker#worker', name: 'Docker / worker', hosts: [{ dir: 'worker' }] },
   { id: 'fly', key: 'fly/platform', name: 'Fly.io', hosts: [{ dir: 'api', via: 'docker/docker#api' }] },
 ]
 

@@ -13,16 +13,8 @@ export function reviewMarkdown(input: {
   projectName?: string
 }): string {
   const lines: string[] = []
-  lines.push(`## Architecture changes${input.projectName ? ` · ${input.projectName}` : ''}`, '')
+  lines.push(`## Architecture changes${input.projectName ? ` for ${input.projectName}` : ''}`, '')
   lines.push(`${input.headline} (${input.window})`, '')
-  if (input.sessions.length > 0) {
-    lines.push('**What the agents set out to do**', '')
-    for (const session of input.sessions) {
-      const who = session.agent || 'agent'
-      lines.push(`- ${who}: ${session.goal}${session.summary ? ` - ${session.summary}` : ''}`)
-    }
-    lines.push('')
-  }
   if (input.claims.length > 0) {
     lines.push('**Changes**', '')
     for (const claim of input.claims) {
@@ -36,6 +28,14 @@ export function reviewMarkdown(input: {
         lines.push(`  - ${evidence.label}${evidence.detail ? `: ${evidence.detail}` : ''}`)
       }
       if (claim.evidence.length > 5) lines.push(`  - and ${claim.evidence.length - 5} more`)
+    }
+    lines.push('')
+  }
+  if (input.sessions.length > 0) {
+    lines.push('**Agent-reported work**', '')
+    for (const session of input.sessions) {
+      const who = session.agent || 'agent'
+      lines.push(`- ${who}: ${session.goal}${session.summary ? ` - ${session.summary}` : ''}`)
     }
     lines.push('')
   }

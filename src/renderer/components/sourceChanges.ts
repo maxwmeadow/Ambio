@@ -225,7 +225,7 @@ const peekDecorations = EditorView.decorations.compute([peekField, changeField],
   const chunk = chunkAt(state, Math.min(at, state.doc.length))
   if (!chunk || !field.baseline) return Decoration.none
   const old = field.baseline.text.sliceString(chunk.fromA, Math.min(chunk.endA, field.baseline.text.length))
-  const header = `${KIND_TEXT[changeKind(chunk)]} · ${ownerText(changeOwner(chunk, field), field.baseline.authors)}`
+  const header = `${KIND_TEXT[changeKind(chunk)]}, ${ownerText(changeOwner(chunk, field), field.baseline.authors)}`
   const below = changeKind(chunk) !== 'deleted'
   const position = below ? state.doc.lineAt(Math.max(chunk.fromB, Math.min(chunk.endB, state.doc.length))).to : state.doc.lineAt(Math.min(chunk.fromB, state.doc.length)).from
   return Decoration.set(Decoration.widget({ widget: new PeekWidget(chunk, old, header), block: true, side: below ? 1 : -1 }).range(position))

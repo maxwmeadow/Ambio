@@ -122,7 +122,7 @@ test('focus refresh waits until an active review closes', async () => {
     useGraphStore.setState({
       delta: summary('alpha', 10),
       deltaReviewing: true,
-      deltaCursor: 0,
+      deltaClaimId: 'claim:1',
     })
 
     await useGraphStore.getState().loadDelta()

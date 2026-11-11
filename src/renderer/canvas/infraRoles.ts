@@ -54,7 +54,7 @@ export const RELATIONSHIP_LABEL: Record<string, string> = {
   EVALUATES: 'Evaluated by',
 }
 
-/** What one file is to an item it touches: "2 writers · 3 readers". */
+/** What one file is to an item it touches: "2 writers, 3 readers". */
 export const ITEM_ROLE: Record<string, [string, string]> = {
   WRITES: ['writer', 'writers'],
   READS: ['reader', 'readers'],

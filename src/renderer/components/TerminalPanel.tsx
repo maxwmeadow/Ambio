@@ -1,3 +1,4 @@
+import { Chevron } from './ui/Chevron'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -13,17 +14,18 @@ export default function TerminalPanel({ workspaceId, open, width, onResize, onCl
   const [profiles, setProfiles] = useState<TerminalProfile[]>([])
   const [profileId, setProfileId] = useState('')
   const [sessions, setSessions] = useState<Session[]>([])
-  const [active, setActive] = useState('')
+  const [{ id: active, focusTab }, setActive] = useState({ id: '', focusTab: false })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const panel = useRef<HTMLElement>(null)
+  const tabs = useRef<HTMLDivElement>(null)
   const options = useRef<HTMLDetailsElement>(null)
   const autoStarted = useRef(false)
   const restoreFocus = useRef<HTMLElement | null>(null)
 
   const add = useCallback((profile: TerminalProfile) => {
     const session = { id: crypto.randomUUID(), profile }
-    setSessions(current => [...current, session]); setActive(session.id)
+    setSessions(current => [...current, session]); setActive({ id: session.id, focusTab: false })
   }, [])
   const refresh = useCallback(async () => {
     setLoading(true); setError('')
@@ -56,9 +58,25 @@ export default function TerminalPanel({ workspaceId, open, width, onResize, onCl
       if (root.contains(document.activeElement)) restoreFocus.current?.focus({ preventScroll: true })
     }
   }, [open])
+  useLayoutEffect(() => {
+    const strip = tabs.current
+    const selected = strip?.querySelector('.ambio-terminal__tab[data-active="true"]')
+    if (!open || !strip || !selected) return
+
+    const reveal = () => {
+      const viewport = strip.getBoundingClientRect()
+      const tab = selected.getBoundingClientRect()
+      if (tab.left < viewport.left) strip.scrollLeft += tab.left - viewport.left
+      else if (tab.right > viewport.right) strip.scrollLeft += tab.right - viewport.right
+    }
+    reveal()
+    const observer = new ResizeObserver(reveal)
+    observer.observe(strip)
+    return () => observer.disconnect()
+  }, [active, open, sessions])
   const remove = (id: string) => {
     const next = sessions.filter(session => session.id !== id)
-    if (active === id) setActive(next.at(-1)?.id ?? '')
+    if (active === id) setActive({ id: next.at(-1)?.id ?? '', focusTab: false })
     setSessions(next)
   }
   const resize = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -76,19 +94,22 @@ export default function TerminalPanel({ workspaceId, open, width, onResize, onCl
           if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); onResize(width + (event.key === 'ArrowLeft' ? 32 : -32)) }
         }} />
       <header className="ambio-terminal__header">
-      <div className="ambio-terminal__tabs" role="tablist" aria-label="Terminal sessions" onKeyDown={event => {
+      <div ref={tabs} className="ambio-terminal__tabs" role="tablist" aria-label="Terminal sessions" onKeyDown={event => {
         if (!(event.target as HTMLElement).matches('[role=tab]')) return
         const index = sessions.findIndex(session => session.id === active)
         const next = event.key === 'ArrowRight' ? (index + 1) % sessions.length : event.key === 'ArrowLeft' ? (index - 1 + sessions.length) % sessions.length : event.key === 'Home' ? 0 : event.key === 'End' ? sessions.length - 1 : -1
         if (next < 0) return
-        event.preventDefault(); setActive(sessions[next].id)
-        document.getElementById(`tab-${sessions[next].id}`)?.focus()
+        event.preventDefault(); setActive({ id: sessions[next].id, focusTab: true })
+        document.getElementById(`tab-${sessions[next].id}`)?.focus({ preventScroll: true })
       }}>
-        {sessions.map((session, index) => <div key={session.id} className="ambio-terminal__tab" data-active={session.id === active}>
-          <button type="button" role="tab" id={`tab-${session.id}`} aria-controls={`screen-${session.id}`} aria-selected={session.id === active} tabIndex={session.id === active ? 0 : -1}
-            onClick={() => setActive(session.id)}>{index + 1} · {session.profile.label}{session.exitCode !== undefined ? ` · exited ${session.exitCode}` : ''}</button>
-          <button type="button" aria-label={`Close terminal ${index + 1}`} title="Kill terminal" onClick={() => remove(session.id)}>×</button>
-        </div>)}
+        {sessions.map((session, index) => {
+          const label = `${index + 1}. ${session.profile.label}${session.exitCode === undefined ? '' : ` (exited ${session.exitCode})`}`
+          return <div key={session.id} className="ambio-terminal__tab" data-active={session.id === active}>
+            <button type="button" role="tab" id={`tab-${session.id}`} aria-controls={`screen-${session.id}`} aria-selected={session.id === active} tabIndex={session.id === active ? 0 : -1}
+              title={label} onClick={() => setActive({ id: session.id, focusTab: false })}>{label}</button>
+            <button type="button" aria-label={`Close terminal ${index + 1}`} title="Kill terminal" onClick={() => remove(session.id)}>×</button>
+          </div>
+        })}
         {!sessions.length && <span className="ambio-terminal__idle">{loading ? 'Finding shells…' : 'Terminal'}</span>}
       </div>
       <div className="ambio-terminal__actions">
@@ -122,20 +143,20 @@ export default function TerminalPanel({ workspaceId, open, width, onResize, onCl
             }}>Locate another shell…</button>
           </div>
         </details>
-        <button type="button" onClick={onClose} aria-label="Hide terminal" title="Hide terminal (Ctrl+`)">›</button>
+        <button type="button" onClick={onClose} aria-label="Hide terminal" title="Hide terminal (Ctrl+`)"><Chevron size={15} /></button>
       </div>
       </header>
       {error && <p role="alert" className="ambio-terminal__error">{error}</p>}
       <div className="ambio-terminal__body">
         {!sessions.length && !loading && <div className="ambio-terminal__empty"><p>Your workspace, at the command line.</p><p>Choose a shell and open a new terminal.</p></div>}
-        {sessions.map(session => <TerminalScreen key={session.id} session={session} workspaceId={workspaceId} visible={open && active === session.id}
+        {sessions.map(session => <TerminalScreen key={session.id} session={session} workspaceId={workspaceId} visible={open && active === session.id} focusTab={focusTab}
           onExit={exitCode => setSessions(current => current.map(item => item.id === session.id ? { ...item, exitCode } : item))} />)}
       </div>
     </aside>
   )
 }
 
-function TerminalScreen({ session, workspaceId, visible, onExit }: { session: Session; workspaceId: string; visible: boolean; onExit: (exitCode: number) => void }) {
+function TerminalScreen({ session, workspaceId, visible, focusTab, onExit }: { session: Session; workspaceId: string; visible: boolean; focusTab: boolean; onExit: (exitCode: number) => void }) {
   const host = useRef<HTMLDivElement>(null)
   const instance = useRef<{ terminal: Terminal; fit: FitAddon }>()
   const exit = useRef(onExit); exit.current = onExit
@@ -209,8 +230,12 @@ function TerminalScreen({ session, workspaceId, visible, onExit }: { session: Se
   }, [session.id, session.profile.id, workspaceId])
   useEffect(() => {
     if (!visible) return
-    const frame = requestAnimationFrame(() => { instance.current?.fit.fit(); instance.current?.terminal.focus() })
+    const frame = requestAnimationFrame(() => {
+      instance.current?.fit.fit()
+      if (focusTab && document.activeElement?.id === `tab-${session.id}`) return
+      instance.current?.terminal.focus()
+    })
     return () => cancelAnimationFrame(frame)
-  }, [visible])
+  }, [visible, focusTab, session.id])
   return <div id={`screen-${session.id}`} role="tabpanel" aria-labelledby={`tab-${session.id}`} className="ambio-terminal__screen" ref={host} hidden={!visible} />
 }

@@ -128,7 +128,11 @@ func SheetNameTaken(db *sql.DB, workspaceID, name, excludeID string) (bool, erro
 	return count > 0, err
 }
 
-func CreateSheet(db *sql.DB, s *Sheet) error {
+type sheetWriter interface {
+	Exec(string, ...any) (sql.Result, error)
+}
+
+func CreateSheet(db sheetWriter, s *Sheet) error {
 	if s.ID == "" {
 		s.ID = uuid.New().String()
 	}
@@ -147,6 +151,36 @@ func CreateSheet(db *sql.DB, s *Sheet) error {
 		s.ID, s.WorkspaceID, s.Name, s.Purpose, s.Kind, s.Folder, s.CreatedBy,
 		s.Revision, nullableJSON(s.Viewport), s.CreatedAt, s.UpdatedAt)
 	return err
+}
+
+// CreateSheetWithLayouts publishes the selection and its initial geometry together.
+func CreateSheetWithLayouts(db *sql.DB, sheet *Sheet, elements []*SheetElement, layouts []SheetLayout) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := CreateSheet(tx, sheet); err != nil {
+		return err
+	}
+	for _, element := range elements {
+		element.SheetID = sheet.ID
+		if err := insertSheetElement(tx, element); err != nil {
+			return err
+		}
+	}
+	for i := range layouts {
+		layouts[i].PresentationOnly = true
+	}
+	result, err := applySheetLayoutBatch(tx, sheet.ID, sheet.WorkspaceID, layouts)
+	if err != nil {
+		return err
+	}
+	sheet.Revision = int(result.Revision)
+	if len(result.Layouts) > 0 {
+		sheet.UpdatedAt = result.Layouts[0].UpdatedAt
+	}
+	return tx.Commit()
 }
 
 func GetSheets(db Reader, workspaceID string) ([]Sheet, error) {
@@ -236,9 +270,7 @@ func AddSheetElement(db *sql.DB, e *SheetElement) error {
 
 // insertSheetElement validates and stores one element; it runs on a database
 // or inside a transaction.
-func insertSheetElement(db interface {
-	Exec(query string, args ...any) (sql.Result, error)
-}, e *SheetElement) error {
+func insertSheetElement(db sheetWriter, e *SheetElement) error {
 	refs := 0
 	for _, p := range []*string{e.SystemID, e.FileID, e.InfraID, e.SymbolRef} {
 		if p != nil {

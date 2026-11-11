@@ -165,6 +165,7 @@ func (s *Server) handleSheets(w http.ResponseWriter, r *http.Request) {
 			Folder      string              `json:"folder"`
 			CreatedBy   string              `json:"createdBy"`
 			Elements    []sheetElementInput `json:"elements"`
+			Layouts     []db.SheetLayout    `json:"layouts"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Name) == "" {
 			jsonError(w, "bad request: name and workspaceId required", 400)
@@ -189,23 +190,35 @@ func (s *Server) handleSheets(w http.ResponseWriter, r *http.Request) {
 			WorkspaceID: body.WorkspaceID, Name: body.Name, Purpose: body.Purpose,
 			Kind: body.Kind, Folder: body.Folder, CreatedBy: body.CreatedBy,
 		}
-		if err := db.CreateSheet(sqlDB, sheet); err != nil {
-			jsonError(w, err.Error(), 500)
-			return
-		}
+		elements := make([]*db.SheetElement, 0, len(body.Elements))
 		for _, in := range body.Elements {
 			if in.AddedBy == "" {
 				in.AddedBy = body.CreatedBy
 			}
-			e, _ := resolveElement(sqlDB, sheet.ID, in)
-			if err := db.AddSheetElement(sqlDB, e); err != nil {
-				jsonError(w, "element: "+err.Error(), 400)
+			element, _ := resolveElement(sqlDB, "", in)
+			elements = append(elements, element)
+		}
+		if len(body.Layouts) > 0 {
+			if err := db.CreateSheetWithLayouts(sqlDB, sheet, elements, body.Layouts); err != nil {
+				jsonError(w, err.Error(), 400)
 				return
 			}
-		}
-		if err := db.BackfillSheetLayouts(sqlDB); err != nil {
-			jsonError(w, "layout: "+err.Error(), 500)
-			return
+		} else {
+			if err := db.CreateSheet(sqlDB, sheet); err != nil {
+				jsonError(w, err.Error(), 500)
+				return
+			}
+			for _, element := range elements {
+				element.SheetID = sheet.ID
+				if err := db.AddSheetElement(sqlDB, element); err != nil {
+					jsonError(w, "element: "+err.Error(), 400)
+					return
+				}
+			}
+			if err := db.BackfillSheetLayouts(sqlDB); err != nil {
+				jsonError(w, "layout: "+err.Error(), 500)
+				return
+			}
 		}
 		s.broadcastPatch("sheet:upserted", sheet)
 		jsonOK(w, sheet)

@@ -11,7 +11,12 @@
 .ambio-terminal button:disabled { opacity: .45; cursor: default; }
 .ambio-terminal button:focus-visible, .ambio-terminal select:focus-visible, .ambio-terminal__resize:focus-visible { outline: 2px solid #9bceba; outline-offset: -2px; }
 .ambio-terminal__header { position: relative; display: flex; flex: none; align-items: stretch; height: 34px; background: linear-gradient(#394746, #293433); border-bottom: 1px solid #17211e; box-shadow: inset 0 1px #53635e; }
-.ambio-terminal__tabs { display: flex; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.ambio-terminal__tabs { display: flex; flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; }
+.ambio-terminal__tabs::-webkit-scrollbar { height: 5px; }
+.ambio-terminal__tabs::-webkit-scrollbar-track { background: #27332f; }
+.ambio-terminal__tabs::-webkit-scrollbar-thumb { background: #788e83; border-radius: 4px; }
+.ambio-terminal__tabs::-webkit-scrollbar-thumb:hover { background: #9bceba; }
+.ambio-terminal__tabs::-webkit-scrollbar-button { display: none; }
 .ambio-terminal__idle { align-self: center; padding: 0 10px; color: #adbbb1; font-size: 11px; }
 .ambio-terminal__actions { display: flex; flex: none; align-items: center; padding: 0 4px; }
 .ambio-terminal__actions > button, .ambio-terminal__options > summary { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; box-sizing: border-box; font-size: 19px; }
@@ -24,10 +29,10 @@
 .ambio-terminal__menu select { width: 100%; padding: 5px; border: 1px solid #aeb8ae; background: #f2f0e8; color: #27332f; }
 .ambio-terminal__menu button { display: block; width: 100%; text-align: left; }
 .ambio-terminal__menu button:hover:not(:disabled) { background: #d2ded2; color: #2d625c; }
-.ambio-terminal__tab { display: flex; flex: none; border-right: 1px solid #47594f; border-bottom: 2px solid transparent; color: #adbbb1; }
+.ambio-terminal__tab { display: flex; flex: none; max-width: min(152px, 100%); border-right: 1px solid #47594f; border-bottom: 2px solid transparent; color: #adbbb1; }
 .ambio-terminal__tab[data-active=true] { color: #e2e8de; border-bottom-color: #9bceba; background: #202b28; }
-.ambio-terminal__tab > button:first-child { font-size: 11px; padding: 7px 10px; }
-.ambio-terminal__tab > button:last-child { padding: 0 7px; }
+.ambio-terminal__tab > button:first-child { min-width: 0; padding: 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.ambio-terminal__tab > button:last-child { flex: none; width: 24px; padding: 0; font-size: 13px; }
 .ambio-terminal__body { flex: 1; min-height: 0; position: relative; overflow: hidden; }
 .ambio-terminal__screen { height: 100%; box-sizing: border-box; padding: 10px 4px 6px 12px; }
 .ambio-terminal__screen .xterm { height: 100%; }

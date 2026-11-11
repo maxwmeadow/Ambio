@@ -19,17 +19,17 @@ const COPY: Record<OnboardingStage, {
     body: 'Ambio is turning the repository into live files, systems, and relationships. The first index is a baseline, not a fake change.',
   },
   sheet: {
-    eyebrow: 'FORWARD SYNC · 1 OF 3',
+    eyebrow: 'FORWARD SYNC, 1 OF 3',
     title: 'Create your first increment',
     body: 'A Sheet is an intent layer over the live Floor. Start one small build without changing the code yet.',
   },
   draw: {
-    eyebrow: 'FORWARD SYNC · 2 OF 3',
+    eyebrow: 'FORWARD SYNC, 2 OF 3',
     title: 'Draw what should exist',
     body: 'Drag one File, Class, Service, or System stencil onto the canvas and give it a real name.',
   },
   dispatch: {
-    eyebrow: 'FORWARD SYNC · 3 OF 3',
+    eyebrow: 'FORWARD SYNC, 3 OF 3',
     title: 'Dispatch the approved spec',
     body: 'Send the active Sheet to your agent. The queued work order keeps an immutable snapshot of what you approved.',
   },
@@ -79,9 +79,9 @@ export function OnboardingGuide({ projectId }: { projectId: string }) {
 
   // The guide follows a real sheet, not a local flag. Three things it must
   // survive, all of which used to restart the walkthrough and mint a duplicate:
-  //  · a relaunch, where sheets are listed but no layer is loaded yet;
-  //  · the user building their first increment from the rail instead of here;
-  //  · that sheet later being deleted.
+  // - a relaunch, where sheets are listed but no layer is loaded yet;
+  // - the user building their first increment from the rail instead of here;
+  // - that sheet later being deleted.
   const sheet = useMemo(() => {
     const remembered = progress.sheetId
       ? sheets.find(item => item.id === progress.sheetId)
@@ -226,7 +226,7 @@ export function OnboardingGuide({ projectId }: { projectId: string }) {
         )}
         {stage === 'build' && (
           <span className="ambio-onboarding-guide__waiting">
-            {plan?.status === 'partial' ? 'PARTIAL · KEEP BUILDING' : 'AWAITING AGENT BUILD'}
+            {plan?.status === 'partial' ? 'PARTIAL, KEEP BUILDING' : 'AWAITING AGENT BUILD'}
           </span>
         )}
         {stage === 'complete' && <button onClick={finish}>Enter Command Deck</button>}

@@ -47,7 +47,7 @@ export async function detectTerminalProfiles(
       const output = await new Promise<string>((resolve, reject) => execFile(wsl, ['--list', '--quiet'],
         { encoding: 'utf16le', windowsHide: true, timeout: 3000 }, (error, stdout) => error ? reject(error) : resolve(stdout)))
       for (const distro of output.replace(/\0/g, '').split(/\r?\n/).map(value => value.trim()).filter(Boolean)) {
-        profiles.push({ id: `wsl:${distro}`, label: `WSL · ${distro}`, path: wsl, args: ['--distribution', distro] })
+        profiles.push({ id: `wsl:${distro}`, label: `WSL (${distro})`, path: wsl, args: ['--distribution', distro] })
       }
     } catch { /* no installed WSL distributions */ }
   } else {

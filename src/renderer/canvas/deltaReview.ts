@@ -121,22 +121,6 @@ export function buildDeltaReview(
   }
 }
 
-/**
- * The agent's own words for why a claim exists. Falls back from the closing
- * summary to the declared goal, because an in-flight session has a goal but no
- * summary yet. Returns null when nobody narrated the change - the panel says
- * so explicitly rather than pretending the silence means nothing.
- */
-export function claimRationale(
-  claim: DeltaClaim,
-  review: DeltaReview,
-): string | null {
-  if (!claim.sessionId) return null
-  const session = review.sessions.get(claim.sessionId)
-  if (!session) return null
-  return session.summary || session.goal || null
-}
-
 /** How long a session ran, for the narration header. */
 export function sessionDuration(session: DeltaWorkSession): string {
   const end = session.endedAt || Date.now()
@@ -253,7 +237,7 @@ export function deltaHeadline(review: DeltaReview): string {
   }
   const cycles = review.claims.filter(claim => claim.createsCycle).length
   const label = total === 1 ? '1 change to review' : `${total} changes to review`
-  return cycles > 0 ? `${label} · ${cycles} cycle${cycles > 1 ? 's' : ''}` : label
+  return cycles > 0 ? `${label}, ${cycles} cycle${cycles > 1 ? 's' : ''}` : label
 }
 
 /**
@@ -278,12 +262,4 @@ export function deltaWindow(since: number, until: number): string {
   }
   const at = new Date(since)
   return `since ${at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-}
-
-/** Clamps a claim cursor, returning -1 when there is nothing to review. */
-export function clampClaimCursor(claims: DeltaClaim[], cursor: number): number {
-  if (claims.length === 0) return -1
-  if (cursor < 0) return 0
-  if (cursor >= claims.length) return claims.length - 1
-  return cursor
 }

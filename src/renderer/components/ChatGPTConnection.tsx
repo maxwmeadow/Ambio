@@ -1,3 +1,4 @@
+import { DisclosureSummary } from './ui/Chevron'
 import { useEffect, useRef, useState } from 'react'
 import type { ChatGPTModel, ChatGPTState } from '../../shared/chatgpt'
 import { CHAT_PROVIDERS_CHANGED } from './AgentChatPanel'
@@ -45,7 +46,7 @@ export function ChatGPTConnection({ onChanged }: { onChanged?: () => void }) {
     </header>
     <p className="ambio-settings__text">{connected ? 'Your ChatGPT plan powers Ambio’s built-in agent. Requests share your plan’s limits.' : 'Sign in with your eligible ChatGPT plan to power Ambio’s built-in agent. Approve plan usage in your browser.'}</p>
     {state && !state.secureStorage && <p className="ambio-settings__text">Unlock your OS credential store to connect. ChatGPT credentials require secure storage.</p>}
-    {profile && <p className="ambio-agent-settings__account">{profile.email || profile.label}{profile.connected && !profile.sharing ? ' · Plan usage not approved' : ''}</p>}
+    {profile && <p className="ambio-agent-settings__account">{profile.email || profile.label}{profile.connected && !profile.sharing ? ', Plan usage not approved' : ''}</p>}
     <div className="ambio-chatgpt__actions">
       {!connected && <button type="button" className="ambio-chat__primary" disabled={!!busy || !state?.secureStorage} onClick={() => void act('sign-in', () => window.ambio.signInChatGPT(profile?.id))}>
         {busy === 'sign-in' ? 'Waiting for ChatGPT…' : profile ? 'Reconnect ChatGPT' : 'Continue with ChatGPT'}
@@ -54,11 +55,11 @@ export function ChatGPTConnection({ onChanged }: { onChanged?: () => void }) {
       {connected && <button type="button" onClick={() => void act('usage', () => window.ambio.manageChatGPTUsage())}>Manage usage</button>}
     </div>
     {profile && <details className="ambio-agent-settings__advanced">
-      <summary>Account and model settings</summary>
+      <DisclosureSummary>Account and model settings</DisclosureSummary>
       <div className="ambio-settings__row">
       <label htmlFor="chatgpt-account">ChatGPT account</label>
       <select id="chatgpt-account" value={state?.activeId ?? ''} disabled={!!busy} onChange={event => void act('switch', () => window.ambio.selectChatGPTProfile(event.target.value))}>
-        {state?.profiles.map(item => <option key={item.id} value={item.id}>{item.label}{item.email ? ` · ${item.email}` : ''}{item.connected ? '' : ' · signed out'}</option>)}
+        {state?.profiles.map(item => <option key={item.id} value={item.id}>{item.label}{item.email ? `, ${item.email}` : ''}{item.connected ? '' : ', signed out'}</option>)}
       </select>
     </div>
     {profile?.sharing && <div className="ambio-settings__row">

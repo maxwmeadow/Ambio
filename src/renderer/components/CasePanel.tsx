@@ -1,3 +1,4 @@
+import { Chevron, DisclosureSummary } from './ui/Chevron'
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore, type InvestigationDoc, type ReplayState } from '../store/graphStore'
@@ -69,7 +70,7 @@ function AnchorChips({ anchors }: { anchors?: CaseAnchor[] }) {
   const unique = anchors.filter((a, index) => anchors.findIndex(other => (other.fileId || other.relPath) === (a.fileId || a.relPath) && other.symbol === a.symbol) === index)
   return <div className="ambio-case__anchors" aria-label="Referenced code">
     {unique.map((a, i) => <button key={`${a.fileId}-${a.symbol}-${i}`} type="button" className="ambio-case__anchor" disabled={!a.fileId}
-      title={a.relPath ? `Show ${a.relPath}${a.symbol ? ` · ${a.symbol}` : ''} on the map` : 'Show referenced code on the map'} onClick={() => focus(a)}>
+      title={a.relPath ? `Show ${a.relPath}${a.symbol ? `, ${a.symbol}` : ''} on the map` : 'Show referenced code on the map'} onClick={() => focus(a)}>
       <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4zM9 1.5v3h3" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
       <span>{basename(a.relPath) || a.symbol || 'Referenced file'}{a.symbol && basename(a.relPath) && a.symbol.toLowerCase() !== basename(a.relPath).replace(/\.[^.]+$/, '').toLowerCase() && <small>{a.symbol}</small>}</span>
       <span aria-hidden="true">↗</span>
@@ -89,7 +90,7 @@ function FindingRow({ finding }: { finding: CaseFinding }) {
   return (
     <li className="ambio-case__finding" data-severity={finding.severity}>
       <button type="button" disabled={!clickable} onClick={() => focus(finding.anchor)} title={clickable ? 'Show on the map' : undefined}>
-        <span className="ambio-case__finding-mark" aria-hidden="true">{finding.severity === 'high' ? '!' : '·'}</span>
+        <span className="ambio-case__finding-mark" aria-hidden="true">{finding.severity === 'high' ? '!' : ''}</span>
         <span className="ambio-case__finding-text"><Rich text={finding.text} /></span>
       </button>
     </li>
@@ -101,11 +102,10 @@ function RunCard({ run }: { run: CaseRun }) {
   const failed = run.timedOut || run.exitCode !== 0 || !!run.error
   return (
     <details className="ambio-case__run" data-failed={failed || undefined}>
-      <summary>
+      <DisclosureSummary>
         <span className="ambio-case__run-title">Inspect evidence</span>
         <span className="ambio-case__run-meta">{findings.length ? `${findings.length} findings` : run.watched.length ? `${run.watched.length} watched` : 'Command output'}</span>
-        <span className="ambio-case__chevron" aria-hidden="true">›</span>
-      </summary>
+      </DisclosureSummary>
       <div className="ambio-case__run-detail">
         <code className="ambio-case__command">{run.command}</code>
         {run.error && <p className="ambio-case__run-error">{run.error}</p>}
@@ -120,14 +120,14 @@ function RunCard({ run }: { run: CaseRun }) {
         {run.watched.length > 0 && <ul className="ambio-case__watched">
           {run.watched.map((w, i) => <li key={i}>
             <AnchorChips anchors={[w.anchor]} />
-            <span>{w.calls} calls{w.errors ? ` · ${w.errors} threw` : ''}</span>
+            <span>{w.calls} calls{w.errors ? `, ${w.errors} threw` : ''}</span>
             {w.returns && <p>Returns: <code>{w.returns}</code></p>}
-            {w.samples?.length ? <details><summary>Sample calls ({w.samples.length})</summary>
+            {w.samples?.length ? <details><DisclosureSummary>Sample calls ({w.samples.length})</DisclosureSummary>
               {w.samples.map((sample, n) => <pre key={n}>{`Call ${sample.call}\nArguments: ${sample.args}${sample.returned ? `\nReturned: ${sample.returned}` : ''}${sample.threw ? `\nThrew: ${sample.threw}` : ''}${sample.mutated?.length ? `\nChanged: ${sample.mutated.join(', ')}` : ''}`}</pre>)}
             </details> : null}
           </li>)}
         </ul>}
-        {run.outputTail && <details className="ambio-case__output"><summary>Program output</summary><pre>{run.outputTail}</pre></details>}
+        {run.outputTail && <details className="ambio-case__output"><DisclosureSummary>Program output</DisclosureSummary><pre>{run.outputTail}</pre></details>}
       </div>
     </details>
   )
@@ -154,7 +154,7 @@ function StepContent({ step, file, steps, now, navigate }: { step: CaseStep; fil
     </div>
     <div className="ambio-case__step-content">
       {step.kind === 'running' ? <>
-        <p className="ambio-case__experiment-state"><span className="ambio-case__live-dot" aria-hidden="true" />{file.status === 'replay' ? 'Recorded command' : `Running experiment · ${elapsed(now - (file.running?.startedAt ?? now))}`}</p>
+        <p className="ambio-case__experiment-state"><span className="ambio-case__live-dot" aria-hidden="true" />{file.status === 'replay' ? 'Recorded command' : `Running experiment, ${elapsed(now - (file.running?.startedAt ?? now))}`}</p>
         <code className="ambio-case__command">{step.text}</code>
       </> : step.text && !(step.run && /^Ran \d+ functions? in \d+ files?\.?$/i.test(step.text)) && <StepText text={step.text} />}
       {step.run && <>
@@ -164,11 +164,11 @@ function StepContent({ step, file, steps, now, navigate }: { step: CaseStep; fil
         </p>
         <RunCard run={step.run} />
       </>}
-      {step.recordedDetails != null && <details className="ambio-case__output"><summary>Recorded details</summary><pre>{JSON.stringify(step.recordedDetails,null,2)}</pre></details>}
+      {step.recordedDetails != null && <details className="ambio-case__output"><DisclosureSummary>Recorded details</DisclosureSummary><pre>{JSON.stringify(step.recordedDetails,null,2)}</pre></details>}
       <AnchorChips anchors={step.anchors} />
       {step.kind === 'message' && <p className="ambio-case__delivery">{message?.deliveredAt ? 'Delivered to the investigating agent' : file.status === 'live' ? 'Queued for the next investigation step' : file.status === 'replay' ? 'Queued at this step' : 'Not delivered'}</p>}
       {step.kind === 'conclusion' && <div className="ambio-case__outcome">
-        {!evidence && <span>Agent conclusion · no experiment recorded</span>}
+        {!evidence && <span>Agent conclusion, no experiment recorded</span>}
         {evidence && <button type="button" className="ambio-case__text-button" onClick={() => navigate(evidence.id)}>Review experiment R{linkedRun!.n} →</button>}
       </div>}
       {step.kind === 'fix' && <div className="ambio-case__outcome" data-verified={!!verified}>
@@ -252,15 +252,15 @@ function CaseCarousel({ file, now, replay, onDismiss, action, error }: {
       <button type="button" className="ambio-case__close" aria-label={file.status === 'closed' ? 'Dismiss the closed case' : 'Minimize the case'} title={file.status === 'closed' ? 'Dismiss' : 'Minimize'} onClick={onDismiss}>{file.status === 'closed' ? '×' : '–'}</button>
       <div className="ambio-case__metadata">
         <span className="ambio-case__mode" data-status={file.status}>{file.status === 'live' && <span className="ambio-case__live-dot" aria-hidden="true" />}{mode}</span>
-        <span className="ambio-case__elapsed" title={`${file.hypotheses.length} hypotheses · ${file.runs.length} experiments`}>{replay ? `${replay.events.length} events` : since}</span>
-        <button type="button" className="ambio-case__step-index" aria-label={`Investigation step ${index + 1} of ${steps.length}, show all steps`} aria-expanded={indexOpen} onClick={() => setIndexOpen(value => !value)}>{indexOpen ? 'All steps' : `${String(index + 1).padStart(2, '0')} / ${String(steps.length).padStart(2, '0')}`}<span aria-hidden="true">{indexOpen ? ' ×' : ' ▾'}</span></button>
-        {pending > 0 && <button type="button" className="ambio-case__latest" aria-label="Latest step →" title={`${pending} newer ${pending === 1 ? 'step' : 'steps'} · Jump to latest and follow`} onClick={() => go(steps.length - 1, true)}>+{pending}</button>}
+        <span className="ambio-case__elapsed" title={`${file.hypotheses.length} hypotheses, ${file.runs.length} experiments`}>{replay ? `${replay.events.length} events` : since}</span>
+        <button type="button" className="ambio-case__step-index" aria-label={`Investigation step ${index + 1} of ${steps.length}, show all steps`} aria-expanded={indexOpen} onClick={() => setIndexOpen(value => !value)}>{indexOpen ? 'All steps' : `${String(index + 1).padStart(2, '0')} / ${String(steps.length).padStart(2, '0')}`}<Chevron expanded={indexOpen} /></button>
+        {pending > 0 && <button type="button" className="ambio-case__latest" aria-label="Latest step →" title={`${pending} newer ${pending === 1 ? 'step' : 'steps'}, Jump to latest and follow`} onClick={() => go(steps.length - 1, true)}>+{pending}</button>}
       </div>
     </header>
     <div className="ambio-case__announcement" role="status" aria-atomic="true">Step {index + 1} of {steps.length}: {step.title}</div>
     <div className="ambio-case__viewport" data-direction={direction}>
       {indexOpen ? <div key="step-index" className="ambio-case__body"><ol className="ambio-case__step-list" aria-label="All investigation steps">
-        {steps.map((item, n) => <li key={item.id}><button type="button" aria-current={n === index ? 'step' : undefined} onClick={() => go(n)}><span>{String(n + 1).padStart(2,'0')}</span><span><strong>{item.title}</strong><small>{item.label}</small></span><span aria-hidden="true">›</span></button></li>)}
+        {steps.map((item, n) => <li key={item.id}><button type="button" aria-current={n === index ? 'step' : undefined} onClick={() => go(n)}><span>{String(n + 1).padStart(2,'0')}</span><span><strong>{item.title}</strong><small>{item.label}</small></span><Chevron /></button></li>)}
       </ol></div> : <>
         {leaving && <div key="outgoing-step" className="ambio-case__leaving" aria-hidden="true" ref={element => {if (element) element.inert = true}} data-kind={leaving.step.kind}><StepContent step={leaving.step} file={leaving.file} steps={steps} now={now} navigate={navigate} /></div>}
         <div key={step.id} ref={body} className="ambio-case__body ambio-case__step" data-kind={step.kind} role="group" aria-roledescription="slide" aria-label={`Step ${index + 1} of ${steps.length}: ${step.title}`} tabIndex={0}>

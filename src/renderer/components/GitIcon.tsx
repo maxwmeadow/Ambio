@@ -1,3 +1,4 @@
+import { Chevron } from './ui/Chevron'
 /**
  * Git's usual symbols, drawn like InboxIcon (24-unit grid, round 1.6 strokes)
  * so the branch menu reads as part of the same app: arrows down to pull and
@@ -8,7 +9,7 @@ type GitIconName =
   | 'folder' | 'code' | 'eye' | 'review' | 'apply' | 'trash'
   | 'upToDate' | 'diverged' | 'edit' | 'clean' | 'chevronDown' | 'agent' | 'search' | 'plus' | 'copy'
 
-const paths: Record<GitIconName, React.ReactNode> = {
+const paths: Record<Exclude<GitIconName, 'chevronDown'>, React.ReactNode> = {
   branch: <><circle cx="6" cy="5" r="2.2" /><circle cx="6" cy="19" r="2.2" /><circle cx="18" cy="7" r="2.2" /><path d="M6 7.2v9.6M18 9.2c0 4.5-6.5 3.8-11.2 8" /></>,
   pull: <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />,
   push: <path d="M12 20V9M7 13.5l5-5 5 5M5 4h14" />,
@@ -26,7 +27,6 @@ const paths: Record<GitIconName, React.ReactNode> = {
   diverged: <><path d="M12 3.5 21 19.5H3z" /><path d="M12 10v4.5M12 17.2v.1" /></>,
   edit: <path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17zM14.5 7.5l3 3" />,
   clean: <path d="m5 12.5 4.5 4.5L19 7.5" />,
-  chevronDown: <path d="m6 9.5 6 6 6-6" />,
   search: <><circle cx="10.5" cy="10.5" r="6" /><path d="m15 15 5 5" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
   copy: <><rect x="8.5" y="8.5" width="11" height="11" rx="1" /><path d="M15.5 8.5V5.5a1 1 0 0 0-1-1h-9a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3" /></>,
@@ -34,5 +34,6 @@ const paths: Record<GitIconName, React.ReactNode> = {
 }
 
 export function GitIcon({ name, size = 16, className }: { name: GitIconName; size?: number; className?: string }) {
+  if (name === 'chevronDown') return <Chevron direction="down" size={size} className={className} />
   return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }

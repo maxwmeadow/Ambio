@@ -9,6 +9,21 @@ in the app as "What's New" after updating, so write it for users.
 
 - Find in project (Ctrl+K) now opens with your systems and infrastructure
   listed, so you can pick one without typing.
+- Review Changes shows Hide seen after you mark a change seen. Clear filters
+  appears when a filter such as System is active.
+- Sheets show only their own scope. New sheets from a selection keep the
+  Floor spacing and size of the selected nodes and open centered on them.
+- Review Changes has a simpler header, styled filters, and a Hide seen toggle.
+  Disclosures across Ambio use the same outlined chevron, and labels use
+  spacing and punctuation instead of middle dots.
+- Review Changes opens a fresh report in the workbench style. Internal edits
+  show when they are the only changes, agent reports fold beside their
+  evidence, and Mark reviewed clears the report. Filtering keeps the map
+  on the selected change.
+- Review Changes distinguishes links added or removed within an existing
+  dependency from a dependency that appeared or disappeared.
+- Terminal tabs stay on one line with a slim horizontal scrollbar, and the
+  active tab stays in view when you switch sessions or resize the sidebar.
 - The top title bar's underline now extends all the way across to the right edge
   under the Windows minimize, maximize and close controls without being cut off.
 - Removed the passive setup and indexing status indicator from the top title bar.

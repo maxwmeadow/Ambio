@@ -1,3 +1,4 @@
+import { DisclosureSummary } from './ui/Chevron'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { CHAT_CONTEXT_WINDOW_MAX, CHAT_CONTEXT_WINDOW_MIN, CHAT_PROVIDER_DEFAULTS, type ChatProvider, type ChatProviderInput, type ChatProviderKind } from '../../shared/agentChat'
 import { ChatGPTConnection } from './ChatGPTConnection'
@@ -75,7 +76,7 @@ export function ChatProviderSettings({ providers, onSaved, onClose, setupRequest
       <p className="ambio-settings__text">API calls use your provider account and are billed by that provider.</p>
       {apiProviders.length > 0 && <ul className="ambio-agent-settings__saved" aria-label="Saved API connections">
         {apiProviders.map(provider => <li key={provider.id}>
-          <div><strong>{provider.name}</strong><small>{CHAT_PROVIDER_DEFAULTS[provider.kind].name} · {provider.model}</small></div>
+          <div><strong>{provider.name}</strong><small>{CHAT_PROVIDER_DEFAULTS[provider.kind].name}, {provider.model}</small></div>
           <button type="button" disabled={busy} aria-label={`Edit ${provider.name}`} onClick={() => select(provider.id)}>Edit</button>
         </li>)}
       </ul>}
@@ -90,7 +91,7 @@ export function ChatProviderSettings({ providers, onSaved, onClose, setupRequest
       <label>API key<input ref={apiKey} aria-label="Service API key" type="password" autoComplete="off" spellCheck={false} value={input.apiKey} disabled={busy} placeholder={input.id ? 'Leave blank to keep your saved key' : 'Your provider API key'} onChange={event => setInput(value => ({ ...value, apiKey: event.target.value }))} /></label>
       <div className="ambio-chat__actions"><button type="button" disabled={busy || !input.baseUrl} onClick={() => { void test() }}>{busy ? 'Connecting…' : 'Test connection & find models'}</button></div>
       <label>Model<input aria-label="Service model" value={input.model} list="ambio-chat-models" required disabled={busy} placeholder="Choose or enter a model ID" onChange={event => setInput(value => ({ ...value, model: event.target.value }))} /><datalist id="ambio-chat-models">{models.map(model => <option key={model} value={model} />)}</datalist></label>
-      <details className="ambio-agent-settings__advanced"><summary>Advanced settings</summary>
+      <details className="ambio-agent-settings__advanced"><DisclosureSummary>Advanced settings</DisclosureSummary>
         <label>Service name<input value={input.name} maxLength={100} required disabled={busy} onChange={event => setInput(value => ({ ...value, name: event.target.value }))} /></label>
         {input.kind !== 'compatible' && <label>Service URL<input aria-label="Service URL" type="url" value={input.baseUrl} required disabled={busy} onChange={event => setInput(value => ({ ...value, baseUrl: event.target.value }))} /></label>}
         <label>Context window (tokens)<input aria-label="Context window" type="number" inputMode="numeric" min={CHAT_CONTEXT_WINDOW_MIN} max={CHAT_CONTEXT_WINDOW_MAX} step={1000} value={input.contextWindow ?? ''} disabled={busy} placeholder={`Default: ${CHAT_PROVIDER_DEFAULTS[input.kind].contextWindow.toLocaleString()}`} onChange={event => setInput(value => ({ ...value, contextWindow: event.target.value ? Number(event.target.value) : undefined }))} /><small>How much the model can read at once. Use the model provider&rsquo;s documented limit.</small></label>

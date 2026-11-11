@@ -21,8 +21,6 @@
 .ambio-turn__steps { margin: 1px 0; }
 .ambio-inbox .ambio-turn__steps-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 2px 0; color: #66756d; font: 500 12px var(--font-ui, sans-serif); text-align: left; }
 .ambio-inbox .ambio-turn__steps-toggle:hover:not(:disabled) { color: #2f6a5d; }
-.ambio-turn__steps-toggle > svg { flex: none; transition: transform .12s; }
-.ambio-turn__steps[data-open='true'] .ambio-turn__steps-toggle > svg { transform: rotate(90deg); }
 .ambio-turn__steps-toggle:focus-visible { outline: 2px solid #69a799; outline-offset: 2px; }
 .ambio-turn__step-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; margin: 5px 0 4px 3px; padding: 2px 0 2px 11px; border-left: 2px solid #d1d8ce; list-style: none; }
 .ambio-turn__step-list[hidden] { display: none; }
@@ -52,7 +50,7 @@
 .ambio-turn__tool small { flex: none; color: #8a968f; font-size: 10px; }
 .ambio-turn__more { flex: none; margin-left: auto; padding-left: 8px; color: #5c7d6f; font: 600 10px var(--font-ui, sans-serif); }
 .ambio-turn__work details[open] .ambio-turn__more { color: #2f6a5d; }
-.ambio-turn__work details > summary { display: block; list-style: none; cursor: pointer; }
+.ambio-turn__work details > summary { display: flex; list-style: none; cursor: pointer; }
 .ambio-turn__work details > summary::-webkit-details-marker { display: none; }
 .ambio-turn__work details > summary:hover .ambio-turn__tool-name { text-decoration: underline; text-underline-offset: 2px; }
 .ambio-turn__work details > pre { margin: 4px 0 2px; padding: 7px 9px; max-height: 320px; overflow: auto; border-left: 2px solid #d1d8ce; background: #ecede5; white-space: pre-wrap; overflow-wrap: anywhere; font: 10.5px/1.5 var(--font-mono, monospace); }
@@ -61,8 +59,6 @@
 .ambio-turn__fold { margin: -2px 0 8px; padding-bottom: 6px; border-bottom: 1px dashed #d1d8ce; }
 .ambio-turn__fold > summary { display: inline-flex; align-items: center; gap: 6px; color: #5c6b63; font: 600 11px var(--font-ui, sans-serif); cursor: pointer; list-style: none; }
 .ambio-turn__fold > summary::-webkit-details-marker { display: none; }
-.ambio-turn__fold > summary::before { content: ''; width: 0; height: 0; border-left: 5px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform .12s; }
-.ambio-turn__fold[open] > summary::before { transform: rotate(90deg); }
 .ambio-turn__fold > summary:hover { color: #2f6a5d; }
 .ambio-turn__fold > summary:focus-visible { outline: 2px solid #69a799; outline-offset: 2px; }
 .ambio-turn__fold[open] > .ambio-turn__work { margin-top: 8px; padding-left: 10px; border-left: 2px solid #d1d8ce; }

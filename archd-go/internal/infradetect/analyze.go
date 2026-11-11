@@ -229,7 +229,7 @@ func (d *detection) instance(service registry.Service, instance string) *Proposa
 	if p, ok := d.proposals[key]; ok {
 		return p
 	}
-	p := &Proposal{Service: service.ID, Instance: instance, Name: service.Name + " · " + instance,
+	p := &Proposal{Service: service.ID, Instance: instance, Name: service.Name + " / " + instance,
 		Category: service.Category, Provider: service.Provider, Subtype: service.Subtype}
 	d.proposals[key] = p
 	return p

@@ -134,7 +134,7 @@
   line-height: 1.45;
 }
 
-.ambio-agent-connections__checks li::before { content: '·'; color: #5f6b66; font-weight: 700; text-align: center; }
+.ambio-agent-connections__checks li::before { content: '–'; color: #5f6b66; font-weight: 700; text-align: center; }
 .ambio-agent-connections__checks li[data-state='pass']::before { content: '✓'; color: #316f56; }
 .ambio-agent-connections__checks li[data-state='fail']::before { content: '✕'; color: #a5563b; }
 .ambio-agent-connections__checks li[data-state='fail'] span { color: #8a4d33; }

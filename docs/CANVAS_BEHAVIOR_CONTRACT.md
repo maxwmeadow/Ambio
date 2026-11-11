@@ -66,6 +66,8 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   review, a system in the mapping review list) brings the node into view the
   way search does: it opens a collapsed system, selects the node and fits once
   the node has been measured. All of them share one flight and its framing.
+  Search and Model Explorer open the Floor for a live target outside the
+  current sheet's scope.
   A file chip that names a line, or a symbol chip, opens the source viewer at
   that line or definition instead, leaving the map where it is. The viewer's
   Show on map (and its breadcrumb's system) closes it, after asking about
@@ -489,7 +491,8 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 ## Floor, sheets, and persistence
 
 - The Floor remains the live base model.
-- Sheets are overlays over the Floor, not independent truth copies.
+- Sheets project a scoped view of the live Floor plus sheet-specific proposals
+  and notes. Leaving a sheet restores the complete Floor and its camera.
 
 ### Placement on the Floor is meaning (decided 2026-10-01)
 
@@ -515,6 +518,11 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 
 ### What a sheet is (revised 2026-07-30)
 
+- The canvas shows the visible sheets' live members, the descendants of their
+  member systems, and their planned nodes and notes. Proposed placements and
+  connections bring in the live nodes they reference. Live dependencies require
+  both endpoints in scope. A blank sheet opens with an empty canvas and the
+  stencil palette.
 - A sheet's overview is a clean proposed arrangement. Relationships are hidden
   by default; selecting a node shows its connections. Selecting a relationship
   review row frames and accents both endpoints and explains the interaction.
@@ -614,10 +622,9 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   layouts remain unchanged; unchanged authored interiors are not repacked.
 
 
-- A sheet is a PROPOSAL about the live architecture, made of three kinds of
-  opinion: MOVES (where a live node should sit instead), ADDITIONS (things that
-  should exist and do not yet), and REMOVALS (things that should go away). It
-  is not a subset of the map and never a copy of it.
+- A sheet is a scoped proposal about the live architecture, made of three
+  kinds of opinion: moves, additions and removals. Its live members provide
+  the context for that proposal.
 - All three are design intent. Removal must be expressible, because "this
   system should be dissolved" is as much a proposal as drawing a new box; a
   sheet you cannot delete from can only describe growth.
@@ -648,7 +655,10 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 - New Sheet from Selection… (right-click a system, file or infrastructure
   node, or New Sheet in the selection bar) starts a sheet with what is
   selected, of every kind; right-clicking a node outside the selection
-  starts it with that node alone. Planned nodes are not carried over.
+  starts it with that node alone. The selection keeps its Floor spacing,
+  alignment, world dimensions and in-scope nesting. The initial layout is
+  presentation only. Opening a populated sheet frames its scope with 0.2
+  padding.
 - On a sheet, the removed node leaves that sheet's picture together with
   what sits inside it, a notice offers Restore, and the sheet rail lists it
   under "Removed on this sheet". Once its code is really gone it is marked
@@ -665,13 +675,11 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   for you. The offer stays on the change in Review Changes while the code
   disagrees, and the sent order shows what Ambio found when it re-checked the
   code ("Checked by Ambio"), separate from the agent's own report.
-- A node the sheet has no opinion about is not re-created by the projection at
-  all, so the Floor's own layout continues to work underneath unchanged.
-- A member saved without geometry (an agent naming a system or file for the
-  sheet) is no opinion: it stays exactly where the Floor has it, at its Floor
-  size, and its parent does not move or resize for it. Proposed into another
-  parent, it is placed in free space inside that parent. A planned node with no
-  position is placed in free space, never at the origin.
+- Live nodes outside the visible sheets' scope are excluded from the scene.
+- A member saved without geometry keeps its Floor world position and size.
+  It stands on its own if its parent is outside the scope. Proposed into
+  another parent, it is placed in free space inside that parent. A planned
+  node with no position is placed in free space.
 - A node the sheet moves detaches from Floor containment, because a proposed
   arrangement is not bound by the current one.
 
@@ -747,7 +755,8 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   - Removals live only on the Floor: they depart on entry, appear on exit -
     the same vocabulary inverted, because a removal is an addition seen from
     the other side.
-- Live nodes the sheet says nothing about neither move nor fade.
+- Live nodes outside the sheet's scope leave the canvas on entry and return
+  on exit.
 - Arrivals wait for the rearrangement to be underway so the eye follows
   movement first; departures leave immediately so they are clear before the map
   settles.
@@ -798,17 +807,17 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   a true delta. Once the catch-up burst settles, the guarded live classifier
   may place new unclassified peers; authored systems and existing Floor
   layouts remain untouched.
-- Returning focus to an open Ambio window reloads the delta, so work performed
-  while the app was unattended surfaces without reopening the project.
+- Returning focus to an open Ambio window or opening Review Changes refreshes
+  the delta, so new work surfaces without reopening the project.
 
 ### Claims are the unit of review
 
 - The reviewable unit is a CLAIM - the smallest statement that changes your
   understanding of the architecture - not a raw change. Call sites, imports,
   and individual files are EVIDENCE nested under the claim they support.
-- One new dependency between two systems is ONE claim, however many call sites
-  it has. Twenty files newly importing one module is one claim with twenty
-  pieces of evidence.
+- One new dependency between two systems is one claim, however many call sites
+  it has. The report needs topology at both boundaries to call a dependency
+  new or gone. Otherwise it describes the observed link changes.
 - An IMPORTS that merely accompanies a resolved CALLS between the same files is
   not separate evidence. This matches the living-relationship rule that one
   code change reads as one signal.
@@ -950,9 +959,9 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 
 - Review is triage, not playback: the whole ranked list is visible at once and
   any claim can be jumped to directly. There is no "item N of M" transport.
-- The panel sets its own type scale. The workbench uses 8px monospace to label
-  controls the user already recognises; the delta is prose that has to be read
-  and acted on, so legibility outranks stylistic consistency with the chrome.
+- The panel uses the workbench's chrome and a compact list of observed claims.
+  Internal claims are visible when they are the only changes. Agent reports
+  expand beside related claims, with other activity available separately.
 - Review marks and ghosting are a projection over the living nodes, exactly
   like live FX. Reviewing never mutates canvas state, and a live edit still
   animates on top of a mark.
@@ -968,14 +977,13 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 - Framing is bounded at both ends: a zoom floor so a small subject never lands
   illegibly, and a ceiling so a two-system claim never fills the viewport with
   one box.
-- Reading a delta never acknowledges it. The watermark moves only on an
-  explicit accept, and it never moves backwards, so closing Ambio mid-review
-  leaves the delta waiting.
+- Reading a delta never acknowledges it. Mark reviewed advances the watermark.
+  Closing the panel or Ambio mid-review leaves the delta waiting.
 - An active review is a stable snapshot. A focus refresh waits until review
   ends rather than replacing claims or moving the cursor under the reader.
-- An accept acknowledges the window that was actually shown, not "now", so
-  changes landing during a review survive into the next delta, which is loaded
-  immediately after the acknowledgement completes.
+- Mark reviewed acknowledges the report's full window, including hidden
+  claims. Later changes survive into the next delta, which loads immediately
+  after the acknowledgement completes.
 
 ## Agent visibility
 

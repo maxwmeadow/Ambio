@@ -153,7 +153,7 @@ export function ChooseAgent({
   const runOption = (choice: Extract<RunnableChoice, { kind: 'run' }>) => {
     const { id, label, host } = choice
     const hostId = host.id
-    if (host.discoveryError) return option(id, label, 'Could not check · select for details', 'attention')
+    if (host.discoveryError) return option(id, label, 'Could not check, select for details', 'attention')
     if (!host.available) return option(id, label, discovery.loading ? 'Checking…' : 'Not found', 'off')
     const app = RUN_NEEDS_INSTALL[hostId]
     const appHost = app ? hosts.find(host => host.id === app.installer) : undefined
@@ -165,7 +165,7 @@ export function ChooseAgent({
   const appOption = (host: AgentHostInfo) => {
     const state = stateOf(host)
     const label = APP_CLIENTS.find(client => client.id === host.id)?.label ?? host.label
-    const status = host.detectionError ? 'Could not fully check' : !host.detected && state !== 'live' ? host.configured ? 'Ambio added · app not found' : 'Not found' : APP_STATUS[state]
+    const status = host.detectionError ? 'Could not fully check' : !host.detected && state !== 'live' ? host.configured ? 'Ambio added, app not found' : 'Not found' : APP_STATUS[state]
     return option(host.id, label, status, state === 'live' || state === 'installed' ? 'ready' : state === 'missing' ? 'off' : 'attention')
   }
 
@@ -197,7 +197,7 @@ export function ChooseAgent({
     </div>
     action = <div className="ambio-choose__actions"><AgentModelSelect model={model} disabled={busy} /><AgentThinkingSelect model={model} disabled={busy} /><button type="button" className="ambio-connect__primary" disabled={busy} onClick={() => { void map(run) }}>{busy ? 'Adding Ambio\u2026' : `Add Ambio and map with ${run.label}`}</button></div>
   } else if (run) {
-    detail = run.kind === 'chat' ? <p>Uses {run.provider.name} · {run.provider.model}. Ambio starts it here and shows its progress. Nothing to install or restart.</p> : null
+    detail = run.kind === 'chat' ? <p>Uses {run.provider.name}, {run.provider.model}. Ambio starts it here and shows its progress. Nothing to install or restart.</p> : null
     action = <div className="ambio-choose__actions"><AgentModelSelect model={model} disabled={busy} /><AgentThinkingSelect model={model} disabled={busy} /><button type="button" className="ambio-connect__primary" disabled={busy} onClick={() => { void map(run) }}>{busy ? 'Starting…' : `Map with ${run.label}`}</button></div>
   } else if (app && appState) {
     const working = installing === app.id
@@ -279,7 +279,7 @@ export function ChooseAgent({
           <h3 id={`${sectionId}-chat`} className="ambio-choose__heading">Ambio chat</h3>
           <div className="ambio-choose__pills">
             {runnable.map(choice => choice.kind === 'run' ? null
-              : choice.kind === 'chat' ? option(choice.id, choice.label, `${choice.provider.auth === 'chatgpt' ? 'ChatGPT plan' : 'Your API key'} · ${choice.provider.name}`, 'ready')
+              : choice.kind === 'chat' ? option(choice.id, choice.label, `${choice.provider.auth === 'chatgpt' ? 'ChatGPT plan' : 'Your API key'}, ${choice.provider.name}`, 'ready')
                 : option(choice.id, choice.label, 'Needs a connection', 'attention'))}
           </div>
         </section>
@@ -294,7 +294,7 @@ export function ChooseAgent({
           <div className="ambio-choose__pills">
             {APP_CLIENTS.map(client => {
               const host = apps.find(host => host.id === client.id)
-              return host ? appOption(host) : option(client.id, client.label, 'Could not check · rescan', 'attention', true)
+              return host ? appOption(host) : option(client.id, client.label, 'Could not check, rescan', 'attention', true)
             })}
           </div>
         </section>

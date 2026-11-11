@@ -417,7 +417,7 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
                 <div>
                   <h2>{chip.repositories ? 'Repositories' : chip.plain ? 'No Git' : reviewing ? `Review ${reviewing.name}` : 'Branches and worktrees'}</h2>
                   {chip.repositories ? <p>Each repository in this folder</p> : chip.plain ? <p>This folder is not a Git repository</p>
-                    : reviewing ? <p>{review ? `Against ${review.base || 'its base'} · ${review.files} file${review.files === 1 ? '' : 's'}` : 'Reading the branch…'}</p> : null}
+                    : reviewing ? <p>{review ? `Against ${review.base || 'its base'}, ${review.files} file${review.files === 1 ? '' : 's'}` : 'Reading the branch…'}</p> : null}
                 </div>
                 {chip.repositories > 0 && <output>{chip.repositories}</output>}
                 {reviewing && <button type="button" className="ambio-checkouts__back" onClick={() => setReviewing(null)}>← Back</button>}

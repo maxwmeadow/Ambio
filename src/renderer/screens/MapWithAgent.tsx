@@ -8,7 +8,7 @@ import { CHAT_PROVIDERS_CHANGED } from '../components/AgentChatPanel'
 import { MAPPING_CONTRACT, MAPPING_PROGRESS } from '../components/inboxModel'
 import { useProposalDrafts } from '../components/ProposalDraftProgress'
 import { discoveryRequest } from '../components/agentDiscovery'
-import { projectPath, statusLabel, toolRow } from '../components/agentActivity'
+import { projectPath, statusLabel, toolRow, toolActivityLabel } from '../components/agentActivity'
 
 /** Mapping is a finite, scoped session whose last action submits the map. */
 
@@ -266,7 +266,7 @@ export function MappingActivity({
               return {
                 id: `chat-tool-${index}`,
                 kind: 'tool' as const,
-                text: `${part.tool ?? 'tool'}${part.state ? ` · ${part.state}` : ''}`,
+                text: `${part.tool ?? 'tool'}${part.state ? ` \u00b7 ${part.state}` : ''}`,
                 at: Date.now(),
               }
             }
@@ -303,7 +303,7 @@ export function MappingActivity({
           const next: ActivityEvent[] = events.slice(-LOG_ITEMS).map((event, index) => ({
             id: event.id ?? `run-${from + Math.max(0, events.length - LOG_ITEMS) + index}`,
             kind: event.kind === 'sent' ? 'text' : event.kind as ActivityEvent['kind'],
-            text: (event.kind === 'sent' ? `You · ${event.text}` : event.text).trim(),
+            text: (event.kind === 'sent' ? `You: ${event.text}` : event.text).trim(),
             at: event.at,
             ...(event.status ? { status: event.status } : {}),
             ...(event.exitCode != null ? { exitCode: event.exitCode } : {}),
@@ -371,7 +371,7 @@ export function MappingActivity({
                 systemsCount > 0 ? `${systemsCount} ${systemsCount === 1 ? 'system' : 'systems'} drawn so far` : 'No systems drawn yet',
                 filesCount > 0 ? `${filesCount} ${filesCount === 1 ? 'file' : 'files'} inspected` : null,
                 elapsed > 0 && (state === 'working' || state === 'waiting') ? elapsedFormatted : null,
-              ].filter(Boolean).join(' · ')}
+              ].filter(Boolean).join(', ')}
             </small>
           </div>
         </div>
@@ -471,10 +471,10 @@ export function MappingActivity({
                       </span>
                       {toolInfo.subagent !== undefined && <span className="ambio-map-activity__subagent" title="Done by a subagent">{toolInfo.subagent || 'Subagent'}</span>}
                       <strong className="ambio-map-activity__tool-name">{toolInfo.tool}</strong>
-                      {toolInfo.target && <span className="ambio-map-activity__tool-target" title={toolInfo.target}>{toolInfo.target}</span>}
-                      {status && <span className="ambio-map-activity__status">{status}{status === 'failed' && item.exitCode != null ? ` · exit ${item.exitCode}` : ''}</span>}
+                      {toolInfo.target && <span className="ambio-map-activity__tool-target" title={toolActivityLabel(toolInfo.target)}>{toolActivityLabel(toolInfo.target)}</span>}
+                      {status && <span className="ambio-map-activity__status">{status}{status === 'failed' && item.exitCode != null ? `, exit ${item.exitCode}` : ''}</span>}
                       {/* The row as one line, for screen readers and tests. */}
-                      <span className="ambio-map-activity__raw-target">{projectPath(item.text, current?.rootPath)}</span>
+                      <span className="ambio-map-activity__raw-target">{toolActivityLabel(projectPath(item.text, current?.rootPath))}</span>
                     </div>
                   ) : item.kind === 'thinking' ? (
                     <div className="ambio-map-activity__thinking">

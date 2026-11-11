@@ -65,7 +65,7 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
     await expect(settings.getByRole('navigation', { name: 'Agent connection types' }).getByRole('button')).toHaveText(['Ambio chat', 'Ambio runs it', 'In another app'])
     await page.screenshot({ path: 'test-results/settings-agents.png' })
     await settings.getByRole('button', { name: 'Close', exact: true }).click()
-    await destination.chooseLabel('Ambio chat · My local test service · fixture-model')
+    await destination.chooseLabel('Ambio chat, My local test service, fixture-model')
     // Ambio chat works differently from the others, so it is introduced too.
     await expect(intro).toContainText('A conversation keeps the model it started with')
     await intro.getByRole('button', { name: 'Got it' }).click()
@@ -95,7 +95,7 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
     // A new conversation can go to any agent again.
     await inbox.getByRole('button', { name: 'New conversation' }).click()
     await destination.open()
-    await expect(destination.group('Built into Ambio')).toHaveText(['Ambio chat · My local test service · fixture-model'])
+    await expect(destination.group('Built into Ambio')).toHaveText(['Ambio chat, My local test service, fixture-model'])
     await destination.close()
     await app.close(); app = await launch(); page = await app.firstWindow()
     await routeArchd(page)

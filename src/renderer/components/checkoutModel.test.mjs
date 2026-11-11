@@ -50,7 +50,7 @@ test('the chip follows the Floor’s checkout, not the first one listed', () => 
   assert.equal(chip.others, 1)
   assert.equal(chip.agents, 1)
   assert.equal(chip.collisions, 1)
-  assert.match(chip.title, /2 uncommitted · 1 ahead · of origin\/main/)
+  assert.match(chip.title, /2 uncommitted, 1 ahead of origin\/main/)
   assert.match(chip.title, /1 system changing on more than one branch/)
 })
 
@@ -134,7 +134,7 @@ test('a folder of repositories reads as how many, and lists each', () => {
   assert.equal(chip.title, 'web on redesign (1 uncommitted). services/api on main')
   assert.deepEqual(buildRepositoryRows(repos).map(row => [row.folder, row.name, row.state]), [
     ['web', 'redesign', '1 uncommitted'],
-    ['services/api', 'main', '2 ahead · of origin/main'],
+    ['services/api', 'main', '2 ahead of origin/main'],
   ])
 })
 
@@ -232,7 +232,7 @@ test('the branch list puts the Floor first, narrows by what was typed and offers
   assert.deepEqual(all.rows.map(row => row.name), ['main', 'fix/retry', 'spike'])
   assert.equal(all.create, null)
   assert.equal(all.rows[0].rootId, undefined, "the Floor's own checkout is not another worktree")
-  assert.equal(all.rows[1].last, '3 days ago · Retry')
+  assert.equal(all.rows[1].last, '3 days ago, Retry')
   assert.equal(all.rows[2].rootId, 'root_spike')
   assert.equal(all.rows[2].gone, true)
   const typed = buildBranchRows(listing, 'RETRY', now)

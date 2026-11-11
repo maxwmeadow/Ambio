@@ -67,7 +67,7 @@ test('agents are listed installed first, then found on this computer, then the r
     ['live', 'broken', 'installed', 'available-a', 'available-b', 'missing-a', 'missing-b'])
   const summary = id => familySummary(ordered.find(item => item.family.id === id).presentation, id === 'installed' ? 1 : 0)
   assert.equal(summary('live'), 'Connected now')
-  assert.equal(summary('installed'), 'Installed · 1 more available')
+  assert.equal(summary('installed'), 'Installed, 1 more available')
   assert.equal(summary('broken'), 'Needs repair')
   assert.equal(summary('available-a'), 'Not installed')
   assert.equal(summary('missing-a'), 'Not found')

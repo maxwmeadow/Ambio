@@ -30,7 +30,7 @@ func TestEachDockerfileIsAContainerAndPlatformsNestThem(t *testing.T) {
 		t.Fatalf("one container per Dockerfile: %+v", containers)
 	}
 	for _, c := range containers {
-		if c.Name != "Docker · "+c.Instance || len(hostsOf(&c)) != 1 {
+		if c.Name != "Docker / "+c.Instance || len(hostsOf(&c)) != 1 {
 			t.Errorf("a container is named for its folder and hosts it: %+v", c)
 		}
 	}

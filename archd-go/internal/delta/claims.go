@@ -209,12 +209,12 @@ func pluralFiles(n int) string {
 
 // BuildClaims folds a net summary into ranked architectural claims.
 func BuildClaims(summary Summary, topology SystemTopology) []Claim {
-	return buildClaims(summary, topology, nil, nil)
+	return buildClaims(summary, topology, nil, nil, false)
 }
 
-// BuildClaimsWithSnapshots adds consequences that can only be proven by exact
-// graph boundaries. Nil snapshots suppress those claims: missing evidence
-// must never become an invented hub or orphan story.
+// BuildClaimsWithSnapshots uses exact graph boundaries to distinguish a
+// dependency transition from changes to its supporting links. Without both
+// snapshots, only the recorded links are described.
 func BuildClaimsWithSnapshots(
 	summary Summary,
 	before, after *ArchitectureSnapshot,
@@ -223,13 +223,14 @@ func BuildClaimsWithSnapshots(
 	if after != nil {
 		topology = after.Topology
 	}
-	return buildClaims(summary, topology, before, after)
+	return buildClaims(summary, topology, before, after, true)
 }
 
 func buildClaims(
 	summary Summary,
 	topology SystemTopology,
 	before, after *ArchitectureSnapshot,
+	verifyBoundary bool,
 ) []Claim {
 	claims := []Claim{}
 
@@ -299,9 +300,13 @@ func buildClaims(
 		}
 		sort.Strings(importPairs)
 		if len(importPairs) > 0 {
+			label := fmt.Sprintf("%s newly imported", pluralFiles(len(importPairs)))
+			if group.change == ChangeRemoved {
+				label = fmt.Sprintf("Import links removed: %d", len(importPairs))
+			}
 			group.evidence = append(group.evidence, Evidence{
 				Kind:  "import",
-				Label: fmt.Sprintf("%s newly imported", pluralFiles(len(importPairs))),
+				Label: label,
 			})
 		}
 		sort.SliceStable(group.evidence, func(i, j int) bool {
@@ -316,18 +321,40 @@ func buildClaims(
 			kind = ClaimDecoupling
 			title = fmt.Sprintf("%s no longer depends on %s", src, dst)
 		}
-		cycle := kind == ClaimCoupling && topology.reaches(group.dstID, group.srcID)
+		boundaryChanged := !verifyBoundary
+		if verifyBoundary && before != nil && after != nil {
+			hadLink := before.Topology[group.srcID][group.dstID]
+			hasLink := after.Topology[group.srcID][group.dstID]
+			boundaryChanged = hadLink != hasLink && hasLink == (kind == ClaimCoupling)
+		}
+		if !boundaryChanged {
+			if kind == ClaimCoupling {
+				title = fmt.Sprintf("%s added links to %s", src, dst)
+			} else {
+				title = fmt.Sprintf("%s removed links to %s", src, dst)
+			}
+		}
+		cycle := boundaryChanged && kind == ClaimCoupling && topology.reaches(group.dstID, group.srcID)
 		severity := claimSeverity[kind]
 		if cycle {
 			severity = cycleSeverity
 			title = fmt.Sprintf("Cycle: %s ⇄ %s", src, dst)
 		}
 		count := len(group.evidence)
+		subtitle := evidenceSubtitle(count, group.change)
+		if len(importPairs) > 0 {
+			links := count - 1 + len(importPairs)
+			if group.change == ChangeRemoved {
+				subtitle = evidenceSubtitle(links, group.change)
+			} else {
+				subtitle = fmt.Sprintf("Links added: %d", links)
+			}
+		}
 		claims = append(claims, Claim{
 			ID:             "claim:" + key,
 			Kind:           kind,
 			Title:          title,
-			Subtitle:       evidenceSubtitle(count, group.change),
+			Subtitle:       subtitle,
 			Severity:       severity,
 			Score:          score(severity, count),
 			Actor:          group.actor,
@@ -351,10 +378,10 @@ func buildClaims(
 			continue // reported, with its files, as a grouping below
 		}
 		kind := ClaimSystemAdded
-		title := fmt.Sprintf("New system · %s", system.Name)
+		title := fmt.Sprintf("New system %s", system.Name)
 		if system.Change == ChangeDeleted {
 			kind = ClaimSystemRemoved
-			title = fmt.Sprintf("System dissolved · %s", system.Name)
+			title = fmt.Sprintf("Dissolved system %s", system.Name)
 		}
 		focus := []string{}
 		if kind == ClaimSystemAdded {
@@ -703,7 +730,7 @@ func internalClaims(summary Summary, internalEdges map[string]int, names map[str
 		}
 		detail := "edited"
 		if file.Saves > 1 {
-			detail = fmt.Sprintf("edited · %d saves", file.Saves)
+			detail = fmt.Sprintf("edited (%d saves)", file.Saves)
 		}
 		evidence[key] = append(evidence[key], Evidence{
 			Kind: "file.updated", Label: file.RelPath,
@@ -731,9 +758,9 @@ func internalClaims(summary Summary, internalEdges map[string]int, names map[str
 	for _, key := range keys {
 		name := systemLabel(editedNames[key], key)
 		count := edited[key]
-		title := fmt.Sprintf("%s · internal changes", name)
+		title := fmt.Sprintf("Internal edits in %s", name)
 		if count > 0 {
-			title = fmt.Sprintf("%s · %s edited", name, pluralFiles(count))
+			title = fmt.Sprintf("%s edited in %s", pluralFiles(count), name)
 		}
 		focus := []string{}
 		if key != "" {
@@ -764,6 +791,6 @@ func joinParts(parts []string) string {
 	case 1:
 		return parts[0]
 	default:
-		return parts[0] + " · " + parts[1]
+		return parts[0] + ", " + parts[1]
 	}
 }

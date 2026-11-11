@@ -79,9 +79,11 @@ inert. One registered CSS progress value drives both the sidebar translation
 and canvas inset on each frame, so the map fills the area revealed during exit
 and gives space back during entry without an empty strip. Reduced motion skips
 these animations.
-Both resize handles update the same width. Terminal tabs and controls occupy
-one compact top bar; shell selection/discovery live in its options menu and
-there is no footer.
+Both resize handles update the same width. Terminal tabs scroll horizontally
+within the top bar while the actions stay visible. Long labels truncate with
+their full text on hover. Selecting a tab or resizing the sidebar brings the
+active tab and its close button into view. Shell selection and discovery live
+in the options menu.
 The shared `view.terminal` command uses Control+backtick on all platforms. Shell
 tabs stay mounted and process output while hidden, with bounded xterm scrollback.
 The shell picker remembers its preference; discovery covers Windows PowerShell,
@@ -727,7 +729,18 @@ compact call sites and imports into claims with evidence, rank them, attribute
 them, and classify realisation against sent work orders (MATCHED / FLEXED /
 DRIFTED / MISSING / UNKNOWN).
 Routine deltas remain discoverable through the toolbar without automatically
-raising review invitations; explicit review and acknowledgement are unchanged.
+raising review invitations. Opening Review Changes refreshes the report and
+holds it steady while open. The panel and canvas share a selected claim ID
+through filtering. Observed claims lead, internal claims show by default when
+they are the only changes, and work-session narration expands beside its claim
+or under other agent activity. Mark reviewed acknowledges the report window.
+The delta compares topology at both window boundaries before describing a
+system dependency as new or gone. Without that evidence it describes the
+recorded link changes.
+Review Changes uses in-panel filter menus with keyboard navigation. Hide seen
+appears when a matching claim is marked seen, and Clear filters appears when
+a filter such as System is active. Its disclosure controls use the same
+`Chevron` and `DisclosureSummary` as the sheet rail and agent work views.
 
 **Work orders** (`internal/api/inbox.go`, `sheet_work.go`): send freezes the
 sheet, build spec and comparison in one transaction → an agent claims by ID
@@ -1113,6 +1126,14 @@ canvas owns its own badges and camera. Performance regressions are covered by
 `tests/e2e/canvas-performance.spec.ts`; measurements and limits are documented in
 [testing/CANVAS_PERFORMANCE.md](testing/CANVAS_PERFORMANCE.md).
 
+`canvas/sheetSceneScope.ts` restricts the scene worker's sheet input to the
+members of the visible layers, referenced live context, descendants, and
+dependencies within that scope. The Floor keeps its own model and viewport.
+New Sheet from Selection reads the projected Floor geometry, including nested
+scales, and saves member rows and normalized layouts in one daemon transaction.
+Initial layouts are presentation-only in structural comparison. Reparenting
+on the sheet turns the affected layout into a placement requirement.
+
 Sheets cache geometry and authoring callbacks independently of camera, selection,
 layout-transition flags and runtime changes. Unchanged sheet-list polls preserve
 layer identities and do not repack the canvas. `canvas/sheetPresentation.ts` merges live flags and selection
@@ -1413,6 +1434,6 @@ endpoint cards with space reserved for the palette and open sheet inspector.
 
 `compactSheetSystems` reuses `packFrame` and frame insets to size unplaced new
 systems and automatic system moves from their contents, recursively. It modifies
-only the sheet projection: authored sheet layouts and surrounding Floor frames
+only the sheet projection: authored sheet layouts and in-scope live frames
 are retained. Resizing/placing a proposal explicitly makes its saved geometry
 authoritative, rather than compacting it again on refresh.

@@ -17,7 +17,6 @@ test('notes autosave, nest, compress and persist through native Floor and sheet 
   const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
   let app
   try {
-    const sheet = await (await harnessFetch(`${harness.apiBase}/api/sheets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: 'demo', name: 'Note sheet', kind: 'structure' }) })).json()
     app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1', HOME: home, USERPROFILE: home, APPDATA: join(home, 'AppData', 'Roaming'), LOCALAPPDATA: join(home, 'AppData', 'Local') } })
     const page = await app.firstWindow()
     await skipAgentGuides(page)
@@ -33,6 +32,10 @@ test('notes autosave, nest, compress and persist through native Floor and sheet 
     expect(createdOwner.isError, createdOwner.text).toBe(false)
     const ownerId = createdOwner.payload.systemId ?? createdOwner.payload.id
     expect(ownerId).toBeTruthy()
+    const sheet = await (await harnessFetch(`${harness.apiBase}/api/sheets`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId: 'demo', name: 'Note sheet', kind: 'structure', elements: [{ systemId: ownerId }] }),
+    })).json()
     const ownerLayout = { nodeId: ownerId, nodeType: 'system', parentNodeId: null, parentNodeType: null, containmentKind: 'root', positionX: 0, positionY: 0, width: 620, height: 420, scale: 1, interiorScale: 1 }
     const placed = await harnessFetch(`${harness.apiBase}/api/layout/batch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: 'demo', layouts: [ownerLayout] }) })
     expect(placed.ok, await placed.clone().text()).toBe(true)
@@ -139,9 +142,11 @@ test('notes autosave, nest, compress and persist through native Floor and sheet 
     await editor.press('Escape')
     await page.getByText('Note sheet', { exact: true }).click()
     await expect(page.locator('.ambio-sheet-palette')).toBeVisible()
+    await expect(owner).toBeVisible()
+    await expect(noteCard(first.id)).toHaveCount(0)
+    await expect.poll(() => page.evaluate(canvasViewportSettled)).toBe(true)
+    await owner.click({ position: { x: 80, y: 100 } })
     await page.locator('.ambio-sheet-palette').getByRole('button', { name: 'Add Note', exact: true }).click()
-    const target = await owner.boundingBox()
-    await page.mouse.click(target.x + target.width * .7, target.y + target.height * .7)
     await expect.poll(async () => (await read(sheet.id)).length).toBe(1)
     const sheetNote = (await read(sheet.id))[0]
     await expect.poll(async () => (await read(sheet.id))[0]?.layout?.parentNodeId).toBe(ownerId)

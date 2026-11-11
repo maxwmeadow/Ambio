@@ -119,7 +119,7 @@ export interface CaseFile {
   symptom?: string
   origin: string
   startedAt: number
-  /** live: recording now · closed: the agent stopped it · replay: a saved case playing back */
+  /** live: recording now, closed: the agent stopped it, replay: a saved case playing back */
   status: 'live' | 'closed' | 'replay'
   hypotheses: CaseHypothesis[]
   runs: CaseRun[]
@@ -325,7 +325,7 @@ export function caseSteps(file: CaseFile): CaseStep[] {
         steps.push({id, kind:'note', title:'A new observation', label:'Observation', text:entry.text, anchors:entry.anchors})
         break
       case 'verdict':
-        steps.push({id, kind:'verdict', title:entry.status === 'confirmed' ? 'The hypothesis is supported' : entry.status === 'refuted' ? 'The hypothesis is ruled out' : 'The cause is still uncertain', label:`Assessment · ${entry.hypothesisId}`, text:entry.text ?? '', hypothesisId:entry.hypothesisId, status:entry.status})
+        steps.push({id, kind:'verdict', title:entry.status === 'confirmed' ? 'The hypothesis is supported' : entry.status === 'refuted' ? 'The hypothesis is ruled out' : 'The cause is still uncertain', label:`Assessment, ${entry.hypothesisId}`, text:entry.text ?? '', hypothesisId:entry.hypothesisId, status:entry.status})
         break
       case 'message': {
         const message = file.messages.find(m => m.id === entry.messageId)

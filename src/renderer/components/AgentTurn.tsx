@@ -1,3 +1,4 @@
+import { Chevron, DisclosureSummary } from './ui/Chevron'
 import { useEffect, useState, type ReactNode } from 'react'
 import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../../shared/agentDelivery'
 import type { ChatPart } from '../../shared/agentChat'
@@ -87,7 +88,7 @@ function AgentSteps({ items, rootPath, current }: { items: WorkItem[]; rootPath?
     <button type="button" className="ambio-turn__steps-toggle" aria-expanded={open} onClick={() => setChosen(!open)}>
       {current && <span className="ambio-turn__pulse" aria-hidden="true" />}
       <span>{stepsSummary(items)}</span>
-      <InboxIcon name="chevron" size={11} />
+      <Chevron size={11} expanded={open} />
     </button>
     <ol className="ambio-turn__step-list" hidden={!open}>
       {items.map(item => <li key={item.key} data-kind={item.kind}>
@@ -114,7 +115,7 @@ function ToolLine({ item, rootPath }: { item: WorkItem; rootPath?: string }) {
     {(item.output || item.diff) && <span className="ambio-turn__more">{item.diff ? 'View changes' : 'View output'}</span>}
   </span>
   return item.output || item.diff
-    ? <details><summary>{line}</summary><pre>{item.diff || item.output}</pre></details>
+    ? <details><DisclosureSummary>{line}</DisclosureSummary><pre>{item.diff || item.output}</pre></details>
     : line
 }
 
@@ -158,7 +159,7 @@ export function AgentTurnCard({ agent, working, startedAt, lastAt, items, rootPa
       {answer?.onCopy && !working && <button type="button" className="ambio-inbox__copy-reply" aria-label={answer.copied ? 'Reply copied' : 'Copy reply'} onClick={answer.onCopy}><InboxIcon name={answer.copied ? 'check' : 'copy'} size={13} />{answer.copied ? 'Copied' : 'Copy'}</button>}
     </div>
     {folded
-      ? (work.length > 0 || footer) && <details className="ambio-turn__fold"><summary>{summary}</summary><AgentWork items={work} rootPath={rootPath} />{footer && <div className="ambio-turn__footer">{footer}</div>}</details>
+      ? (work.length > 0 || footer) && <details className="ambio-turn__fold"><DisclosureSummary>{summary}</DisclosureSummary><AgentWork items={work} rootPath={rootPath} />{footer && <div className="ambio-turn__footer">{footer}</div>}</details>
       : <>
         <AgentWork items={work} rootPath={rootPath} working={working} />
         {working && !work.length && <p className="ambio-turn__starting">Starting…</p>}

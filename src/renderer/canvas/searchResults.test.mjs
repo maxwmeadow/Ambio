@@ -37,7 +37,7 @@ test('says where a system sits, and a symbol frames its file', () => {
   const [symbol] = buildSearchResults({ query: 'Order', systems: [], infraNodes: [], files, symbols })
     .filter(result => result.kind === 'symbol')
   assert.equal(symbol.nodeId, 'f2')
-  assert.equal(symbol.detail, 'class · src/shop/orders/order.ts:4')
+  assert.equal(symbol.detail, 'class, src/shop/orders/order.ts:4')
 })
 
 test('a blank query lists systems outermost first, then infrastructure', () => {

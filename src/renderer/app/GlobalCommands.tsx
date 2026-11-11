@@ -1,3 +1,4 @@
+import { DisclosureSummary } from '../components/ui/Chevron'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { COMMANDS, buildMenu, commandForKey, commandIds, formatAccelerator, paletteCommands, type CommandId } from '../../shared/appMenu'
 import { DEFAULT_SETTINGS, UI_ZOOM_MAX, UI_ZOOM_MIN, type AppSettings } from '../../shared/appSettings'
@@ -501,7 +502,7 @@ function SettingsDialog({ onClose, initialSection = 'general', modelServiceSetup
                 onGuidedSetup={project ? () => { onClose(); setTimeout(() => emitCommand('agent.guidedSetup'), 0) } : undefined}
                 chat={<div className="ambio-chat"><ChatProviderSettings providers={chatProviders} setupRequest={modelServiceSetup} onSaved={() => { void window.ambio.chatProviders().then(setChatProviders); window.dispatchEvent(new Event(CHAT_PROVIDERS_CHANGED)) }} /></div>}
               />
-              <details className="ambio-agent-connections__bulk"><summary>Disconnect agents from this computer</summary><RemoveFromAgents /></details>
+              <details className="ambio-agent-connections__bulk"><DisclosureSummary>Disconnect agents from this computer</DisclosureSummary><RemoveFromAgents /></details>
             </>
           )}
 

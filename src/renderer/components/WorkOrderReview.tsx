@@ -1,3 +1,4 @@
+import { Chevron, DisclosureSummary } from './ui/Chevron'
 import { useEffect, useRef, useState } from 'react'
 import { useCheckoutStore, REVIEW_BRANCH } from '../store/checkoutStore'
 import { checkoutName } from './checkoutModel'
@@ -11,7 +12,7 @@ function ReportedResult({ reply }: { reply: WorkOrderReply }) {
   const result = reply.result
   if (!result || (!result.commit && !result.changedFiles?.length && !result.checks?.length && !result.remaining?.length)) return null
   return <div className="ambio-inbox__reported">
-    <div className="ambio-inbox__evidence-label">Agent report <span>· checks supplied by agent</span></div>
+    <div className="ambio-inbox__evidence-label">Agent report <span>checks supplied by agent</span></div>
     {result.commit && <p><strong>Commit</strong> <code>{result.commit}</code></p>}
     {!!result.changedFiles?.length && <div><strong>Changed files</strong><ul>{result.changedFiles.map((file, index) => <li key={`${file}:${index}`}><code>{file}</code></li>)}</ul></div>}
     {!!result.checks?.length && <div><strong>Checks</strong><ul>{result.checks.map((check, index) => <li key={index}><code>{check.command}</code> — {check.outcome}</li>)}</ul></div>}
@@ -49,12 +50,12 @@ export function WorkOrderReview({ message, workspaceId, currentSheet }: { messag
   if (!hasDetails) return null
   return <section className="ambio-inbox__review" aria-label={`Work order details ${message.id}`}>
     <button type="button" className="ambio-inbox__review-toggle" aria-expanded={expanded} onClick={() => { if (!expanded && message.status === 'answered' && currentSheet) setCompareOpen(true); setExpanded(!expanded) }}>
-      <span>{expanded ? '▾' : '▸'} {message.status === 'answered' && !accepted ? 'Review result' : 'Details'}</span><span>{message.sessions?.length ? `${message.sessions.length} work ${message.sessions.length === 1 ? 'session' : 'sessions'}` : message.reply?.result ? 'Agent report' : message.sheetId ? 'Sheet' : ''}</span>
+      <span><Chevron expanded={expanded} /> {message.status === 'answered' && !accepted ? 'Review result' : 'Details'}</span><span>{message.sessions?.length ? `${message.sessions.length} work ${message.sessions.length === 1 ? 'session' : 'sessions'}` : message.reply?.result ? 'Agent report' : message.sheetId ? 'Sheet' : ''}</span>
     </button>
     {expanded && <div className="ambio-inbox__review-body">
       {message.sheetId && <div className="ambio-inbox__sent-sheet" data-changed={sheetChanged || undefined}>
         <strong>Sheet sent to agent</strong>
-        <span>{message.sentSheetName || currentSheet?.name || 'Attached sheet'}{sentRevision > 0 ? ` · revision ${sentRevision}` : ''}</span>
+        <span>{message.sentSheetName || currentSheet?.name || 'Attached sheet'}{sentRevision > 0 ? `, revision ${sentRevision}` : ''}</span>
         {sheetChanged && <p>Current sheet is revision {currentSheet.revision}. This work order retains the sent revision {sentRevision}.</p>}
         {!currentSheet && <p>The current sheet is unavailable. The agent received its frozen context when this order was sent.</p>}
         <SentSheetSnapshot workspaceId={workspaceId} messageId={message.id} />
@@ -66,14 +67,14 @@ export function WorkOrderReview({ message, workspaceId, currentSheet }: { messag
         {reopening && <div className="ambio-inbox__review-reopen"><label htmlFor={`review-feedback-${message.id}`}>What needs to change?</label><textarea id={`review-feedback-${message.id}`} value={feedback} onChange={event => setFeedback(event.target.value)} maxLength={4000} rows={3} /><button type="button" disabled={busy || !feedback.trim()} onClick={() => { void decide('reopened') }}>Reopen work order</button></div>}
       </div>}
       <RunBranchReview sessions={message.sessions} />
-      {!!message.sessions?.length && <div className="ambio-inbox__review-sessions"><strong>Work sessions</strong><ul>{message.sessions.map(session => <li key={session.id}><span>{session.agent || 'Agent'} · {session.goal}{session.branch ? ` · ${session.branch}` : ''}{session.endedAt ? ' · ended' : ' · open'}</span>{session.notes.length > 0 && <ol>{session.notes.map((entry, index) => <li key={`${entry.ts}:${index}`}>{entry.text}</li>)}</ol>}{session.summary && <p>{session.summary}</p>}</li>)}</ul></div>}
-      {!!message.changes?.length && <div className="ambio-inbox__review-changes"><div className="ambio-inbox__evidence-label">Indexed changes <span>· linked to this order</span></div><ul>{message.changes.map((change, index) => <li key={`${change.at}:${index}`}>{change.kind} · {change.subjectLabel || 'unnamed item'}{change.objectLabel ? ` → ${change.objectLabel}` : ''}{change.count > 1 ? ` (${change.count} updates)` : ''}</li>)}</ul></div>}
+      {!!message.sessions?.length && <div className="ambio-inbox__review-sessions"><strong>Work sessions</strong><ul>{message.sessions.map(session => <li key={session.id}><span>{session.agent || 'Agent'}, {session.goal}{session.branch ? `, ${session.branch}` : ''}{session.endedAt ? ', ended' : ', open'}</span>{session.notes.length > 0 && <ol>{session.notes.map((entry, index) => <li key={`${entry.ts}:${index}`}>{entry.text}</li>)}</ol>}{session.summary && <p>{session.summary}</p>}</li>)}</ul></div>}
+      {!!message.changes?.length && <div className="ambio-inbox__review-changes"><div className="ambio-inbox__evidence-label">Indexed changes <span>linked to this order</span></div><ul>{message.changes.map((change, index) => <li key={`${change.at}:${index}`}>{change.kind}, {change.subjectLabel || 'unnamed item'}{change.objectLabel ? ` → ${change.objectLabel}` : ''}{change.count > 1 ? ` (${change.count} updates)` : ''}</li>)}</ul></div>}
       {message.reply && <ReportedResult reply={message.reply} />}
-      {message.sheetId && currentSheet && <div className="ambio-inbox__review-sheet"><div className="ambio-inbox__evidence-label">Current sheet structure <span>· live canvas</span></div><button type="button" className="ambio-inbox__review-compare" onClick={() => setCompareOpen(!compareOpen)}>{compareOpen ? 'Hide comparison' : 'Compare current sheet'}</button>{compareOpen && <SheetComparison workspaceId={workspaceId} sheetId={message.sheetId} />}</div>}
-      {!!message.priorReplies?.length && <div className="ambio-inbox__review-prior"><strong>Earlier submissions</strong>{message.priorReplies.map((reply, index) => <details key={`${reply.createdAt}:${index}`}><summary>{reply.agent} · {new Date(reply.createdAt).toLocaleString()}</summary><AgentMessageContent text={reply.body} /><ReportedResult reply={reply} /></details>)}</div>}
-      {(message.reviews?.length ?? 0) > 1 && <div className="ambio-inbox__review-history"><strong>Earlier reviews</strong><ol>{message.reviews!.slice(0, -1).map(review => <li key={review.id}>{review.decision === 'accepted' ? 'Accepted' : 'Changes requested'} · {new Date(review.createdAt).toLocaleString()}{review.note && <p>{review.note}</p>}</li>)}</ol></div>}
+      {message.sheetId && currentSheet && <div className="ambio-inbox__review-sheet"><div className="ambio-inbox__evidence-label">Current sheet structure <span>live canvas</span></div><button type="button" className="ambio-inbox__review-compare" onClick={() => setCompareOpen(!compareOpen)}>{compareOpen ? 'Hide comparison' : 'Compare current sheet'}</button>{compareOpen && <SheetComparison workspaceId={workspaceId} sheetId={message.sheetId} />}</div>}
+      {!!message.priorReplies?.length && <div className="ambio-inbox__review-prior"><strong>Earlier submissions</strong>{message.priorReplies.map((reply, index) => <details key={`${reply.createdAt}:${index}`}><DisclosureSummary>{reply.agent}, {new Date(reply.createdAt).toLocaleString()}</DisclosureSummary><AgentMessageContent text={reply.body} /><ReportedResult reply={reply} /></details>)}</div>}
+      {(message.reviews?.length ?? 0) > 1 && <div className="ambio-inbox__review-history"><strong>Earlier reviews</strong><ol>{message.reviews!.slice(0, -1).map(review => <li key={review.id}>{review.decision === 'accepted' ? 'Accepted' : 'Changes requested'}, {new Date(review.createdAt).toLocaleString()}{review.note && <p>{review.note}</p>}</li>)}</ol></div>}
       {message.review?.decision === 'reopened' && <div className="ambio-inbox__review-feedback"><strong>{message.status === 'answered' ? 'Previous feedback' : 'Changes requested'}</strong><p>{message.review.note}</p></div>}
-      {accepted && <p className="ambio-inbox__review-accepted">Accepted by you · {new Date(message.review!.createdAt).toLocaleString()}</p>}
+      {accepted && <p className="ambio-inbox__review-accepted">Accepted by you, {new Date(message.review!.createdAt).toLocaleString()}</p>}
       {error && <p role="alert" className="ambio-inbox__review-error">{error}</p>}
     </div>}
   </section>

@@ -210,6 +210,35 @@ test('terminal runs a real interactive PTY, survives hiding, resizes, and shares
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.keyboard.press('Control+Backquote'); await expect(panel).toBeVisible()
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).animationName)).toBe('none')
+
+    // Crowded tabs scroll in one row, keeping the active tab and its close button visible.
+    const newTerminal = panel.getByRole('button', { name: 'New terminal', exact: true })
+    for (let i = 0; i < 6; i++) await newTerminal.click()
+    const tabs = panel.getByRole('tablist', { name: 'Terminal sessions' })
+    await expect(tabs.getByRole('tab')).toHaveCount(7)
+    const last = tabs.getByRole('tab').last()
+    await expect(last).toHaveAttribute('aria-selected', 'true')
+    const closeLast = tabs.getByRole('button', { name: 'Close terminal 7' })
+    await expect(closeLast).toBeInViewport({ ratio: .98 })
+    await page.setViewportSize({ width: 460, height: 900 })
+    await expect.poll(() => layoutWidth(panel)).toBeLessThanOrEqual(391)
+    await expect(closeLast).toBeInViewport({ ratio: .98 })
+    const overflow = await tabs.evaluate(strip => ({
+      horizontal: strip.scrollWidth > strip.clientWidth,
+      vertical: strip.scrollHeight > strip.clientHeight,
+    }))
+    expect(overflow).toEqual({ horizontal: true, vertical: false })
+    const first = tabs.getByRole('tab').first()
+    await last.focus()
+    await last.press('Home')
+    await expect(first).toBeFocused()
+    await expect(first).toBeInViewport({ ratio: .98 })
+    await first.press('End')
+    await expect(last).toBeFocused()
+    await expect(last).toBeInViewport({ ratio: .98 })
+    await expect(newTerminal).toBeInViewport({ ratio: .98 })
+    await panel.locator('header').screenshot({ path: info.outputPath('terminal-tabs-overflow.png') })
+
     await panel.getByRole('button', { name: 'Hide terminal' }).click()
     await expect(page.locator('.ambio-workbench-sidebar')).toBeHidden()
   } finally { await app.close(); rmSync(home, { recursive: true, force: true }) }

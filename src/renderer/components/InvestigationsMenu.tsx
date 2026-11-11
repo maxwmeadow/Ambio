@@ -210,7 +210,7 @@ export function InvestigationsMenu({ workspaceId, trigger = false }: { workspace
                 </p>
                 <p>
                   Ask your agent to investigate a problem, or record a run yourself from{' '}
-                  <strong>Tools ▸ Start / Stop Recording</strong>. Every run is saved here; open one to replay it
+                  <strong>Tools → Start / Stop Recording</strong>. Every run is saved here; open one to replay it
                   on the map, step by step.
                 </p>
                 <p>

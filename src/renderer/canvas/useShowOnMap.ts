@@ -1,6 +1,8 @@
 import { useCallback } from 'react'
 import { useReactFlow, useStoreApi } from '@xyflow/react'
 import { useGraphStore } from '../store/graphStore'
+import { useSheetStore } from '../store/sheetStore'
+import { canvasScene } from './scene/canonicalScene'
 import { fetchFileSymbols } from './symbolCache'
 import { getPerfMetrics } from './perfMetrics'
 
@@ -16,7 +18,7 @@ const navigationPrefetches = new WeakMap<object, AbortController>()
  * so the flight waits for both. A newer flight on the same surface, or
  * `stillWanted` turning false, supersedes this one.
  */
-export function useFlyToNode(options: FlightOptions = {}): (nodeId: string, stillWanted?: () => boolean) => void {
+export function useFlyToNode(options: FlightOptions = {}, allowFloorNavigation = false): (nodeId: string, stillWanted?: () => boolean) => void {
   const { fitView, getInternalNode } = useReactFlow()
   const flowStore = useStoreApi()
   const duration = options.duration ?? 850, padding = options.padding ?? .5, maxZoom = options.maxZoom, minZoom = options.minZoom
@@ -30,8 +32,20 @@ export function useFlyToNode(options: FlightOptions = {}): (nodeId: string, stil
     const deadline = performance.now() + 30000
     const fly = () => {
       if (navigationRequests.get(key) !== request || (stillWanted && !stillWanted())) return
-      const preparing = flowStore.getState().domNode?.closest('[data-ambio-canvas]')?.getAttribute('data-scene-preparing') === 'true'
+      const canvas = flowStore.getState().domNode?.closest<HTMLElement>('[data-ambio-canvas]')
+      const preparing = canvas?.dataset.scenePreparing === 'true'
       const node = getInternalNode(nodeId)
+      const sheets = useSheetStore.getState()
+      if (allowFloorNavigation && sheets.workspaceId && !preparing && !node && canvas?.dataset.activeSheet === sheets.activeSheetId
+        && !canvasScene(flowStore)?.byId.has(nodeId)) {
+        const graph = useGraphStore.getState()
+        if (graph.systems.some(system => system.id === nodeId) || graph.files.some(file => file.id === nodeId)
+          || graph.infraNodes.some(infra => infra.id === nodeId)) {
+          void sheets.openSheet(sheets.workspaceId, null)
+          requestAnimationFrame(fly)
+          return
+        }
+      }
       if (!preparing && node && !node.hidden && node.measured.width) {
         getPerfMetrics().navigationFlights++
         flowStore.getState().domNode?.dispatchEvent(new CustomEvent('ambio:camera-prewarm', { bubbles: true, detail: { nodeId, duration } }))
@@ -40,7 +54,7 @@ export function useFlyToNode(options: FlightOptions = {}): (nodeId: string, stil
       else if (performance.now() < deadline) requestAnimationFrame(fly)
     }
     requestAnimationFrame(fly)
-  }, [fitView, getInternalNode, flowStore, duration, padding, maxZoom, minZoom])
+  }, [fitView, getInternalNode, flowStore, duration, padding, maxZoom, minZoom, allowFloorNavigation])
 }
 
 /**
@@ -50,7 +64,7 @@ export function useFlyToNode(options: FlightOptions = {}): (nodeId: string, stil
  */
 export function useShowOnMap(inspect = true, options: FlightOptions = {}): (nodeId: string) => void {
   const flowStore = useStoreApi()
-  const flyToNode = useFlyToNode(options)
+  const flyToNode = useFlyToNode(options, true)
   return useCallback((nodeId: string) => {
     const key = flowStore.getState
     navigationPrefetches.get(key)?.abort()

@@ -1,3 +1,4 @@
+import { DisclosureSummary } from './ui/Chevron'
 import React from 'react'
 
 interface State {
@@ -96,7 +97,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           </div>
 
           <details style={{ fontFamily: 'monospace', fontSize: 12 }}>
-            <summary style={{ cursor: 'pointer', color: '#9fb3ab', marginBottom: 10 }}>Technical details</summary>
+            <DisclosureSummary style={{ cursor: 'pointer', color: '#9fb3ab', marginBottom: 10 }}>Technical details</DisclosureSummary>
             <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: '#f2b8ae', margin: '0 0 16px' }}>
               {error.message}
             </pre>

@@ -170,7 +170,7 @@ export function chatUserTurn(text: string): { text: string; workOrderId?: string
 }
 
 /** The service a conversation uses, as the panel names it. */
-export const chatAgentLabel = (provider: ChatProvider | undefined, model?: string) => `Ambio chat · ${provider?.name ?? 'removed service'}${model ? ` · ${model}` : ''}`
+export const chatAgentLabel = (provider: ChatProvider | undefined, model?: string) => `Ambio chat, ${provider?.name ?? 'removed service'}${model ? `, ${model}` : ''}`
 
 export function ChatTranscript({ chat, workspaceId, workOrders, agentLabel }: {
   chat: AgentChatState; workspaceId: string; workOrders: CanvasMessage[]; agentLabel: string

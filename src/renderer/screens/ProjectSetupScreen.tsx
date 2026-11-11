@@ -1,3 +1,4 @@
+import { Chevron, DisclosureSummary } from '../components/ui/Chevron'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { MapBackup, ProjectConfig } from '../../shared/types'
 import { completeSourceBoundaries } from '../../shared/projectLifecycle'
@@ -210,7 +211,7 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
             )}
             {editing && <code className="ambio-source-setup__path" title={rootPath}>{rootPath}</code>}
             <details className="ambio-source-setup__help">
-              <summary>What does Ambio read?</summary>
+              <DisclosureSummary>What does Ambio read?</DisclosureSummary>
               <ul>
                 <li><strong>Source code</strong> (TypeScript, JavaScript, Python, Go, Rust, C#, C and C++, Ruby, Java, Kotlin, Swift, PHP, Scala, Groovy, Lua, Shell/Bash, and Elixir) becomes the map. Stylesheets (CSS, Sass/SCSS, and Less) are included too.</li>
                 <li><strong>Documents</strong> (Markdown and text files) are kept searchable in Documents and are not drawn on the map.</li>
@@ -311,7 +312,7 @@ function TreeLevel({ nodes, ...rest }: TreeLevelProps & { nodes: TreeNode[] }) {
             aria-expanded={open}
             onClick={() => setOpen(value => !value)}
           >
-            <span className="ambio-setup-tree__expand" aria-hidden="true"><span>›</span></span>
+            <span className="ambio-setup-tree__expand" aria-hidden="true"><Chevron size={12} expanded={open} /></span>
             <span className="ambio-setup-tree__skipped-summary">{tuckedSummary(tucked)}</span>
             <span className="ambio-setup-tree__skipped-action">{open ? 'Hide' : 'Show'}</span>
           </button>
@@ -331,10 +332,10 @@ function TreeRow({ node, depth, sizes, onToggleExclude, onToggleExpand }: TreeLe
   const detail = neverRead
     ? 'Never read'
     : node.excluded && node.reason
-      ? `${node.reason} · not read`
+      ? `${node.reason}, not read`
       : node.isDirectory
       ? size !== undefined
-        ? `${size.toLocaleString()} source ${size === 1 ? 'file' : 'files'}${node.excluded ? ' · not read' : ''}`
+        ? `${size.toLocaleString()} source ${size === 1 ? 'file' : 'files'}${node.excluded ? ', not read' : ''}`
         : node.excluded ? 'Not read' : ''
       : node.excluded
         ? 'Not read'
@@ -356,7 +357,7 @@ function TreeRow({ node, depth, sizes, onToggleExclude, onToggleExpand }: TreeLe
             onClick={() => void onToggleExpand(node.path)}
             aria-label={`${node.expanded ? 'Collapse' : 'Expand'} ${node.name}`}
           >
-            <span aria-hidden="true">›</span>
+            <Chevron size={12} expanded={node.expanded} />
           </button>
         ) : (
           <span className="ambio-setup-tree__expand-spacer" aria-hidden="true" />
@@ -430,13 +431,13 @@ function MapBackups({ projectId, onRestored }: { projectId: string; onRestored?:
 
   return (
     <details className="ambio-project-settings__backups">
-      <summary>Map backups ({backups.length})</summary>
+      <DisclosureSummary>Map backups ({backups.length})</DisclosureSummary>
       <p>A copy of the map is kept once a day for the last seven days. Your code is never part of a backup.</p>
       {error && <p className="ambio-project-settings__backup-error" role="alert">{error}</p>}
       <ul>
         {backups.map(backup => (
           <li key={backup.name}>
-            <span>{new Date(backup.createdAt).toLocaleString()}{backup.name.startsWith('before-restore') ? ' · before a restore' : ''}</span>
+            <span>{new Date(backup.createdAt).toLocaleString()}{backup.name.startsWith('before-restore') ? ', before a restore' : ''}</span>
             <small>{formatBytes(backup.bytes)}</small>
             <button type="button" onClick={() => void restore(backup)} disabled={busy}>Restore</button>
           </li>

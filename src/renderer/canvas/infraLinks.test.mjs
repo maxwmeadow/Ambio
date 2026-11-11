@@ -28,7 +28,7 @@ test('selecting a sidebar row shows who touches it, one line per visible box', (
   const bookings = lines.find(line => line.nodeId === 'sys_bookings')
   assert.equal(lines.length, 2)
   assert.ok(lines.every(line => line.infraId === 'pg'))
-  assert.equal(bookings.label, 'writes · reads · 2 files', 'specific kinds first, and how many files are behind the line')
+  assert.equal(bookings.label, 'writes, reads, 2 files', 'specific kinds first, and how many files are behind the line')
   assert.equal(bookings.generic, false)
   const adapters = lines.find(line => line.nodeId === 'sys_adapters')
   assert.equal(adapters.label, 'implements')

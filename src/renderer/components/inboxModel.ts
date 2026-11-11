@@ -52,8 +52,8 @@ export function inboxStatus(message: { status: string; agent?: string; delivered
   if (message.status === 'answered') return !needsReview(message) ? 'Answered' : message.review?.decision === 'accepted' ? 'Accepted' : 'Ready for review'
   if (message.status === 'cancelled') return 'Cancelled'
   if (message.status === 'delivered' && (message.leaseExpiresAt ?? 0) > now) return `Picked up by ${message.agent || 'agent'}`
-  if (message.review?.decision === 'reopened') return 'Changes requested · waiting for agent'
-  return message.leaseExpiresAt ? 'Available again · previous claim expired' : 'Waiting for an agent'
+  if (message.review?.decision === 'reopened') return 'Changes requested, waiting for agent'
+  return message.leaseExpiresAt ? 'Available again, previous claim expired' : 'Waiting for an agent'
 }
 
 /**

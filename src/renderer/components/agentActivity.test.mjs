@@ -23,7 +23,7 @@ test('every agent\'s tool rows get the badge for what the tool does', () => {
 test('a subagent\'s work keeps its real tool, and Codex\'s subagent name', () => {
   // Claude Code marks the row; Codex also names the subagent.
   assert.deepEqual(toolRow('Subagent · Grep · TODO'), { badge: 'Search', tool: 'Grep', target: 'TODO', subagent: '' })
-  assert.deepEqual(toolRow('Subagent · Ada · explorer · Shell · ls'), { badge: 'Run', tool: 'Shell', target: 'ls', subagent: 'Ada · explorer' })
+  assert.deepEqual(toolRow('Subagent · Ada · explorer · Shell · ls'), { badge: 'Run', tool: 'Shell', target: 'ls', subagent: 'Ada, explorer' })
   // Codex's own subagent events: who started whom, and what a subagent is doing.
   assert.deepEqual(toolRow('Subagent · Main agent · spawn_agent → Ada (running)'), { badge: 'Agent', tool: 'spawn_agent → Ada (running)', target: '', subagent: 'Main agent' })
   assert.deepEqual(toolRow('Subagent · reviewer · Shell · ls'), { badge: 'Run', tool: 'Shell', target: 'ls', subagent: 'reviewer' })

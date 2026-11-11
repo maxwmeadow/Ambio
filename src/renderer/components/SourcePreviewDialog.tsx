@@ -1,3 +1,4 @@
+import { Chevron } from './ui/Chevron'
 import React from 'react'
 import { createPortal } from 'react-dom'
 import { unifiedMergeView } from '@codemirror/merge'
@@ -62,7 +63,7 @@ function tabLabels(tabs: SourceTab[], paths: Map<string, string>): Map<string, {
     const path = pathOf(tab)
     const name = nameOf(path)
     const folder = path.split('/').slice(-2, -1)[0]
-    return [tab.id, { path, name: (counts.get(name) ?? 0) > 1 && folder ? `${name} · ${folder}` : name }]
+    return [tab.id, { path, name: (counts.get(name) ?? 0) > 1 && folder ? `${name}, ${folder}` : name }]
   }))
 }
 
@@ -583,8 +584,8 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, tabId, active
             <div className="source-preview-location">
               {!range ? (source ? `${lineCount} lines` : '')
                 : <>
-                  {symbol.kind ? `${symbol.kind} ${symbol.name} · ` : ''}{range.start === range.end ? `line ${range.start}` : `lines ${range.start}–${range.end}`}
-                  {source && range.start > lineCount && ` · past the end of this ${lineCount}-line file; it may have changed since`}
+                  {symbol.kind ? `${symbol.kind} ${symbol.name}, ` : ''}{range.start === range.end ? `line ${range.start}` : `lines ${range.start}–${range.end}`}
+                  {source && range.start > lineCount && `, past the end of this ${lineCount}-line file; it may have changed since`}
                 </>}
             </div>
           </div>
@@ -599,9 +600,9 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, tabId, active
         </header>
         {source && (
           <nav className="source-preview-breadcrumb" aria-label="Where the cursor is">
-            {systemName && fileRecord?.systemId && <><button type="button" onClick={() => stepAside(() => showOnMap(fileRecord.systemId!))} title="Show this system on the map">{systemName}</button><span aria-hidden="true">›</span></>}
+            {systemName && fileRecord?.systemId && <><button type="button" onClick={() => stepAside(() => showOnMap(fileRecord.systemId!))} title="Show this system on the map">{systemName}</button><Chevron size={11} /></>}
             <span>{title.split('/').pop()}</span>
-            {cursor.crumbs.map(crumb => <React.Fragment key={`${crumb.kind}:${crumb.name}:${crumb.from}`}><span aria-hidden="true">›</span><button type="button" onClick={() => goTo(crumb.from)} title={`Go to ${crumb.kind} ${crumb.name}`}>{crumb.name}</button></React.Fragment>)}
+            {cursor.crumbs.map(crumb => <React.Fragment key={`${crumb.kind}:${crumb.name}:${crumb.from}`}><Chevron size={11} /><button type="button" onClick={() => goTo(crumb.from)} title={`Go to ${crumb.kind} ${crumb.name}`}>{crumb.name}</button></React.Fragment>)}
           </nav>
         )}
         {draftOffer && !conflict && (

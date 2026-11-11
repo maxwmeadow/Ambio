@@ -1,3 +1,4 @@
+import { DisclosureSummary } from '../components/ui/Chevron'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
@@ -110,7 +111,7 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
             <h1 id="review-title">Review the architecture your agent found</h1>
             <p>
               Approve what fits, or send it back with a reason. Approving a system approves everything inside it.
-              {proposal && <span className="ambio-review__summary"> {progress.total} {progress.total === 1 ? 'system' : 'systems'} · {proposedFiles} {proposedFiles === 1 ? 'file' : 'files'} placed.</span>}
+              {proposal && <span className="ambio-review__summary"> {progress.total} {progress.total === 1 ? 'system' : 'systems'}, {proposedFiles} {proposedFiles === 1 ? 'file' : 'files'} placed.</span>}
             </p>
           </header>
 
@@ -118,7 +119,7 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
             <>
               {(proposal.rationale || proposal.evidenceSummary) && (
                 <details className="ambio-review__brief" aria-label="Agent mapping brief">
-                  <summary>Why the agent chose this structure</summary>
+                  <DisclosureSummary>Why the agent chose this structure</DisclosureSummary>
                   {proposal.rationale && <p><strong>Why this structure</strong>{proposal.rationale}</p>}
                   {proposal.evidenceSummary && <p><strong>Evidence</strong>{proposal.evidenceSummary}</p>}
                 </details>

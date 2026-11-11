@@ -1,3 +1,4 @@
+import { Chevron } from './ui/Chevron'
 // SheetRail - the drafting-cabinet drawer labels: The Floor pinned on top,
 // sheets beneath (docs/history/UML_UX_PLAN.md "Navigation: the sheet rail").
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
@@ -42,14 +43,16 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
   const edges = layer.plannedEdges.filter(edge => edge.approvalStatus !== 'rejected')
   const removed = new Set(layer.removals?.map(item => item.nodeId))
   const references = layer.elements.map(element => ({ element, id: element.fileId ?? element.systemId ?? element.infraId ?? element.symbolRef ?? '' })).filter(item => item.id && !removed.has(item.id))
-  const sheetParents = new Map(layer.layouts.map(row => [row.nodeId, row.parentNodeId]))
+  const sheetLayouts = new Map(layer.layouts.map(row => [row.nodeId, row]))
   // Being named as context, receiving a connection, or shifting on the canvas
   // does not make a live node a proposed change. Keep actual responsibility
   // moves, reviewed renames and authored file design here; edges have their
   // own navigator below, including their unchanged live endpoints.
   const live = references.filter(({ element, id }) => {
-    const parent = sheetParents.has(id) ? sheetParents.get(id) : element.parentSystemId
-    return sheetElementHasChange(element, floorParents.get(id) ?? null, parent ?? null)
+    const layout = sheetLayouts.get(id)
+    const floorParent = floorParents.get(id) ?? null
+    const parent = layout?.presentationOnly ? floorParent : layout ? layout.parentNodeId : element.parentSystemId
+    return sheetElementHasChange(element, floorParent, parent ?? null)
   })
   const label = (id: string) => {
     const node = planned.find(node => `planned:${node.id}` === id)
@@ -97,7 +100,7 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
           <button type="button" className="ambio-sheet-tree__item" title={entry.path || label(entry.id)} aria-label={`Show ${label(entry.id)} on sheet`} onClick={() => void focus(entry.id)}>
             {entry.container && <SystemIcon pending={entry.pending} />}<span>{label(entry.id)}</span>
           </button>
-          {hasChildren && <button type="button" className="ambio-sheet-tree__branch" aria-label={`${collapsed.has(entry.id) ? 'Expand' : 'Collapse'} ${label(entry.id)}`} aria-expanded={!collapsed.has(entry.id)} onClick={() => setCollapsed(old => { const next = new Set(old); if (next.has(entry.id)) next.delete(entry.id); else next.add(entry.id); return next })}><Chevron expanded={!collapsed.has(entry.id)} /></button>}
+          {hasChildren && <button type="button" className="ambio-sheet-tree__branch" aria-label={`${collapsed.has(entry.id) ? 'Expand' : 'Collapse'} ${label(entry.id)}`} aria-expanded={!collapsed.has(entry.id)} onClick={() => setCollapsed(old => { const next = new Set(old); if (next.has(entry.id)) next.delete(entry.id); else next.add(entry.id); return next })}><Chevron size={10} expanded={!collapsed.has(entry.id)} /></button>}
         </div>
         {hasChildren && <SheetDisclosure open={!collapsed.has(entry.id)}><ul>{renderEntries(index + 1, next)}</ul></SheetDisclosure>}
       </li>)
@@ -113,7 +116,7 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
       </li>)}
     </ul>
     {notes.length > 0 && <div className="ambio-sheet-tree__notes" role="group" aria-label="Notes">
-      <span className="ambio-sheet-tree__notes-label">Notes · {notes.length}</span>
+      <span className="ambio-sheet-tree__notes-label">Notes, {notes.length}</span>
       {notes.map(note => <button key={note.id} className="ambio-sheet-tree__note" title={note.body} onClick={() => void focus(`note:${note.id}`)}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2h12v8l-4 4H2Z M10 14v-4h4" /></svg>
         <span>{note.body.split('\n')[0].trim() || 'Untitled note'}</span>
@@ -123,7 +126,7 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
     {edges.length > 0 && <div className="ambio-sheet-tree__connections">
       <button type="button" className="ambio-sheet-tree__heading" aria-expanded={connectionsOpen} aria-controls={connectionsId} onClick={() => setConnectionsOpen(value => !value)}>
         <svg className="ambio-sheet-connections-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3h3v10h3M8 8h3" /><rect x="1" y="1" width="4" height="4" /><rect x="11" y="6" width="4" height="4" /><rect x="11" y="11" width="4" height="4" /></svg>
-        <span className="ambio-sheet-tree__connections-label">Connections</span><span className="ambio-sheet-tree__connections-count">{edges.length}</span><Chevron expanded={connectionsOpen} />
+        <span className="ambio-sheet-tree__connections-label">Connections</span><span className="ambio-sheet-tree__connections-count">{edges.length}</span><Chevron size={10} expanded={connectionsOpen} />
       </button>
       <SheetDisclosure open={connectionsOpen} id={connectionsId}><ul>{edges.map(edge => {
         const source = edge.srcPlanned ? `planned:${edge.srcPlanned}` : edge.srcLive ?? ''
@@ -160,9 +163,6 @@ function SheetConnectionsControl({ sheetId }: { sheetId: string }) {
   </button>
 }
 
-function Chevron({ expanded }: { expanded: boolean }) {
-  return <svg className="ambio-sheet-chevron" viewBox="0 0 12 12" aria-hidden="true" data-expanded={expanded}><path d="m4 2 4 4-4 4" /></svg>
-}
 
 function SheetEntry({ sheet, workspaceId }: { sheet: Sheet; workspaceId: string }) {
   const active = useSheetStore(state => state.activeSheetId === sheet.id)
@@ -216,8 +216,8 @@ function SheetEntry({ sheet, workspaceId }: { sheet: Sheet; workspaceId: string 
   }
   return <div className="ambio-sheet-entry" data-expanded={expanded || undefined} data-active={active || undefined}>
     <div className={`ambio-sheet-rail__row${active ? ' ambio-sheet-rail__row--active' : ''}${visible ? ' ambio-sheet-rail__row--visible' : ''}`} onContextMenu={event => { event.preventDefault(); showMenu(event.clientX, event.clientY) }} onKeyDown={event => { if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') { event.preventDefault(); showMenu() } }}>
-      <button type="button" className="ambio-sheet-rail__expand" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${sheet.name}`} aria-expanded={expanded} aria-controls={contentsId} onClick={() => setExpanded(value => !value)}><Chevron expanded={expanded} /></button>
-      <button ref={titleButton} type="button" className={`ambio-sheet-rail__button ambio-sheet-rail__button--sheet${active ? ' ambio-sheet-rail__button--active' : ''}`} aria-current={active ? 'page' : undefined} title={`${sheet.name} · Ctrl/Cmd-click to toggle layer`} onClick={event => {
+      <button type="button" className="ambio-sheet-rail__expand" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${sheet.name}`} aria-expanded={expanded} aria-controls={contentsId} onClick={() => setExpanded(value => !value)}><Chevron size={10} expanded={expanded} /></button>
+      <button ref={titleButton} type="button" className={`ambio-sheet-rail__button ambio-sheet-rail__button--sheet${active ? ' ambio-sheet-rail__button--active' : ''}`} aria-current={active ? 'page' : undefined} title={`${sheet.name}, Ctrl/Cmd-click to toggle layer`} onClick={event => {
         const store = useSheetStore.getState()
         if ((event.ctrlKey || event.metaKey) && store.activeSheetId) void store.toggleSheetVisibility(workspaceId, sheet.id)
         else void store.openSheet(workspaceId, sheet.id, { exclusive: true })
@@ -328,7 +328,7 @@ export function SheetRail() {
     try {
       const sheet = await createSheet(workspaceId, name, '', [])
       setCreating(false)
-      void openSheet(workspaceId, sheet.id)
+      void openSheet(workspaceId, sheet.id, { exclusive: true })
     } catch (err) {
       // Stay in the row with the name still typed: the fix is almost always a
       // one-word edit, not starting over.

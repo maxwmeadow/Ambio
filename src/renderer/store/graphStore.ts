@@ -276,14 +276,14 @@ interface GraphState {
   clearAgentAttention: (key: number) => void
   loadAgentActions: () => Promise<void>
   deltaReviewing: boolean
-  deltaCursor: number
+  deltaClaimId: string | null
   // "Later" set aside the delta without acknowledging it. It stays unreviewed
   // in archd; only the invitation is hidden, and Review Changes keeps a way
   // back. Deferral is per delta window - a newer one re-invites on its own.
   deltaDeferredUntil: number
-  loadDelta: () => Promise<void>
+  loadDelta: () => Promise<boolean>
   startDeltaReview: () => void
-  setDeltaCursor: (cursor: number) => void
+  selectDeltaClaim: (id: string | null) => void
   deferDelta: () => void
   endDeltaReview: (acknowledge: boolean) => void
   applyWorkSession: (session: DeltaWorkSession) => void
@@ -388,7 +388,7 @@ interface GraphState {
 // Identity token rather than the promise itself: the cleanup runs inside the
 // promise being created, so it cannot reference that binding before it exists.
 let deltaLoadToken = 0
-let deltaLoadInFlight: { workspaceId: string; token: number; promise: Promise<void> } | null = null
+let deltaLoadInFlight: { workspaceId: string; token: number; promise: Promise<boolean> } | null = null
 let deltaAckInFlight: { workspaceId: string; promise: Promise<void> } | null = null
 let deltaRefreshPending = false
 
@@ -558,22 +558,22 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }
   },
   deltaReviewing: false,
-  deltaCursor: -1,
+  deltaClaimId: null,
   deltaDeferredUntil: 0,
   loadDelta: () => {
     const state = get()
     const workspaceId = state.currentProject?.id
-    if (!workspaceId) return Promise.resolve()
+    if (!workspaceId) return Promise.resolve(false)
 
     // A review is a snapshot: do not move its claims or cursor underneath the
     // reader. Refresh immediately after they leave the review instead.
     if (state.deltaReviewing) {
       deltaRefreshPending = true
-      return Promise.resolve()
+      return Promise.resolve(false)
     }
     if (deltaAckInFlight?.workspaceId === workspaceId) {
       deltaRefreshPending = true
-      return deltaAckInFlight.promise
+      return deltaAckInFlight.promise.then(() => get().currentProject?.id === workspaceId && get().loadDelta())
     }
     if (deltaLoadInFlight?.workspaceId === workspaceId) {
       return deltaLoadInFlight.promise
@@ -585,20 +585,22 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         const summary = await apiGetDelta(workspaceId)
         const latest = get()
         // Project switches and reviews can happen while fetch is in flight.
-        if (latest.currentProject?.id !== workspaceId) return
+        if (latest.currentProject?.id !== workspaceId || token !== deltaLoadToken) return false
         if (latest.deltaReviewing) {
           deltaRefreshPending = true
-          return
+          return false
         }
         set({
           delta: summary.empty ? null : summary,
           activeWorkSessions: summary.sessions.filter(session => session.endedAt === 0),
-          deltaCursor: -1,
+          deltaClaimId: null,
         })
+        return true
       } catch (error) {
         // A delta is a review aid, never a blocker: failing to load one must
         // not stop the project from opening.
         console.error('[delta] load failed', error)
+        return false
       } finally {
         if (deltaLoadInFlight?.token === token) {
           deltaLoadInFlight = null
@@ -608,19 +610,22 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     deltaLoadInFlight = { workspaceId, token, promise }
     return promise
   },
-  startDeltaReview: () => set(state => (state.delta ? { deltaReviewing: true, deltaCursor: 0, deltaDeferredUntil: 0 } : {})),
-  setDeltaCursor: (cursor) => set({ deltaCursor: cursor }),
+  startDeltaReview: () => set(state => {
+    const first = state.delta?.claims?.[0]
+    return first ? { deltaReviewing: true, deltaClaimId: first.id, deltaDeferredUntil: 0 } : {}
+  }),
+  selectDeltaClaim: id => set({ deltaClaimId: id }),
   // Set aside without acknowledging. Pinned to this window's `until`, so work
   // that lands afterwards produces a new window that invites again.
   deferDelta: () => set(state => (state.delta
-    ? { deltaDeferredUntil: state.delta.until, deltaReviewing: false, deltaCursor: -1 }
+    ? { deltaDeferredUntil: state.delta.until, deltaReviewing: false, deltaClaimId: null }
     : {})),
   endDeltaReview: (acknowledge) => {
     const { currentProject, delta } = get()
     // Acknowledge the exact window that was shown - not "now" - so anything
     // that landed mid-review still appears in the next delta.
     if (acknowledge && currentProject && delta) {
-      set({ delta: null, deltaReviewing: false, deltaCursor: -1 })
+      set({ delta: null, deltaReviewing: false, deltaClaimId: null })
       const workspaceId = currentProject.id
       // Always read once more after ack: changes that landed while the review
       // was open belong to the next window and should surface immediately.
@@ -643,7 +648,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       deltaAckInFlight = { workspaceId, promise }
       return
     }
-    set({ deltaReviewing: false, deltaCursor: -1 })
+    set({ deltaReviewing: false, deltaClaimId: null })
     if (deltaRefreshPending) {
       deltaRefreshPending = false
       void get().loadDelta()
@@ -920,7 +925,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       delta: null,
       activeWorkSessions: [],
       deltaReviewing: false,
-      deltaCursor: -1,
+      deltaClaimId: null,
       deltaDeferredUntil: 0,
     }
   }),

@@ -95,8 +95,6 @@
 @keyframes ambioStepBackward { from { transform: translateX(-100%); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
 @keyframes ambioStepLeaveForward { to { transform: translateX(-100%); opacity: 0; } }
 @keyframes ambioStepLeaveBackward { to { transform: translateX(100%); opacity: 0; } }
-.ambio-case__chevron { display: inline-block; color: #6a8075; font: 20px/1 var(--font-ui); transition: transform 160ms ease; }
-details[open] > summary > .ambio-case__chevron { transform: rotate(90deg); }
 .ambio-case__run { min-width: 0; background: #f8f6f0; border: 1px solid #c9d0c5; border-radius: 2px; }
 .ambio-case__run[data-failed] { border-left: 2px solid #a15e4c; }
 .ambio-case__run > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 10px; cursor: pointer; list-style: none; }
@@ -135,7 +133,7 @@ details[open] > summary > .ambio-case__chevron { transform: rotate(90deg); }
 .ambio-case :focus-visible, .ambio-case-chip:focus-visible { outline: 2px solid #437b66; outline-offset: 2px; }
 @keyframes ambioCaseArrival { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes ambioCaseLive { 50% { opacity: .4; } }
-@media (prefers-reduced-motion: reduce) { .ambio-case, .ambio-case__live-dot, .ambio-case-chip__dot { animation: none; } .ambio-case__chevron, .ambio-case__arrow, .ambio-case__dots button::after { transition: none; } .ambio-case__step { animation: none; } .ambio-case__leaving { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ambio-case, .ambio-case__live-dot, .ambio-case-chip__dot { animation: none; } .ambio-case__arrow, .ambio-case__dots button::after { transition: none; } .ambio-case__step { animation: none; } .ambio-case__leaving { display: none; } }
 
 /* Investigation feedback uses the same chat composer and delivery queue. */
 .ambio-inbox__case-context { display: flex; align-items: center; gap: 10px; padding: 9px 11px; margin: 0 0 8px; border-left: 3px solid #67957b; background: #e3ecdf; color: #345b45; }

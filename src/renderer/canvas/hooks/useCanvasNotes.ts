@@ -8,6 +8,13 @@ import type { NoteNodeData } from '../nodes/NoteNode'
 
 type Draft = { note: SheetAnnotation; body: string; revision: number }
 
+const noteGeometrySignature = (notes: SheetAnnotation[]) => notes
+  .map(note => [note.id, note.positionX, note.positionY, note.width, note.height].join(':')).join('|')
+const noteGeometry = (notes: SheetAnnotation[]) => notes.map(note => ({
+  id: `note:${note.id}`, systemId: null, positionX: note.positionX ?? 40, positionY: note.positionY ?? 40,
+  width: note.width, height: note.height,
+}))
+
 /** Note text sessions decorate native canonical nodes; spatial behavior stays in the shared canvas. */
 export function useCanvasNotes(workspaceId: string, sheetId: string | null, visibleSheetIds: string[], enabled: boolean, readOnly: boolean) {
   const loadedWorkspace = useSheetStore(state => state.workspaceId)
@@ -20,12 +27,11 @@ export function useCanvasNotes(workspaceId: string, sheetId: string | null, visi
   const editors = useRef(new Map<string, NoteAutosave>())
   const editorWorkspace = useRef(workspaceId)
   const scopeKey = visibleSheetIds.join('|')
-  const annotations = useMemo(() => [
-    ...floorNotes,
-    ...visibleSheetIds.flatMap(id => layers[id]?.annotations ?? []),
-  ].filter(note => note.kind === 'note'), [floorNotes, layers, scopeKey])
-  const models = useRef(annotations)
-  models.current = annotations
+  const hasSurfaceNotes = enabled && loadedWorkspace === workspaceId
+  const floorAnnotations = useMemo(() => hasSurfaceNotes ? floorNotes.filter(note => note.kind === 'note') : [], [hasSurfaceNotes, floorNotes])
+  const sheetAnnotations = useMemo(() => hasSurfaceNotes ? visibleSheetIds.flatMap(id => layers[id]?.annotations ?? [])
+    .filter(note => note.kind === 'note') : [], [hasSurfaceNotes, layers, scopeKey])
+  const annotations = sheetId === null ? floorAnnotations : sheetAnnotations
   useEffect(() => {
     if (editorWorkspace.current === workspaceId) return
     for (const editor of editors.current.values()) editor.end()
@@ -47,9 +53,11 @@ export function useCanvasNotes(workspaceId: string, sheetId: string | null, visi
 
   const nodes = useMemo<Node<NoteNodeData>[]>(() => {
     if (!enabled || loadedWorkspace !== workspaceId) return []
+    const onSurface = (note: SheetAnnotation) => sheetId === null ? note.sheetId === null
+      : note.sheetId !== null && visibleSheetIds.includes(note.sheetId)
     const byId = new Map(annotations.map(note => [note.id, note]))
     for (const note of Object.values(retained)) {
-      if (!byId.has(note.id) && (note.sheetId === null || visibleSheetIds.includes(note.sheetId))) byId.set(note.id, note)
+      if (!byId.has(note.id) && onSurface(note)) byId.set(note.id, note)
     }
     return [...byId.values()].map((note, index) => {
       const editable = !readOnly && note.sheetId === sheetId
@@ -87,9 +95,9 @@ export function useCanvasNotes(workspaceId: string, sheetId: string | null, visi
       }
     })
   }, [enabled, loadedWorkspace, annotations, retained, readOnly, sheetId, scopeKey, selected, deleted, workspaceId])
-  const signature = annotations.map(note => [note.id, note.sheetId, note.positionX, note.positionY, note.width, note.height].join(':')).join('|')
-  const geometryNotes = useMemo(() => annotations.map(note => ({ id: `note:${note.id}`, systemId: null, positionX: note.positionX ?? 40, positionY: note.positionY ?? 40, width: note.width, height: note.height })), [signature])
-  const floorSignature = annotations.filter(note => note.sheetId === null).map(note => note.id).join('|')
-  const floorGeometryNotes = useMemo(() => geometryNotes.filter(note => annotations.some(a => a.sheetId === null && `note:${a.id}` === note.id)), [geometryNotes, floorSignature])
-  return { nodes, create, geometryNotes, floorGeometryNotes }
+  const floorSignature = noteGeometrySignature(floorAnnotations)
+  const sheetSignature = noteGeometrySignature(sheetAnnotations)
+  const floorGeometryNotes = useMemo(() => noteGeometry(floorAnnotations), [floorSignature])
+  const sheetGeometryNotes = useMemo(() => noteGeometry(sheetAnnotations), [sheetSignature])
+  return { nodes, create, sheetGeometryNotes, floorGeometryNotes }
 }

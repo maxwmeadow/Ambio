@@ -78,6 +78,43 @@ func TestAnImportWithoutACallStillCountsAsEvidence(t *testing.T) {
 	}
 }
 
+func TestReviewDependencyWordingRequiresABoundaryTransition(t *testing.T) {
+	connected := &ArchitectureSnapshot{Topology: SystemTopology{
+		"api":     {"storage": true},
+		"storage": {"web": true},
+		"web":     {"api": true},
+	}}
+	disconnected := &ArchitectureSnapshot{Topology: SystemTopology{}}
+	for _, tc := range []struct {
+		name          string
+		change        string
+		before, after *ArchitectureSnapshot
+		want          string
+	}{
+		{"additional link", ChangeAdded, connected, connected, "Api added links to Storage"},
+		{"remaining link", ChangeRemoved, connected, connected, "Api removed links to Storage"},
+		{"no baseline", ChangeAdded, nil, connected, "Api added links to Storage"},
+		{"new dependency", ChangeAdded, disconnected, connected, "Cycle: Api ⇄ Storage"},
+		{"last link removed", ChangeRemoved, connected, disconnected, "Api no longer depends on Storage"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			edge := importEdge("a.py", "b.py", "api", "storage")
+			edge.Change = tc.change
+			kind := ClaimCoupling
+			if tc.change == ChangeRemoved {
+				kind = ClaimDecoupling
+			}
+			claim := findClaim(t, BuildClaimsWithSnapshots(Summary{Edges: []EdgeChange{edge}}, tc.before, tc.after), kind)
+			if claim.Title != tc.want {
+				t.Fatalf("got %q, want %q", claim.Title, tc.want)
+			}
+			if tc.change == ChangeRemoved && !strings.Contains(claim.Evidence[0].Label, "removed") {
+				t.Fatalf("evidence should describe the removal: %+v", claim.Evidence)
+			}
+		})
+	}
+}
+
 // The bug Max caught: an unclassified file has no boundary to cross.
 func TestUnclassifiedEndpointIsNotABoundaryCrossing(t *testing.T) {
 	edge := crossEdge("cache.py", "record.py", "", "storage", "put", "Record")
@@ -176,7 +213,7 @@ func TestInternalChurnIsCollapsedAndDemoted(t *testing.T) {
 	if !internal.Internal {
 		t.Fatal("intra-system churn must be flagged for hiding by default")
 	}
-	if internal.Title != "Api · 2 files edited" {
+	if internal.Title != "2 files edited in Api" {
 		t.Fatalf("unexpected title %q", internal.Title)
 	}
 	if claims[len(claims)-1].Kind != ClaimInternal {

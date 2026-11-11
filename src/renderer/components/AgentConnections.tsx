@@ -11,7 +11,7 @@ import '../styles/agentConnections.css'
 
 const STATE_LABEL: Record<AgentConnectionState, string> = {
   live: 'Connected now',
-  installed: 'Ambio added · not connected right now',
+  installed: 'Ambio added, not connected right now',
   repair: 'Needs repair',
   available: 'Ambio not added yet',
   missing: 'Not found on this computer',
@@ -97,7 +97,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
     {(target?.executablePath || target?.executableOverride) && <p>{target.executableOverride ? 'Your CLI location: ' : 'Found CLI: '}<code>{target.executablePath ?? target.executableOverride}</code></p>}
     {target?.discoveryError && <p role="alert">{target.discoveryError}</p>}
     <button type="button" className="ambio-agent-connections__link" disabled={!!busy} onClick={() => void executableAction(id)}>{target?.available ? 'Change executable…' : 'Locate executable…'}</button>
-    {target?.executableOverride && <> · <button type="button" className="ambio-agent-connections__link" disabled={!!busy} onClick={() => void executableAction(id, true)}>Use automatic detection</button></>}
+    {target?.executableOverride && <>, <button type="button" className="ambio-agent-connections__link" disabled={!!busy} onClick={() => void executableAction(id, true)}>Use automatic detection</button></>}
   </div>
 
   // The same per-agent level the conversation's guide asks for (DECISIONS 2026-11-05).
@@ -159,14 +159,14 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
             <strong>{name}</strong>
             <small>
               {host.modality === 'cli'
-                ? scanError || !target ? 'Could not check CLI availability' : target.available ? 'CLI found · sign in before running' : target.discoveryError ? 'Could not use selected CLI' : 'CLI not found'
-                : host.detectionError ? 'Could not fully check installation' : !host.detected && state !== 'live' ? host.configured ? 'Ambio added · app not found' : 'Not found on this computer' : STATE_LABEL[state]}
-              {state === 'live' && live.length > 1 ? ` · ${live.length} sessions` : ''}
+                ? scanError || !target ? 'Could not check CLI availability' : target.available ? 'CLI found, sign in before running' : target.discoveryError ? 'Could not use selected CLI' : 'CLI not found'
+                : host.detectionError ? 'Could not fully check installation' : !host.detected && state !== 'live' ? host.configured ? 'Ambio added, app not found' : 'Not found on this computer' : STATE_LABEL[state]}
+              {state === 'live' && live.length > 1 ? `, ${live.length} sessions` : ''}
               {state === 'live' && (verified > 0
-                ? ` · last tool call ${new Date(verified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                : ' · no tool call yet')}
-              {state === 'repair' && host.unreadablePaths.length > 0 ? ' · its configuration file could not be read' : ''}
-              {state === 'repair' && host.unreadablePaths.length === 0 ? ' · workflow or rule files are missing' : ''}
+                ? `, last tool call ${new Date(verified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                : ', no tool call yet')}
+              {state === 'repair' && host.unreadablePaths.length > 0 ? ', its configuration file could not be read' : ''}
+              {state === 'repair' && host.unreadablePaths.length === 0 ? ', workflow or rule files are missing' : ''}
             </small>
             {host.sharedSurfaces.length > 0 && <small>Also covers {host.sharedSurfaces.map(surface => surface.label).join(', ')}</small>}
           </div>
@@ -207,7 +207,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
               <section aria-label={`Test results for ${name}`}>
                 <h4>
                   {result.ok ? 'Test passed' : 'Test found a problem'}
-                  <time dateTime={new Date(result.testedAt).toISOString()}> · {new Date(result.testedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
+                  <time dateTime={new Date(result.testedAt).toISOString()}>, {new Date(result.testedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
                 </h4>
                 <ul className="ambio-agent-connections__checks">
                   {result.checks.map(check => (
@@ -287,7 +287,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
     const target = started.find(target => target.id === host.id)
     const label = host.modality === 'cli' ? CLI_CLIENTS.find(client => client.id === host.id)?.label ?? host.label : APP_CLIENTS.find(client => client.id === host.id)?.label ?? host.label
     const status = host.modality === 'cli' ? scanError || !target ? 'Could not check CLI availability' : target.discoveryError ? 'Could not use selected CLI' : target.available ? 'CLI found' : 'CLI not found'
-      : host.detectionError ? 'Could not fully check installation' : !host.detected && state !== 'live' ? host.configured ? 'Ambio added · app not found' : 'Not found on this computer' : STATE_LABEL[state]
+      : host.detectionError ? 'Could not fully check installation' : !host.detected && state !== 'live' ? host.configured ? 'Ambio added, app not found' : 'Not found on this computer' : STATE_LABEL[state]
     const tone = host.modality === 'cli' ? target?.available ? 'ready' : target?.discoveryError || scanError ? 'attention' : 'off'
       : state === 'live' || state === 'installed' ? 'ready' : state === 'missing' ? 'off' : 'attention'
     return clientPill(host.modality === 'cli' ? 'run' : 'apps', host.id, label, status, tone)
@@ -326,7 +326,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
             {companions.filter(target => target.id === selected.run).map(target => <li key={target.id} className="ambio-agent-connections__host" data-state={target.available ? 'installed' : 'missing'} data-agent-host={target.id}>
               <div className="ambio-agent-connections__summary">
                 <ConnectorLogo clientId={target.id} />
-                <div className="ambio-agent-connections__identity"><strong>{target.label}</strong><small>{target.available ? 'CLI found · sign in before running' : target.discoveryError ? 'Could not use selected CLI' : 'Not found on this computer'}</small></div>
+                <div className="ambio-agent-connections__identity"><strong>{target.label}</strong><small>{target.available ? 'CLI found, sign in before running' : target.discoveryError ? 'Could not use selected CLI' : 'Not found on this computer'}</small></div>
               </div>
               {executableDetails(target, target.id)}
               {accessDetails(target)}
@@ -341,7 +341,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
         {hosts === null && <p role="status">Checking installations…</p>}
         <div className="ambio-agent-connections__gallery" role="group" aria-label="External clients">
           {inApps.map(hostPill)}
-          {APP_CLIENTS.filter(client => !inApps.some(host => host.id === client.id)).map(client => clientPill('apps', client.id, client.label, 'Could not check · rescan', 'attention', true))}
+          {APP_CLIENTS.filter(client => !inApps.some(host => host.id === client.id)).map(client => clientPill('apps', client.id, client.label, 'Could not check, rescan', 'attention', true))}
         </div>
         {!selected.apps && <p className="ambio-agent-connections__prompt">Select an app to manage its connection.</p>}
         <ul className="ambio-agent-connections__list">{inApps.filter(host => host.id === selected.apps).map(row)}</ul>

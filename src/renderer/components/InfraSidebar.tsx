@@ -1,3 +1,4 @@
+import { Chevron } from './ui/Chevron'
 import { useCanvasFitView } from '../canvas/useCanvasFitView'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePresence } from './ui/usePresence'
@@ -182,7 +183,7 @@ export function InfraSidebar() {
             <span className="ambio-infra-sidebar__name">{node.name}</span>
             <span className="ambio-infra-sidebar__meta">
               {ROLE_LABEL[node.category] ?? node.category}
-              {' · '}
+              {', '}
               {node.category === 'platform' && !proposal ? 'on the map' : usage}
             </span>
             {foundIn && <span className="ambio-infra-sidebar__found">found in {fileName(foundIn.replace(/:\d+$/, ''))}</span>}
@@ -219,9 +220,9 @@ export function InfraSidebar() {
       aria-label={open ? 'Close infrastructure' : 'Open infrastructure'}
       aria-expanded={open}
       title={open ? `Close infrastructure (${shortcut})`
-        : `Infrastructure${proposals.length ? ` · ${proposals.length} new` : ''}${alert ? ' · something looks wrong' : ''} (${shortcut})`}
+        : `Infrastructure${proposals.length ? `, ${proposals.length} new` : ''}${alert ? ', something looks wrong' : ''} (${shortcut})`}
     >
-      <span className="ambio-infra-sidebar-tab__chevron" aria-hidden="true">{open ? '‹' : '›'}</span>
+      <Chevron direction={open ? 'left' : 'right'} />
       {!open && <span className="ambio-infra-sidebar-tab__label">Infrastructure</span>}
       {!open && (alert || proposals.length > 0) && (
         <span className="ambio-infra-sidebar-tab__dot" data-kind={alert ? 'alert' : 'new'} aria-hidden="true" />
@@ -255,7 +256,7 @@ export function InfraSidebar() {
           <h2>Infrastructure</h2>
           <p>
             {confirmed.length} in use
-            {proposals.length > 0 ? ` · ${proposals.length} to confirm` : ''}
+            {proposals.length > 0 ? `, ${proposals.length} to confirm` : ''}
           </p>
         </div>
         <button type="button" className="ambio-infra-sidebar__add" onClick={() => setAdding(true)}

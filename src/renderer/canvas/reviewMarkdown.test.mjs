@@ -17,7 +17,7 @@ test('a review reads as a short Markdown summary', () => {
       claim({ title: 'Jobs now calls Api', createsCycle: true, sessionId: undefined }),
     ],
   })
-  assert.match(text, /^## Architecture changes · shop\n\n3 architecture changes \(since yesterday 17:00\)\n/)
+  assert.match(text, /^## Architecture changes for shop\n\n3 architecture changes \(since yesterday 17:00\)\n/)
   assert.match(text, /- codex: add refunds - done/)
   assert.match(text, /- Api now depends on Storage _\(by codex\)_\n  - file0\.ts: imports store\.ts/)
   assert.match(text, /  - and 2 more/)

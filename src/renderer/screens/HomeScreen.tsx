@@ -503,7 +503,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                             {project.rootMissing
                               ? (
                                 <span className="ambio-launcher__deck-signals">
-                                  <span className="ambio-launcher__deck-signal ambio-launcher__deck-signal--attention">FOLDER NOT FOUND · LOCATE</span>
+                                  <span className="ambio-launcher__deck-signal ambio-launcher__deck-signal--attention">LOCATE MISSING FOLDER</span>
                                 </span>
                               )
                               : <ProjectDeckSignals status={deckStatus[project.id]} setupUnfinished={projectSetupInProgress(project)} />}
@@ -679,7 +679,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                       <span className="ambio-trash-modal__copy">
                         <strong>{entry.config.name}</strong>
                         <small title={entry.config.rootPath}>{entry.config.rootPath}</small>
-                        <small>Deleted {timeAgo(entry.deletedAt)} · {daysLeft(entry.expiresAt)}</small>
+                        <small>Deleted {timeAgo(entry.deletedAt)}, {daysLeft(entry.expiresAt)}</small>
                       </span>
                       <button
                         className="ambio-remove-modal__cancel"
@@ -820,23 +820,14 @@ function SupportLinks({ trashCount, onOpenTrash }: { trashCount: number; onOpenT
   return (
     <nav className="ambio-launcher__support" aria-label="Maps and settings">
       {update.state !== 'idle' && (
-        <>
-          <button type="button" className="ambio-launcher__update" onClick={() => void window.ambio.installUpdate()}>
-            {update.state === 'ready'
-              ? `Restart to update to ${update.version}`
-              : `Download Ambio ${update.version}`}
-          </button>
-          <span aria-hidden="true">·</span>
-        </>
+        <button type="button" className="ambio-launcher__update" onClick={() => void window.ambio.installUpdate()}>
+          {update.state === 'ready'
+            ? `Restart to update to ${update.version}`
+            : `Download Ambio ${update.version}`}
+        </button>
       )}
       <button type="button" onClick={() => emitCommand('project.importMap')}>Import a map</button>
-      <span aria-hidden="true">·</span>
-      {trashCount > 0 && (
-        <>
-          <button type="button" onClick={onOpenTrash}>Recently deleted ({trashCount})</button>
-          <span aria-hidden="true">·</span>
-        </>
-      )}
+      {trashCount > 0 && <button type="button" onClick={onOpenTrash}>Recently deleted ({trashCount})</button>}
       <button type="button" onClick={() => emitCommand('app.settings')}>Settings</button>
     </nav>
   )

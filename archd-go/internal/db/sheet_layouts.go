@@ -8,9 +8,7 @@ import (
 	"time"
 )
 
-// SheetLayout is the proposal-local counterpart of FloorLayout. The fields are
-// intentionally identical so renderer geometry has one algebra on both
-// surfaces; SheetID is the only additional identity dimension.
+// SheetLayout uses the same geometry as FloorLayout, with sheet-local ownership.
 type SheetLayout struct {
 	SheetID         string  `json:"sheetId"`
 	WorkspaceID     string  `json:"workspaceId"`
@@ -26,6 +24,9 @@ type SheetLayout struct {
 	Scale           float64 `json:"scale"`
 	InteriorScale   float64 `json:"interiorScale"`
 	UpdatedAt       int64   `json:"updatedAt"`
+
+	// The selection's initial geometry carries no requirement about containment.
+	PresentationOnly bool `json:"presentationOnly,omitempty"`
 }
 
 type SheetLayoutBatchResult struct {
@@ -37,7 +38,7 @@ func GetSheetLayouts(db Reader, sheetID string) ([]SheetLayout, error) {
 	rows, err := db.Query(`
 		SELECT sheet_id, workspace_id, node_id, node_type, parent_node_id,
 		       parent_node_type, containment_kind, position_x, position_y,
-		       width, height, scale, interior_scale, updated_at
+		       width, height, scale, interior_scale, presentation_only, updated_at
 		FROM sheet_layouts WHERE sheet_id=?`, sheetID)
 	if err != nil {
 		return nil, err
@@ -50,7 +51,7 @@ func GetSheetLayouts(db Reader, sheetID string) ([]SheetLayout, error) {
 			&layout.SheetID, &layout.WorkspaceID, &layout.NodeID, &layout.NodeType,
 			&layout.ParentNodeID, &layout.ParentNodeType, &layout.ContainmentKind,
 			&layout.PositionX, &layout.PositionY, &layout.Width, &layout.Height,
-			&layout.Scale, &layout.InteriorScale, &layout.UpdatedAt,
+			&layout.Scale, &layout.InteriorScale, &layout.PresentationOnly, &layout.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -238,7 +239,7 @@ func BackfillSheetLayouts(db *sql.DB) error {
 func RepairUnplacedSheetLayouts(db *sql.DB) error {
 	if _, err := db.Exec(`
 		DELETE FROM sheet_layouts
-		WHERE position_x=0 AND position_y=0
+		WHERE position_x=0 AND position_y=0 AND NOT presentation_only
 		  AND (EXISTS(SELECT 1 FROM sheet_elements e
 		              WHERE e.sheet_id=sheet_layouts.sheet_id
 		                AND COALESCE(e.system_id,e.file_id,e.infra_id)=sheet_layouts.node_id
@@ -327,6 +328,9 @@ func ApplySheetLayoutBatch(
 	}
 	defer tx.Rollback()
 
+	for i := range updates {
+		updates[i].PresentationOnly = false
+	}
 	result, err := applySheetLayoutBatch(tx, sheetID, workspaceID, updates)
 	if err != nil {
 		return nil, err
@@ -408,24 +412,27 @@ func applySheetLayoutBatch(tx *sql.Tx, sheetID, workspaceID string, updates []Sh
 		}
 	}
 
-	for _, update := range updates {
-		if _, err := tx.Exec(`
+	for i := range updates {
+		update := &updates[i]
+		if err := tx.QueryRow(`
 			INSERT INTO sheet_layouts
 			(sheet_id,workspace_id,node_id,node_type,parent_node_id,parent_node_type,
-			 containment_kind,position_x,position_y,width,height,scale,interior_scale,updated_at)
-			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			 containment_kind,position_x,position_y,width,height,scale,interior_scale,presentation_only,updated_at)
+			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 			ON CONFLICT(sheet_id,node_id) DO UPDATE SET
 			workspace_id=excluded.workspace_id, node_type=excluded.node_type,
 			parent_node_id=excluded.parent_node_id, parent_node_type=excluded.parent_node_type,
 			containment_kind=excluded.containment_kind, position_x=excluded.position_x,
 			position_y=excluded.position_y, width=excluded.width, height=excluded.height,
 			scale=excluded.scale, interior_scale=excluded.interior_scale,
-			updated_at=excluded.updated_at`,
+			presentation_only=sheet_layouts.presentation_only AND sheet_layouts.parent_node_id IS excluded.parent_node_id,
+			updated_at=excluded.updated_at
+			RETURNING presentation_only`,
 			sheetID, workspaceID, update.NodeID, update.NodeType,
 			update.ParentNodeID, update.ParentNodeType, update.ContainmentKind,
 			update.PositionX, update.PositionY, update.Width, update.Height,
-			update.Scale, update.InteriorScale, now,
-		); err != nil {
+			update.Scale, update.InteriorScale, update.PresentationOnly, now,
+		).Scan(&update.PresentationOnly); err != nil {
 			return nil, err
 		}
 	}

@@ -550,8 +550,6 @@
 .ambio-sheet-rail__more { opacity: 0; font: 700 17px var(--font-ui); }
 .ambio-sheet-rail__row:hover .ambio-sheet-rail__more, .ambio-sheet-rail__row:focus-within .ambio-sheet-rail__more, .ambio-sheet-rail__more[aria-expanded='true'] { opacity: 1; }
 .ambio-sheet-rail__expand:hover, .ambio-sheet-rail__more:hover { background: #ffffff20; }
-.ambio-sheet-chevron { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.4; flex-shrink: 0; transition: transform 100ms; }
-.ambio-sheet-chevron[data-expanded='true'] { transform: rotate(90deg); }
 .ambio-sheet-rail button:focus-visible, .ambio-sheet-menu button:focus-visible, .ambio-sheet-review-panel button:focus-visible { outline: 1px solid currentColor; outline-offset: -2px; }
 .ambio-sheet-tree { padding: 0; border-bottom: 1px solid #b9bdb8; background: #eeede7; font: 10px/1.4 var(--font-mono); }
 .ambio-sheet-tree ul { list-style: none; padding: 0; margin: 0; }
@@ -599,7 +597,7 @@
   @keyframes ambioSheetReviewExpand { from { height: 0; opacity: 0; transform: translateY(10px); } to { height: auto; opacity: 1; transform: translateY(0); } }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ambio-sheet-disclosure, .ambio-sheet-entry::after, .ambio-sheet-chevron { transition: none; }
+  .ambio-sheet-disclosure, .ambio-sheet-entry::after { transition: none; }
   .ambio-sheet-rail__review { animation: none; }
 }
 .ambio-sheet-review-summary { color: var(--rail-muted); font: 9px/1.5 var(--font-mono); margin: 5px 0 0; }

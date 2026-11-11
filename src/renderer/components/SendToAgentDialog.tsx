@@ -406,7 +406,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           useConversationPreferences.getState().forget(graph.workspaceId, id)
           if (currentThreadId === id) { setThreadId(null); setChatActiveId(null) }
         } finally { setSending(false) }
-      }} entries={entries} currentId={currentThreadId} project={[graph.name ?? '', workplace].filter(Boolean).join(' · ')} disabled={locked} onOpen={id => { setCaseTarget(null); setThreadId(id); textarea.current?.focus() }} />
+      }} entries={entries} currentId={currentThreadId} project={[graph.name ?? '', workplace].filter(Boolean).join(', ')} disabled={locked} onOpen={id => { setCaseTarget(null); setThreadId(id); textarea.current?.focus() }} />
       <button type="button" className="ambio-inbox__icon" disabled={locked || currentThreadId === null} onClick={() => { setCaseTarget(null); setThreadId(null); setError(null); textarea.current?.focus() }} aria-label="New conversation" title="Start a new conversation"><InboxIcon name="plus" /></button>
       <button type="button" className="ambio-inbox__icon" onClick={onClose} aria-label="Close agent inbox"><InboxIcon name="close" /></button>
     </header>
@@ -421,7 +421,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
         {shown.length === 0 && !chat.snapshot?.messages.length && <div className="ambio-inbox__empty"><h3>{threads.length ? 'New conversation' : 'Talk to your agent'}</h3><p>Ask a question, ask for a plan, or ask for a change. Follow-ups stay in this conversation, so the agent keeps what was said.</p></div>}
         {shown.map(message => <article key={`${graph.workspaceId}:${message.id}`} className="ambio-inbox__message">
           <div className="ambio-inbox__user"><span className="ambio-inbox__entry-label">YOU<span className="ambio-inbox__turn-mode" data-mode={turnRequest(message).mode}>{WORK_ORDER_MODES.find(item => item.mode === turnRequest(message).mode)?.label}</span>{message.status === 'answered' && needsReview(message) && <span className="ambio-inbox__turn-state" data-state={message.review?.decision === 'accepted' ? 'accepted' : 'review'}>{inboxStatus(message)}</span>}<time title={new Date(message.createdAt).toLocaleString()} dateTime={new Date(message.createdAt).toISOString()}>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></span><p>{turnRequest(message).text}</p>{chips(messageReferences(message.selection))}
-            {message.sheetId && <button type="button" className="ambio-inbox__message-sheet" disabled={locked} onClick={() => attachSheet(message.sheetId)} title="Attach the current sheet to a new message"><InboxIcon name="sheet" size={14} /><span>{message.sentSheetName || sheet.sheets.find(item => item.id === message.sheetId)?.name || 'Attached sheet'}{message.sentSheetRevision ? ` · sent r${message.sentSheetRevision}` : ''}</span><InboxIcon name="chevron" size={12} /></button>}
+            {message.sheetId && <button type="button" className="ambio-inbox__message-sheet" disabled={locked} onClick={() => attachSheet(message.sheetId)} title="Attach the current sheet to a new message"><InboxIcon name="sheet" size={14} /><span>{message.sentSheetName || sheet.sheets.find(item => item.id === message.sheetId)?.name || 'Attached sheet'}{message.sentSheetRevision ? `, sent r${message.sentSheetRevision}` : ''}</span><InboxIcon name="chevron" size={12} /></button>}
           </div>
           {(run => {
             const unanswered = message.status === 'queued' || message.status === 'delivered'
@@ -436,7 +436,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
             </div>
           })(latestRun(message.id))}
           {permissions.filter(request => request.messageId === message.id).map(request => <AgentRequestCard key={request.id} request={request} hostLabel={delivery.hosts.find(host => host.id === request.hostId)?.label} />)}
-          {message.status !== 'answered' && !latestRun(message.id) && message.sessions?.filter(session => !session.endedAt).slice(-1).map(session => <section key={session.id} className="ambio-inbox__progress" aria-label={`Work progress: ${session.goal}`}><strong>{session.agent || 'Agent'} · {session.goal}</strong>{session.notes.length > 0 && <p>{session.notes.at(-1)?.text}</p>}</section>)}
+          {message.status !== 'answered' && !latestRun(message.id) && message.sessions?.filter(session => !session.endedAt).slice(-1).map(session => <section key={session.id} className="ambio-inbox__progress" aria-label={`Work progress: ${session.goal}`}><strong>{session.agent || 'Agent'}, {session.goal}</strong>{session.notes.length > 0 && <p>{session.notes.at(-1)?.text}</p>}</section>)}
           {message.status === 'answered' && !message.reply && <p className="ambio-inbox__notice">This older reply is no longer available.</p>}
           {message.status === 'cancelled' && <p className="ambio-inbox__turn-status" data-state="stopped">Cancelled</p>}
           {/* Only a build changed anything; a question or a proposal has nothing to accept here. */}
@@ -444,7 +444,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           {needsReview(message) && <WorkOrderReview message={message} workspaceId={graph.workspaceId} currentSheet={sheet.sheets.find(item => item.id === message.sheetId)} />}
         </article>)}
         {caseTarget && caseFile?.id === caseTarget.id && caseFile.messages.map(message => <article key={message.id} className="ambio-inbox__case-message" aria-label="Investigation message">
-          <small>You · Investigation</small><p>{message.text}</p>
+          <small>You, Investigation</small><p>{message.text}</p>
           <small role="status">{message.deliveredAt ? 'Delivered to the investigating agent' : caseFile.status === 'live' ? 'Queued for the agent’s next investigation step' : 'Investigation ended before delivery'}</small>
         </article>)}
         {/* A question that names no turn on screen is still a question. */}
@@ -459,12 +459,12 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       <form className="ambio-inbox__compose" onSubmit={submit}>
         {delivery.notice && <p className="ambio-inbox__notice" role="status">{delivery.notice}</p>}
         {caseTarget && <div className="ambio-inbox__case-context" aria-label="Investigation reply target">
-          <span><strong title={caseTarget.name}>{caseTarget.name}</strong><small>{caseAvailable ? 'Reply to the investigating agent · arrives with its next step' : 'Investigation ended or changed · your draft is kept'}</small></span>
+          <span><strong title={caseTarget.name}>{caseTarget.name}</strong><small>{caseAvailable ? 'Reply to the investigating agent, arrives with its next step' : 'Investigation ended or changed, your draft is kept'}</small></span>
           <button type="button" className="ambio-inbox__icon" disabled={sendingCase} aria-label="Return to conversation" title="Return to conversation" onClick={() => { setCaseTarget(null); setError(null); textarea.current?.focus() }}><InboxIcon name="close" size={13} /></button>
         </div>}
         {!caseTarget && (effectiveSheetId || effectiveSelection.length > 0 || codeFitFileIds.length > 0) && <div className="ambio-inbox__attachments">
           {codeFitFileIds.length > 0 && <div className="ambio-inbox__attachment" title="After the agent replies, Ambio checks that the code agrees with where the map puts these files"><span className="ambio-inbox__sheet-icon"><InboxIcon name="check" size={16} /></span><span><strong>Ambio checks the code afterwards</strong><small>{codeFitFileIds.length === 1 ? '1 file' : `${codeFitFileIds.length} files`}</small></span><button className="ambio-inbox__icon" type="button" disabled={locked} aria-label="Don't check the code afterwards" onClick={() => setCodeFitFileIds([])}><InboxIcon name="close" size={13} /></button></div>}
-          {effectiveSheetId && <div className="ambio-inbox__attachment" title={attachedSheet ? `${attachedSheet.name} · revision ${attachedSheet.revision} · snapshot and structural comparison included` : 'This sheet is no longer available'}><span className="ambio-inbox__sheet-icon"><InboxIcon name="sheet" size={16} /></span><span><strong>{attachedSheet?.name ?? 'Sheet unavailable'}</strong><small>{attachedSheet?.resolvedAt ? 'Resolved sheet' : attachedSheet ? 'Sheet' : 'Remove attachment'}</small></span><button className="ambio-inbox__icon" type="button" disabled={locked} aria-label="Remove attached sheet" onClick={() => attachSheet(null)}><InboxIcon name="close" size={13} /></button></div>}
+          {effectiveSheetId && <div className="ambio-inbox__attachment" title={attachedSheet ? `${attachedSheet.name}, revision ${attachedSheet.revision}, snapshot and structural comparison included` : 'This sheet is no longer available'}><span className="ambio-inbox__sheet-icon"><InboxIcon name="sheet" size={16} /></span><span><strong>{attachedSheet?.name ?? 'Sheet unavailable'}</strong><small>{attachedSheet?.resolvedAt ? 'Resolved sheet' : attachedSheet ? 'Sheet' : 'Remove attachment'}</small></span><button className="ambio-inbox__icon" type="button" disabled={locked} aria-label="Remove attached sheet" onClick={() => attachSheet(null)}><InboxIcon name="close" size={13} /></button></div>}
           {chips(effectiveSelection, true)}
         </div>}
         <textarea ref={textarea} id="ambio-inbox-note" aria-label="Instruction for your agent" value={inProgress && !steering && !caseTarget ? '' : retry.current?.note ?? note} disabled={locked || (caseTarget ? !caseAvailable : inProgress && !steering)} onChange={event => setNote(event.target.value)} maxLength={16000} rows={2} placeholder={caseTarget ? (caseAvailable ? 'A question, correction or hint for this investigation…' : 'Your draft is preserved. Return to conversation to continue.') : steering ? `Send a correction while ${workingLabel} works…` : inProgress ? (workingLabel ? `${workingLabel} is working on your request…` : 'Waiting for your agent to pick up your request…') : shown.length || chat.snapshot?.messages.length ? 'Reply, or ask for the next step…' : 'Describe a change or ask a question…'} onKeyDown={event => {
@@ -472,7 +472,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit() }
           if (!caseTarget && event.key === '@' && (event.currentTarget.selectionStart === 0 || /\s/.test(note[event.currentTarget.selectionStart - 1]))) { event.preventDefault(); setPickerOpen(true) }
         }} />
-        {!caseTarget && toChat && chatProvider?.auth === 'chatgpt' && <div className="ambio-chat__plan">Using ChatGPT plan · <button type="button" onClick={() => void window.ambio.manageChatGPTUsage()}>Manage usage</button></div>}
+        {!caseTarget && toChat && chatProvider?.auth === 'chatgpt' && <div className="ambio-chat__plan">Using ChatGPT plan, <button type="button" onClick={() => void window.ambio.manageChatGPTUsage()}>Manage usage</button></div>}
         <div className={`ambio-inbox__compose-tools${caseTarget ? ' ambio-inbox__compose-tools--case' : ''}`}>{!caseTarget && <><div ref={attachmentArea} className="ambio-inbox__attach-anchor">
           <button type="button" className="ambio-inbox__icon" disabled={locked} aria-label="Attach context" aria-haspopup="dialog" aria-expanded={pickerOpen} title="Attach a sheet (@)" onClick={() => setPickerOpen(!pickerOpen)}><InboxIcon name="attach" size={19} /></button>
           {pickerOpen && <InboxSheetPicker sheets={sheet.sheets} attachedId={effectiveSheetId} onClose={dismissPicker} onSelect={id => { attachSheet(id); dismissPicker() }} />}
@@ -482,7 +482,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           onNewConversation={current ? () => { setCaseTarget(null); setThreadId(null); setError(null) } : undefined}
           onSetUpChat={() => window.dispatchEvent(new Event(OPEN_MODEL_SERVICES))}
           fixed={chatCurrent ? { label: chatAgentLabel(chatProvider, chatCurrent.model), guideId: CHAT_DELIVERY } : undefined} access={agentAccess}
-          model={agentModel} modelDisabled={locked || inProgress} /><span>{retry.current && !sending ? 'Send unconfirmed · retry' : steering && sending ? `${workingLabel} reads it at its next step…` : sending || chat.busy ? 'Sending…' : ''}</span><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }}
+          model={agentModel} modelDisabled={locked || inProgress} /><span>{retry.current && !sending ? 'Send unconfirmed, retry' : steering && sending ? `${workingLabel} reads it at its next step…` : sending || chat.busy ? 'Sending…' : ''}</span><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }}
           worktree={worktreeOffered ? { on: delivery.where === 'worktree', onChange: on => delivery.setWhere(on ? 'worktree' : 'here') } : undefined} /></>}{caseTarget && <span>{sendingCase ? 'Sending…' : 'Investigation feedback'}</span>}{inProgress && <button className="ambio-inbox__send ambio-inbox__stop" type="button" aria-label="Stop" title="Stop this request" disabled={chat.busy} onClick={() => { void stopTurn() }}><InboxIcon name="stop" size={15} /></button>}{(!inProgress || caseTarget || steering) && <button className="ambio-inbox__send" type="submit" aria-label={sendLabel} title={retry.current ? 'Retry original message' : sendLabel} disabled={caseTarget ? sendingCase || !caseAvailable || !note.trim() : sending || !!delivery.busy || chat.busy || !(retry.current?.note ?? note).trim() || effectiveSelection.length > 100}><InboxIcon name={retry.current && !sending ? 'retry' : 'send'} size={19} /></button>}</div>
       </form>
       {!caseTarget && effectiveSelection.length > 100 && <small className="ambio-inbox__limit" role="alert">Attach up to 100 canvas items per message.</small>}
@@ -569,7 +569,7 @@ function WorkOrderModeMenu({ mode, disabled, onChange, worktree }: { mode: WorkO
   }}>
     <button type="button" className="ambio-inbox__mode-button" disabled={disabled} aria-haspopup="menu" aria-expanded={open}
       aria-label={`Request type: ${ownWorktree ? `${current.label} in its own worktree` : current.label}`} title={ownWorktree ? `${current.hint} In a worktree of its own on an ambio/ branch.` : current.hint} onClick={() => setOpen(!open)}>
-      {ownWorktree ? `${current.label} · worktree` : current.label}<InboxIcon name="chevron" size={11} />
+      {ownWorktree ? `${current.label}, worktree` : current.label}<InboxIcon name="chevron" size={11} />
     </button>
     {open && <div className="ambio-inbox__mode-menu" role="menu" aria-label="What you are asking for">
       {WORK_ORDER_MODES.map(item => <button key={item.mode} type="button" role="menuitemradio" aria-checked={mode === item.mode} aria-label={item.label}

@@ -40,8 +40,8 @@ export function checkoutState(checkout: Pick<CheckoutStatus, 'headState' | 'head
   if (checkout.changedFiles > 0) parts.push(`${checkout.changedFiles} uncommitted`)
   if (checkout.ahead > 0) parts.push(`${checkout.ahead} ahead`)
   if (checkout.behind > 0) parts.push(`${checkout.behind} behind`)
-  if (parts.length > 0 && checkout.upstream) parts.push(`of ${checkout.upstream}`)
-  return parts.join(' · ')
+  const upstream = parts.length > 0 && checkout.upstream ? ` of ${checkout.upstream}` : ''
+  return parts.join(', ') + upstream
 }
 
 export interface BranchChipModel {
@@ -383,7 +383,7 @@ export interface BranchRow {
   gone: boolean
   ahead: number
   behind: number
-  /** "3 days ago · Fix the retry loop" */
+  /** "3 days ago, Fix the retry loop" */
   last: string
 }
 
@@ -407,7 +407,7 @@ export function buildBranchRows(
       return {
         name: branch.name, current, rootId: current ? undefined : branch.rootId,
         upstream: branch.upstream, gone: !!branch.gone, ahead: branch.ahead ?? 0, behind: branch.behind ?? 0,
-        last: [branch.committedAt ? timeAgo(branch.committedAt, now) : '', branch.subject ?? ''].filter(Boolean).join(' · '),
+        last: [branch.committedAt ? timeAgo(branch.committedAt, now) : '', branch.subject ?? ''].filter(Boolean).join(', '),
       }
     })
     .sort((left, right) => Number(right.current) - Number(left.current))

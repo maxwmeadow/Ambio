@@ -101,9 +101,7 @@ func (s *Server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		if snapshotErr != errMapSyncing {
 			log.Printf("api: save delta snapshot for %s: %v", workspaceID, snapshotErr)
 		}
-		summary.Claims = delta.BuildClaims(
-			summary, s.systemTopologyForRoot(sqlDB, workspaceID, root.ID),
-		)
+		summary.Claims = delta.BuildClaimsWithSnapshots(summary, nil, nil)
 	} else {
 		var before *delta.ArchitectureSnapshot
 		if encoded, loadErr := db.GetDeltaSnapshotForRoot(

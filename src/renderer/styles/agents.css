@@ -659,7 +659,7 @@ button.ambio-checkouts__branch:focus-visible { border-color: #5e726c; background
 
 .ambio-checkout.ambio-sync { padding: 14px 16px 15px; }
 
-/* origin/main · ↓3 ↑0 · Checked just now · ↻ */
+/* origin/main, ↓3 ↑0, Checked just now, ↻ */
 .ambio-sync__remote {
   display: flex;
   min-width: 0;
