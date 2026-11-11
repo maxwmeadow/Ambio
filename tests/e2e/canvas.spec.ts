@@ -1769,8 +1769,9 @@ test('searches the project index and navigates to a keyboard-selected file', asy
   const searchWindow = searchDialog
   await expect(searchDialog).toBeVisible()
   await expect(searchInput).toBeFocused()
-  // Before typing it lists the map's systems, or says what to search for.
-  await expect(searchDialog).toContainText(/On the map|Search the project index/)
+  // Before typing it lists the map's systems, grouped and named; no extra headers or explanations.
+  await expect(searchDialog.locator('.ambio-search-group').first()).toHaveText('Systems')
+  await expect(searchDialog).not.toContainText(/On the map|Type to search|Systems, infrastructure, files and symbols/)
 
   await expect.poll(() => searchWindow.evaluate(element => {
     const style = getComputedStyle(element)
@@ -1845,6 +1846,20 @@ test('⌘K finds systems, infrastructure and symbols, and a symbol opens its sou
   await expect(page.locator('.react-flow__node[data-id="file_canvas"]')).toBeAttached()
   await source.getByRole('button', { name: 'Close source preview' }).click()
   await expect(source).toHaveCount(0)
+
+  // Sheets are found too, under their own heading, and Enter opens one.
+  await page.keyboard.press('ControlOrMeta+K')
+  await searchInput.fill('runtime')
+  const sheet = searchDialog.getByRole('option', { name: /Runtime Draft/ })
+  await expect(sheet).toContainText('Sheet')
+  await expect(searchDialog.locator('.ambio-search-group', { hasText: 'Sheets' })).toBeVisible()
+  await page.screenshot({ path: 'test-results/search-sheets.png' })
+  await sheet.click()
+  await expect(searchDialog).toHaveCount(0)
+  const rail = page.getByRole('complementary', { name: 'Drawings' })
+  await expect(rail.getByRole('button', { name: 'Runtime Draft', exact: true })).toHaveAttribute('aria-current', 'page')
+  await rail.getByRole('button', { name: /^The Floor/ }).click()
+  await expect(rail.getByRole('button', { name: /^The Floor/ })).toHaveAttribute('aria-current', 'page')
 })
 
 test('opens saved investigations and controls replay through the workbench transport', async () => {

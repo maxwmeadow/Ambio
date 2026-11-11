@@ -3,8 +3,16 @@ import { createPortal } from 'react-dom'
 import { useShowOnMap } from '../canvas/useShowOnMap'
 import { useGraphStore } from '../store/graphStore'
 import { searchSymbols } from '../canvas/symbolSearch'
-import { buildSearchResults, SEARCH_GROUP_LABELS, type SearchResult, type SymbolMatch } from '../canvas/searchResults'
+import {
+  buildSearchResults, SEARCH_GROUP_LABELS, searchResultBadge,
+  type SearchInvestigation, type SearchNote, type SearchPlanned, type SearchResult, type SymbolMatch,
+} from '../canvas/searchResults'
 import { useSourcePreviewStore } from '../store/sourcePreviewStore'
+import { fetchSheetLayer, useSheetStore } from '../store/sheetStore'
+import { useConversationPreferences } from '../store/conversationPreferences'
+import { conversations as threadsOf, turnRequest } from './inboxModel'
+import { apiGetInvestigation, apiListInvestigations } from '../canvas/arcdApi'
+import type { InvestigationDoc } from '../store/graphStore'
 
 interface SearchBarProps {
   onClose: () => void
@@ -24,9 +32,12 @@ function HighlightedMatch({ query, text }: { query: string; text: string }) {
 }
 
 /**
- * ⌘K: find anything on the map by name - systems, infrastructure, files, and
- * symbols from archd's index - and jump to it. A symbol frames its file and
- * opens the source at its lines.
+ * ⌘K: find anything Ambio keeps - systems, infrastructure, files, functions
+ * and classes from archd's index, sheets, what is drawn on them, sticky notes,
+ * agent conversations and saved investigations - and go to it. A symbol frames
+ * its file and opens the source at its lines; a sheet opens; a drawn item or
+ * note opens its sheet and is shown; a conversation opens in the agent panel;
+ * an investigation starts its replay.
  */
 export function SearchBar({ onClose }: SearchBarProps) {
   const [query, setQuery] = useState('')
@@ -39,6 +50,46 @@ export function SearchBar({ onClose }: SearchBarProps) {
   const systems = useGraphStore(s => s.systems)
   const infraNodes = useGraphStore(s => s.infraNodes)
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
+  const startReplay = useGraphStore(s => s.startReplay)
+  const allSheets = useSheetStore(s => s.sheets)
+  const floorNotes = useSheetStore(s => s.floorNotes)
+  const messages = useSheetStore(s => s.messages)
+  const sheets = useMemo(() => allSheets.filter(sheet => !sheet.resolvedAt), [allSheets])
+  // What is on each sheet and saved investigations are not kept in the
+  // stores; read them once when the window opens.
+  const [onSheets, setOnSheets] = useState<{ planned: SearchPlanned[]; notes: SearchNote[] }>({ planned: [], notes: [] })
+  const [investigations, setInvestigations] = useState<SearchInvestigation[]>([])
+  const sheetIds = sheets.map(sheet => sheet.id).join('|')
+  useEffect(() => {
+    if (!workspaceId) return
+    let active = true
+    const named = new Map(sheets.map(sheet => [sheet.id, sheet.name]))
+    void Promise.all(sheets.map(sheet => fetchSheetLayer(workspaceId, sheet.id).catch(() => null))).then(layers => {
+      if (!active) return
+      const planned: SearchPlanned[] = [], notes: SearchNote[] = []
+      for (const layer of layers) {
+        if (!layer) continue
+        const sheetName = named.get(layer.sheet.id) ?? layer.sheet.name
+        for (const node of layer.planned) planned.push({ id: node.id, sheetId: layer.sheet.id, sheetName, name: node.name, kind: node.kind })
+        for (const note of layer.annotations) if (note.kind === 'note') notes.push({ id: note.id, sheetId: layer.sheet.id, sheetName, body: note.body })
+      }
+      setOnSheets({ planned, notes })
+    })
+    apiListInvestigations(workspaceId)
+      .then(list => { if (active) setInvestigations(list.investigations.filter(item => item.status !== 'recording').map(item => ({ id: item.id, name: item.name, createdAt: item.createdAt }))) })
+      .catch(() => {})
+    return () => { active = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId, sheetIds])
+  const notes = useMemo<SearchNote[]>(() => [
+    ...floorNotes.filter(note => note.kind === 'note').map(note => ({ id: note.id, sheetId: null, sheetName: null, body: note.body })),
+    ...onSheets.notes,
+  ], [floorNotes, onSheets.notes])
+  // A conversation is found by what the person asked and what the agent said.
+  const conversationIndex = useMemo(() => threadsOf(messages.filter(message => message.workspaceId === workspaceId)).map(thread => ({
+    id: thread.id, title: thread.title, turns: thread.turns.length,
+    said: thread.turns.flatMap(turn => [turnRequest(turn).text, ...(turn.reply?.body ? [turn.reply.body] : [])]),
+  })), [messages, workspaceId])
 
   // Symbols live in archd, not the store: ask after a short pause in typing.
   useEffect(() => {
@@ -54,8 +105,11 @@ export function SearchBar({ onClose }: SearchBarProps) {
   }, [query, workspaceId])
 
   const results = useMemo(
-    () => buildSearchResults({ query, systems, infraNodes, files, symbols }),
-    [query, systems, infraNodes, files, symbols],
+    () => buildSearchResults({
+      query, systems, infraNodes, files, symbols,
+      sheets, planned: onSheets.planned, notes, conversations: conversationIndex, investigations,
+    }),
+    [query, systems, infraNodes, files, symbols, sheets, onSheets.planned, notes, conversationIndex, investigations],
   )
 
   const browsing = !query.trim()
@@ -78,13 +132,31 @@ export function SearchBar({ onClose }: SearchBarProps) {
   }, [activeIdx])
 
   const navigate = useCallback((result: SearchResult) => {
+    onClose()
+    const sheetsNow = useSheetStore.getState()
+    switch (result.kind) {
+      case 'sheet':
+        void sheetsNow.openSheet(workspaceId, result.sheetId, { exclusive: true })
+        return
+      case 'planned':
+      case 'note':
+        // Its surface first, then the canvas can find and frame it.
+        if (sheetsNow.activeSheetId !== result.sheetId) void sheetsNow.openSheet(workspaceId, result.sheetId, result.sheetId ? { exclusive: true } : undefined)
+        showOnMap(result.nodeId)
+        return
+      case 'conversation':
+        useConversationPreferences.setState({ requested: { workspaceId, threadId: result.threadId } })
+        return
+      case 'investigation':
+        void apiGetInvestigation(workspaceId, result.investigationId).then(doc => startReplay(doc as InvestigationDoc)).catch(() => {})
+        return
+    }
     showOnMap(result.nodeId)
     if (result.kind === 'symbol') {
       const { fileId, name, kind, lineStart, lineEnd } = result.symbol
       useSourcePreviewStore.getState().open({ fileId, workspaceId, name, kind, lineStart, lineEnd })
     }
-    onClose()
-  }, [showOnMap, onClose, workspaceId])
+  }, [showOnMap, onClose, workspaceId, startReplay])
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown') {
@@ -113,10 +185,7 @@ export function SearchBar({ onClose }: SearchBarProps) {
     >
       <section className="ambio-search-window" role="dialog" aria-modal="true" aria-label="Search the map">
         <header className="ambio-search-header">
-          <div>
-            <h2>Find in project</h2>
-            <p>Systems, infrastructure, files and symbols</p>
-          </div>
+          <h2>Find in project</h2>
           <button type="button" className="ambio-search-close" onClick={onClose} aria-label="Close search">×</button>
         </header>
 
@@ -134,7 +203,7 @@ export function SearchBar({ onClose }: SearchBarProps) {
             value={query}
             onChange={event => setQuery(event.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="A system, file, path or function name…"
+            placeholder="Search systems, files, functions, sheets, notes, conversations…"
           />
           <kbd>Esc</kbd>
         </div>
@@ -142,20 +211,11 @@ export function SearchBar({ onClose }: SearchBarProps) {
         <div className="ambio-search-body">
           {results.length > 0 && (
             <>
-              <div className="ambio-search-results-header">
-                <span>{browsing ? 'On the map' : 'Results'}</span>
-                <output>
-                  {browsing ? 'Type to search files and symbols too'
-                    : `${results.length} ${results.length === 1 ? 'match' : 'matches'}`}
-                </output>
-              </div>
               <div className="ambio-search-results" id="ambio-search-results" role="listbox" aria-label="Search results">
                 {results.map((result, index) => {
                   const active = index === activeIdx
                   const systemName = result.kind === 'file' && result.file.systemId ? systemNames.get(result.file.systemId) : null
-                  const badge = result.kind === 'file' ? result.file.language
-                    : result.kind === 'symbol' ? result.symbol.kind
-                    : result.kind === 'infra' ? 'infra' : 'system'
+                  const badge = searchResultBadge(result)
                   return (
                     <React.Fragment key={result.id}>
                       {(index === 0 || results[index - 1].kind !== result.kind) && (
@@ -190,7 +250,7 @@ export function SearchBar({ onClose }: SearchBarProps) {
           {!browsing && results.length === 0 && (
             <div className="ambio-search-empty">
               <strong>No matches</strong>
-              <span>No system, file or symbol is named like “{query}”.</span>
+              <span>Nothing in this project matches “{query}”.</span>
             </div>
           )}
 
@@ -204,7 +264,7 @@ export function SearchBar({ onClose }: SearchBarProps) {
 
         <footer className="ambio-search-footer" aria-label="Search keyboard shortcuts">
           <span><kbd>↑</kbd><kbd>↓</kbd> select</span>
-          <span><kbd>Enter</kbd> show on canvas</span>
+          <span><kbd>Enter</kbd> open</span>
           <span><kbd>Esc</kbd> close</span>
         </footer>
       </section>

@@ -49,3 +49,40 @@ test('a blank query lists systems outermost first, then infrastructure', () => {
     'infra:Orders DB:aws, database',
   ])
 })
+
+test('search finds sheets, what is drawn on them, notes, conversations and investigations, each named for what it is', async () => {
+  const { searchResultBadge } = await import('./searchResults.ts')
+  const results = buildSearchResults({
+    query: 'checkout', systems: [], infraNodes: [], files: [], symbols: [],
+    sheets: [{ id: 'sh1', name: 'Checkout redesign', purpose: '' }, { id: 'sh2', name: 'Payments', purpose: 'How checkout pays' }],
+    planned: [{ id: 'p1', sheetId: 'sh2', sheetName: 'Payments', name: 'Checkout Service', kind: 'system' }],
+    notes: [
+      { id: 'n1', sheetId: null, sheetName: null, body: '# Ideas\nSplit the checkout flow in two.' },
+      { id: 'n2', sheetId: 'sh2', sheetName: 'Payments', body: 'Unrelated' },
+    ],
+    conversations: [{ id: 't1', title: 'Why is the cart slow?', said: ['Why is the cart slow?', 'The checkout query scans every order.'], turns: 2 }],
+    investigations: [{ id: 'i1', name: 'checkout run', createdAt: Date.UTC(2026, 10, 11) }],
+  })
+  assert.deepEqual(results.map(result => [result.kind, result.title]), [
+    ['sheet', 'Checkout redesign'], ['sheet', 'Payments'],
+    ['planned', 'Checkout Service'],
+    ['note', 'Ideas'],
+    ['conversation', 'Why is the cart slow?'],
+    ['investigation', 'checkout run'],
+  ])
+  const note = results.find(result => result.kind === 'note')
+  assert.match(note.detail, /^On the Floor: .*checkout flow/, 'a match inside a note shows where it is and the words around it')
+  assert.match(results.find(result => result.kind === 'conversation').detail, /checkout query/)
+  assert.equal(results.find(result => result.kind === 'planned').detail, 'On Payments')
+  assert.deepEqual(results.map(searchResultBadge), ['Sheet', 'Sheet', 'Planned system', 'Note', 'Agent', 'Recording'])
+})
+
+test('before typing, sheets and recent conversations follow the map', () => {
+  const results = buildSearchResults({
+    query: '', systems, infraNodes, files, symbols,
+    sheets: [{ id: 'b', name: 'Beta' }, { id: 'a', name: 'Alpha' }],
+    conversations: [{ id: 't1', title: 'Latest', said: [], turns: 1 }],
+  })
+  assert.deepEqual(results.slice(-3).map(result => [result.kind, result.title]), [['sheet', 'Alpha'], ['sheet', 'Beta'], ['conversation', 'Latest']])
+  assert.equal(results.at(-1).detail, '1 message')
+})

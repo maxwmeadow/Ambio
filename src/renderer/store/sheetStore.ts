@@ -332,7 +332,7 @@ function withValidScale<T extends { scale?: number }>(item: T): T {
     : { ...item, scale: 1 }
 }
 
-async function fetchSheetLayer(workspaceId: string, sheetId: string): Promise<SheetLayerData | null> {
+export async function fetchSheetLayer(workspaceId: string, sheetId: string): Promise<SheetLayerData | null> {
   const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}?workspace=${encodeURIComponent(workspaceId)}`)
   if (!res.ok) return null
   const data = await res.json() as SheetLayerData

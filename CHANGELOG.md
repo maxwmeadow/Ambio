@@ -7,6 +7,10 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Find in project (Ctrl/Cmd+K) is simpler and finds more: sheets, what is
+  drawn on them, sticky notes, agent conversations and saved investigations,
+  alongside systems, infrastructure, files, functions and classes. Each group
+  keeps its heading in view as you scroll.
 - The + beside Overlay sheets lets you start a blank sheet or a live copy of
   the whole Floor. Naming a new sheet can be cancelled with its × button.
 - The toolbar no longer repeats the open sheet's name; the sheet rail shows it.

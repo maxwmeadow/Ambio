@@ -1354,6 +1354,13 @@ matches systems, infrastructure and files from the store and asks archd's
 `/api/symbols/search` (`db.SearchSymbols`, ranked exact → prefix → contains)
 for symbols - the same endpoint behind `search_symbols` and the Model
 Explorer's search.
+The same window also finds what Ambio keeps besides code: sheets (store),
+what is drawn on them and their sticky notes (each open sheet's layer, read
+once when the window opens, plus the Floor's notes), agent conversations
+(the loaded inbox, matched on what was asked and answered) and saved
+investigations (`/api/investigation/list`). A sheet opens; a drawn item or
+note opens its surface and is shown; a conversation opens in the agent panel;
+an investigation starts its replay.
 
 Work-order updates arrive as `canvas:message` patches; while the window is
 not focused, a pickup or a reply becomes a system notification

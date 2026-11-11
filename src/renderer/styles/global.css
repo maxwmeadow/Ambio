@@ -676,15 +676,6 @@ a { color: var(--accent); text-decoration: none; }
   text-shadow: 0 1px 0 #14201c;
 }
 
-.ambio-search-header p {
-  margin: 2px 0 0;
-  color: #bac5c0;
-  font-family: var(--font-mono);
-  font-size: 8px;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
 .ambio-search-close {
   display: grid;
   width: 28px;
@@ -772,28 +763,6 @@ a { color: var(--accent); text-decoration: none; }
   box-shadow: inset 0 1px 2px rgba(39, 50, 46, 0.18);
 }
 
-.ambio-search-results-header {
-  display: flex;
-  min-height: 27px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 11px;
-  border-bottom: 1px solid #aeb5b1;
-  background: #e2e0d9;
-  color: #41504a;
-  font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.ambio-search-results-header output {
-  color: #68736e;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-}
-
 .ambio-search-results {
   max-height: 360px;
   overflow-y: auto;
@@ -834,14 +803,59 @@ a { color: var(--accent); text-decoration: none; }
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
+/* A group's name stays in view while its rows scroll under it. */
 .ambio-search-group {
-  padding: 7px 8px 3px;
-  color: #68736e;
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  margin: 0 -4px;
+  padding: 8px 12px 4px;
+  border-bottom: 1px solid #d3d6cf;
+  background: #f0eee6;
+  color: #3f4d47;
   font-family: var(--font-mono);
-  font-size: 7.5px;
+  font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.ambio-search-result[data-kind="sheet"] .ambio-search-result__icon {
+  width: 9px;
+  height: 10px;
+  border-color: #3c7d76;
+  background: #fbfaf5;
+}
+
+.ambio-search-result[data-kind="planned"] .ambio-search-result__icon {
+  width: 10px;
+  height: 8px;
+  border: 1px dashed #3c7d76;
+  background: transparent;
+}
+
+.ambio-search-result[data-kind="note"] .ambio-search-result__icon {
+  width: 9px;
+  height: 9px;
+  border-color: #a08a3a;
+  background: #f1dd8a;
+}
+
+.ambio-search-result[data-kind="conversation"] .ambio-search-result__icon {
+  width: 10px;
+  height: 8px;
+  border-color: #3a5a70;
+  border-radius: 2px 2px 2px 0;
+  background: #8aa5b8;
+}
+
+.ambio-search-result[data-kind="investigation"] .ambio-search-result__icon {
+  width: 9px;
+  height: 9px;
+  border-color: #853b2f;
+  border-radius: 50%;
+  background: #fbfaf5;
+  box-shadow: inset 0 0 0 2px #c5654f;
 }
 
 .ambio-search-result[data-kind="system"] .ambio-search-result__icon {
