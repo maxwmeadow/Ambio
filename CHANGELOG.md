@@ -7,6 +7,11 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- An agent's work is easier to follow while it runs: no more status lights,
+  pills or "done" labels, each step says once what it did, and every step,
+  Ambio's own calls included, opens to show what it was asked and what came
+  back. Thinking is easier to read, failed steps are marked, and the Details
+  box reads as plain sentences.
 - Commit from Ambio: the Source control panel lists every changed file with
   the system it belongs to, lets you stage, unstage or discard each one, and
   commits with your message (Ctrl+Enter). Click a file to open it.

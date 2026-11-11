@@ -90,8 +90,16 @@
 .ambio-inbox__review-body p { margin-bottom: 0; }
 .ambio-inbox__review-sessions ul, .ambio-inbox__reported ul { margin: 4px 0 0; padding-left: 18px; }
 .ambio-inbox__review-sessions li + li, .ambio-inbox__reported li + li { margin-top: 3px; }
-.ambio-inbox__review-changes { padding: 7px; border: 1px solid #b5c9b8; background: #e8eee7; }
-.ambio-inbox__review-changes ul { margin: 5px 0; padding-left: 18px; }
+/* A session reads as what it was for, then who did it, where, and whether it is still going. */
+.ambio-inbox__review-sessions ul { list-style: none; padding-left: 0; }
+.ambio-inbox__session-goal { display: block; color: #26332e; font-size: 12px; font-weight: 600; }
+.ambio-inbox__session-meta { display: block; color: #5d6c65; font-size: 11px; }
+/* What the work changed on the map, a sentence each, files by name. */
+.ambio-inbox__review-changes { padding: 7px 9px; border: 1px solid #c9d3c7; background: #f1f2eb; }
+.ambio-inbox__review-changes ul { margin: 5px 0 0; padding-left: 0; list-style: none; }
+.ambio-inbox__review-changes li { color: #3b4a44; font-size: 11.5px; line-height: 1.5; }
+.ambio-inbox__review-changes li + li { margin-top: 2px; }
+.ambio-inbox__review-changes strong { color: #26332e; font-weight: 600; }
 .ambio-inbox__evidence-label { color: #4c6758; font: 700 8px var(--font-mono, monospace); letter-spacing: .04em; }
 .ambio-inbox__evidence-empty { color: #728075; }
 .ambio-inbox__reported { padding: 8px; border: 1px solid #c3c9b8; background: #eeefe6; }

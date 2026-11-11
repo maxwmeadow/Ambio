@@ -1,3 +1,4 @@
+import os from 'node:os'
 import type { DeliveryEvent, DeliveryUsage } from '../src/shared/agentDelivery.ts'
 import { prose, thinkingEvents, type TurnMode } from './agentDrivers.ts'
 
@@ -93,6 +94,52 @@ export function unifiedDiff(file: string, oldText: string | null | undefined, ne
   const oldStart = start - lead.length, oldCount = lead.length + removed.length + tail.length, newCount = lead.length + added.length + tail.length
   const header = `--- ${oldText == null ? '/dev/null' : `a/${file}`}\n+++ b/${file}\n@@ -${oldCount ? oldStart + 1 : 0},${oldCount} +${newCount ? oldStart + 1 : 0},${newCount} @@`
   return [header, ...lead.map(line => ` ${line}`), ...body, ...tail.map(line => ` ${line}`)].join('\n')
+}
+
+/** The verb a tool kind reads as when its title does not start with one. */
+const ACP_KIND_VERB: Record<string, string> = { read: 'Read', edit: 'Edit', delete: 'Delete', move: 'Move', search: 'Search', execute: 'Run', fetch: 'Fetch' }
+
+/**
+ * A path as a person writes it: inside the project, from the project
+ * (`notes/a.md`); elsewhere in home, from home (`~/.gemini/config/x.md`).
+ */
+export function homeShortened(path: string, home = os.homedir(), project = ''): string {
+  const normal = path.replace(/\\/g, '/')
+  const within = (folder: string) => {
+    const root = folder.replace(/\\/g, '/').replace(/\/+$/, '')
+    return root && normal.toLowerCase().startsWith(`${root.toLowerCase()}/`) ? normal.slice(root.length + 1) : undefined
+  }
+  const inProject = project ? within(project) : undefined
+  if (inProject !== undefined) return inProject
+  const inHome = within(home)
+  return inHome !== undefined ? `~/${inHome}` : normal
+}
+
+/**
+ * The one label for an ACP tool call: its verb and what it acted on, said
+ * once. agy titles a read or an edit "File <path relative to its cwd>" and reports the
+ * same file again as an absolute location; the location, from home, is the
+ * one kept. A title that already names the location's file keeps no second
+ * copy of it.
+ */
+export function acpToolLabel(title: string, kind: string | undefined, location: string | undefined, home = os.homedir(), project = ''): string {
+  const where = location ? homeShortened(location, home, project) : ''
+  const base = (path: string) => path.replace(/\\/g, '/').split('/').filter(Boolean).pop()?.toLowerCase() ?? ''
+  const file = /^file\s+(.+)$/i.exec(title.trim())
+  // agy titles reads and edits alike; the call's kind says which.
+  if (file) return `${(kind && ACP_KIND_VERB[kind]) || 'Read'} · ${where || file[1]}`
+  const words = title.trim()
+  const named = !!where && words.toLowerCase().includes(base(where))
+  const verb = kind && ACP_KIND_VERB[kind] && !new RegExp(`^${ACP_KIND_VERB[kind]}\\b`, 'i').test(words) && !/^(run\s+)?mcp_/i.test(words) ? ACP_KIND_VERB[kind] : ''
+  return [verb, words, named ? '' : where].filter(Boolean).join(' · ')
+}
+
+/** A tool's arguments as text a person can read, or nothing when it has none. */
+export function toolInput(value: unknown, max = 4000): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value === 'string') return value.slice(0, max)
+  if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value as object).length === 0) return undefined
+  try { return JSON.stringify(value, null, 2).slice(0, max) } catch { return undefined }
 }
 
 /** ACP tool content in the fields every agent's activity uses: text as output, file changes as a diff. */
@@ -286,12 +333,14 @@ export class AcpClient {
   private reportTool(update: any, first: boolean): void {
     const id = typeof update.toolCallId === 'string' && update.toolCallId ? update.toolCallId : undefined
     const prior = id ? this.tools.get(id) : undefined
-    const where = Array.isArray(update.locations) && update.locations[0]?.path ? ` · ${clip(String(update.locations[0].path), 1000)}` : ''
+    const location = Array.isArray(update.locations) && update.locations[0]?.path ? clip(String(update.locations[0].path), 1000) : undefined
+    const kind = typeof update.kind === 'string' ? update.kind : this.toolKinds.get(id ?? '')
     // The label the call started with stays; agy's updates retitle it with a full path.
-    const label = prior?.text ?? (first ? `${clip(String(update.title ?? update.name ?? update.kind ?? 'tool'), 1000)}${where}`
-      : clip(String(update.title ?? this.toolTitles.get(id ?? '') ?? 'Tool result'), 1000))
+    const label = prior?.text ?? acpToolLabel(clip(String(update.title ?? this.toolTitles.get(id ?? '') ?? update.name ?? update.kind ?? 'tool'), 1000), kind, location, os.homedir(), this.turn.cwd)
+    const input = prior?.input ?? toolInput(update.rawInput)
+    // A failed call stays a step, marked failed, beside the calls around it.
     const event: Omit<DeliveryEvent, 'at'> = {
-      ...prior, ...(id ? { id } : {}), kind: update.status === 'failed' ? 'error' : 'tool', text: label,
+      ...prior, ...(id ? { id } : {}), kind: 'tool', text: label, ...(input ? { input } : {}),
       ...(typeof update.status === 'string' ? { status: update.status } : {}), ...acpToolDetail(update.content, update.rawOutput),
     }
     if (id) this.tools.set(id, event)

@@ -67,8 +67,11 @@ export function WorkOrderReview({ message, workspaceId, currentSheet }: { messag
         {reopening && <div className="ambio-inbox__review-reopen"><label htmlFor={`review-feedback-${message.id}`}>What needs to change?</label><textarea id={`review-feedback-${message.id}`} value={feedback} onChange={event => setFeedback(event.target.value)} maxLength={4000} rows={3} /><button type="button" disabled={busy || !feedback.trim()} onClick={() => { void decide('reopened') }}>Reopen work order</button></div>}
       </div>}
       <RunBranchReview sessions={message.sessions} />
-      {!!message.sessions?.length && <div className="ambio-inbox__review-sessions"><strong>Work sessions</strong><ul>{message.sessions.map(session => <li key={session.id}><span>{session.agent || 'Agent'}, {session.goal}{session.branch ? `, ${session.branch}` : ''}{session.endedAt ? ', ended' : ', open'}</span>{session.notes.length > 0 && <ol>{session.notes.map((entry, index) => <li key={`${entry.ts}:${index}`}>{entry.text}</li>)}</ol>}{session.summary && <p>{session.summary}</p>}</li>)}</ul></div>}
-      {!!message.changes?.length && <div className="ambio-inbox__review-changes"><div className="ambio-inbox__evidence-label">Indexed changes <span>linked to this order</span></div><ul>{message.changes.map((change, index) => <li key={`${change.at}:${index}`}>{change.kind}, {change.subjectLabel || 'unnamed item'}{change.objectLabel ? ` → ${change.objectLabel}` : ''}{change.count > 1 ? ` (${change.count} updates)` : ''}</li>)}</ul></div>}
+      {!!message.sessions?.length && <div className="ambio-inbox__review-sessions"><strong>Work sessions</strong><ul>{message.sessions.map(session => <li key={session.id}>
+        <span className="ambio-inbox__session-goal">{session.goal || 'Untitled work'}</span>
+        <span className="ambio-inbox__session-meta">{[session.agent || 'Agent', session.branch ? `on ${session.branch}` : '', session.endedAt ? 'finished' : 'still working'].filter(Boolean).join(', ')}</span>
+        {session.notes.length > 0 && <ol>{session.notes.map((entry, index) => <li key={`${entry.ts}:${index}`}>{entry.text}</li>)}</ol>}{session.summary && <p>{session.summary}</p>}</li>)}</ul></div>}
+      {!!message.changes?.length && <div className="ambio-inbox__review-changes"><div className="ambio-inbox__evidence-label">Map changes <span>from this work</span></div><ul>{message.changes.map((change, index) => <li key={`${change.at}:${index}`}><MapChange change={change} /></li>)}</ul></div>}
       {message.reply && <ReportedResult reply={message.reply} />}
       {message.sheetId && currentSheet && <div className="ambio-inbox__review-sheet"><div className="ambio-inbox__evidence-label">Current sheet structure <span>live canvas</span></div><button type="button" className="ambio-inbox__review-compare" onClick={() => setCompareOpen(!compareOpen)}>{compareOpen ? 'Hide comparison' : 'Compare current sheet'}</button>{compareOpen && <SheetComparison workspaceId={workspaceId} sheetId={message.sheetId} />}</div>}
       {!!message.priorReplies?.length && <div className="ambio-inbox__review-prior"><strong>Earlier submissions</strong>{message.priorReplies.map((reply, index) => <details key={`${reply.createdAt}:${index}`}><DisclosureSummary>{reply.agent}, {new Date(reply.createdAt).toLocaleString()}</DisclosureSummary><AgentMessageContent text={reply.body} /><ReportedResult reply={reply} /></details>)}</div>}
@@ -78,6 +81,38 @@ export function WorkOrderReview({ message, workspaceId, currentSheet }: { messag
       {error && <p role="alert" className="ambio-inbox__review-error">{error}</p>}
     </div>}
   </section>
+}
+
+/** The last part of a path, which is how a person names a file. */
+const fileName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path
+
+/** What a journal entry did to the map, as a sentence, the file by its name. */
+export function mapChangeWords(change: { kind: string; subjectLabel: string; objectLabel?: string }): { lead: string; subject: string; rest: string } {
+  const subject = change.subjectLabel || 'an unnamed item'
+  const file = fileName(subject)
+  const object = change.objectLabel ?? ''
+  switch (change.kind) {
+    case 'file.assigned': return { lead: 'Put', subject: file, rest: object ? `in ${object}` : 'in a system' }
+    case 'file.moved': return { lead: 'Moved', subject: file, rest: object ? `to ${object}` : '' }
+    case 'file.created': return { lead: 'Added', subject: file, rest: object ? `to ${object}` : '' }
+    case 'file.updated': return { lead: 'Changed', subject: file, rest: '' }
+    case 'file.deleted': return { lead: 'Removed', subject: file, rest: '' }
+    case 'file.unclassified': return { lead: 'Left', subject: file, rest: 'unsorted' }
+    case 'system.created': case 'system.added': return { lead: 'Created system', subject, rest: object ? `in ${object}` : '' }
+    case 'system.renamed': return { lead: 'Renamed', subject, rest: object ? `to ${object}` : '' }
+    case 'system.nested': return { lead: 'Put', subject, rest: object ? `inside ${object}` : '' }
+    case 'system.merged': return { lead: 'Merged', subject, rest: object ? `into ${object}` : '' }
+    case 'system.ungrouped': return { lead: 'Ungrouped', subject, rest: '' }
+    case 'system.deleted': case 'system.removed': return { lead: 'Removed system', subject, rest: '' }
+    case 'infra.linked': return { lead: 'Linked', subject, rest: object ? `to ${object}` : '' }
+    case 'infra.unlinked': return { lead: 'Unlinked', subject, rest: object ? `from ${object}` : '' }
+  }
+  return { lead: 'Changed', subject, rest: object ? `(${object})` : '' }
+}
+
+function MapChange({ change }: { change: { kind: string; subjectLabel: string; objectLabel?: string; count: number } }) {
+  const words = mapChangeWords(change)
+  return <span title={change.subjectLabel}>{words.lead} <strong>{words.subject}</strong>{words.rest ? ` ${words.rest}` : ''}{change.count > 1 ? `, ${change.count} times` : ''}</span>
 }
 
 /**

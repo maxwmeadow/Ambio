@@ -205,7 +205,7 @@ function toolTarget(input: unknown): string {
 // replaces it with how it went, a command's output and exit code, and an
 // edit's diff. Claude 2.1.198 reports a failed command as an error result
 // beginning "Exit code N" and an edit's change as `tool_use_result.structuredPatch`.
-const claudeTools = new Map<string, { text: string; name: string; diff?: string }>()
+const claudeTools = new Map<string, { text: string; name: string; diff?: string; input?: string }>()
 const COMMAND_TOOLS = new Set(['Bash', 'PowerShell'])
 const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 
@@ -227,14 +227,26 @@ function claudeIntendedDiff(name: string, input: any): string | undefined {
   return undefined
 }
 
+/** Tools whose row already says everything they were asked: no input to open. */
+const SELF_EXPLAINING_TOOLS = new Set([...COMMAND_TOOLS, ...EDIT_TOOLS, 'Read', 'Glob', 'LS', 'TodoWrite'])
+
+/** Arguments as readable text, for tools whose row cannot say them all. */
+function claudeInput(name: string, input: unknown): string | undefined {
+  if (SELF_EXPLAINING_TOOLS.has(name) || input === undefined || input === null) return undefined
+  // One argument is the row's own target already.
+  if (typeof input === 'object' && !Array.isArray(input) && Object.keys(input as object).length <= 1) return undefined
+  try { return keep(JSON.stringify(input, null, 2), 4000) } catch { return undefined }
+}
+
 function claudeToolUse(block: any, subagent: boolean): Omit<DeliveryEvent, 'at'> {
   const name = String(block.name ?? 'tool')
   const text = [subagent ? 'Subagent' : '', name.replace(/^mcp__ambio__/, 'Ambio · '), toolTarget(block.input)].filter(Boolean).join(' · ')
   const diff = EDIT_TOOLS.has(name) ? claudeIntendedDiff(name, block.input) : undefined
-  if (typeof block.id !== 'string') return { kind: 'tool', text }
+  const input = claudeInput(name, block.input)
+  if (typeof block.id !== 'string') return { kind: 'tool', text, ...(input ? { input } : {}) }
   if (claudeTools.size > 500) claudeTools.delete(claudeTools.keys().next().value!)
-  claudeTools.set(block.id, { text, name, ...(diff ? { diff } : {}) })
-  return { id: `claude:${block.id}`, kind: 'tool', text, status: 'inProgress', ...(diff ? { diff } : {}) }
+  claudeTools.set(block.id, { text, name, ...(diff ? { diff } : {}), ...(input ? { input } : {}) })
+  return { id: `claude:${block.id}`, kind: 'tool', text, status: 'inProgress', ...(diff ? { diff } : {}), ...(input ? { input } : {}) }
 }
 
 function claudeToolResult(block: any, detail: any): Omit<DeliveryEvent, 'at'> | undefined {
@@ -247,10 +259,16 @@ function claudeToolResult(block: any, detail: any): Omit<DeliveryEvent, 'at'> | 
   const command = COMMAND_TOOLS.has(known.name)
   const code = command ? failed ? Number(/^Exit code (\d+)/.exec(content)?.[1] ?? NaN) : 0 : undefined
   const diff = EDIT_TOOLS.has(known.name) && !failed ? claudePatchDiff(String(detail?.filePath ?? ''), detail?.structuredPatch) ?? known.diff : undefined
+  // What a tool that is not a file read or an edit answered (Ambio's tools,
+  // searches, subagents) is worth opening; a file's whole content is not.
+  const answered = !command && !failed && !EDIT_TOOLS.has(known.name) && known.name !== 'Read' && content.trim()
   return {
-    id: `claude:${block.tool_use_id}`, kind: failed && !command ? 'error' : 'tool', text: known.text, status: failed ? 'failed' : 'completed',
+    // A failed call stays a step, marked failed, beside the calls around it.
+    id: `claude:${block.tool_use_id}`, kind: 'tool', text: known.text, status: failed ? 'failed' : 'completed',
+    ...(known.input ? { input: known.input } : {}),
     ...(command && content.trim() ? { output: keep(content.replace(/^Exit code \d+\n?/, ''), 16000) } : {}),
     ...(!command && failed && content.trim() ? { output: keep(content, 4000) } : {}),
+    ...(answered ? { output: keep(content, 8000) } : {}),
     ...(code !== undefined && Number.isFinite(code) ? { exitCode: code } : {}),
     ...(diff ? { diff } : {}),
   }

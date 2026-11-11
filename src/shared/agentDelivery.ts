@@ -138,6 +138,8 @@ export interface DeliveryEvent {
   /** Stable provider item identity; later snapshots replace the earlier activity. */
   id?: string
   status?: string
+  /** What a tool was asked to do (its arguments), where it says more than the row's label. */
+  input?: string
   output?: string
   diff?: string
   exitCode?: number | null

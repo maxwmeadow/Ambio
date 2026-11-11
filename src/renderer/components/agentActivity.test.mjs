@@ -59,3 +59,15 @@ test('a run of steps is summed up in words, without separators', () => {
   assert.equal(stepsSummary([tool('Bash · npm test', 'failed')]), 'Ran a command, one failed')
   assert.doesNotMatch(stepsSummary([thinking, tool('Edit · a.ts'), tool('Grep · TODO')]), /·/)
 })
+
+test('MCP tools read the same whichever agent named them', async () => {
+  const { toolRow, toolWords } = await import('./agentActivity.ts')
+  // Antigravity titles them "Run mcp_ambio_…"; Claude Code's raw name is mcp__ambio__….
+  assert.deepEqual(toolRow('Run mcp_ambio_get_inbox'), { badge: 'Ambio', tool: 'get_inbox', target: '' })
+  assert.deepEqual(toolRow('mcp__ambio__edit_sheet'), { badge: 'Ambio', tool: 'edit_sheet', target: '' })
+  assert.deepEqual(toolRow('mcp__github__list_issues'), { badge: 'Tool', tool: 'github list_issues', target: '' })
+  // Antigravity's "File <path>" is a read of that path.
+  assert.deepEqual(toolRow('File ../notes/SKILL.md'), { badge: 'Read', tool: '../notes/SKILL.md', target: '' })
+  assert.equal(toolWords('get_architecture'), 'Get architecture')
+  assert.equal(toolWords('Bash'), 'Bash')
+})

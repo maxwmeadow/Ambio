@@ -4,7 +4,7 @@ import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../../shared/agen
 import type { ChatPart } from '../../shared/agentChat'
 import { AgentMessageContent } from './AgentMessageContent'
 import { InboxIcon } from './InboxIcon'
-import { projectPath, statusLabel, stepsSummary, toolRow } from './agentActivity'
+import { inputSummary, isGenericTool, projectPath, statusLabel, STEP_VERBS, stepsSummary, toolActivityLabel, toolRow, toolWords } from './agentActivity'
 import '../styles/agentTurn.css'
 
 /**
@@ -22,14 +22,21 @@ export interface WorkItem {
   text: string
   status?: string
   exitCode?: number | null
+  /** What a tool was asked, where it says more than the row. */
+  input?: string
   output?: string
   diff?: string
   /** Still being written; the caret follows it. */
   live?: boolean
 }
 
+// A tool call that failed used to be reported as an error of its own, its
+// label shown raw outside the steps; it is the failed step it always was.
 export const deliveryWorkItems = (events: DeliveryEvent[]): WorkItem[] =>
-  events.map((event, index) => ({ key: event.id ?? `${event.at}:${index}`, kind: event.kind, text: event.text, status: event.status, exitCode: event.exitCode, output: event.output, diff: event.diff, live: event.live }))
+  events.map((event, index) => {
+    const failedTool = event.kind === 'error' && !!event.id
+    return { key: event.id ?? `${event.at}:${index}`, kind: failedTool ? 'tool' : event.kind, text: event.text, status: failedTool ? event.status ?? 'failed' : event.status, exitCode: event.exitCode, input: event.input, output: event.output, diff: event.diff, live: event.live }
+  })
 
 export const chatWorkItems = (parts: ChatPart[]): WorkItem[] =>
   parts.map(part => part.kind === 'tool'
@@ -74,7 +81,7 @@ export function AgentWork({ items, rootPath, working }: { items: WorkItem[]; roo
       : <li key={block.item.key} data-kind={block.item.kind} data-live={block.item.live ? 'true' : undefined}>
         {block.item.kind === 'text' ? <AgentMessageContent text={block.item.text} />
           : block.item.kind === 'sent' ? <p><small>You</small>{block.item.text}</p>
-            : <p>{projectPath(block.item.text, rootPath)}</p>}
+            : <p>{toolActivityLabel(projectPath(block.item.text, rootPath))}</p>}
       </li>)}
   </ol>
 }
@@ -86,9 +93,8 @@ function AgentSteps({ items, rootPath, current }: { items: WorkItem[]; rootPath?
   const open = chosen ?? current
   return <div className="ambio-turn__steps" data-open={open ? 'true' : undefined} data-current={current ? 'true' : undefined}>
     <button type="button" className="ambio-turn__steps-toggle" aria-expanded={open} onClick={() => setChosen(!open)}>
-      {current && <span className="ambio-turn__pulse" aria-hidden="true" />}
-      <span>{stepsSummary(items)}</span>
       <Chevron size={11} expanded={open} />
+      <span>{stepsSummary(items)}</span>
     </button>
     <ol className="ambio-turn__step-list" hidden={!open}>
       {items.map(item => <li key={item.key} data-kind={item.kind}>
@@ -100,23 +106,62 @@ function AgentSteps({ items, rootPath, current }: { items: WorkItem[]; rootPath?
   </div>
 }
 
+/** A name without its leading verb ("Edit a.ts" under Edit reads "a.ts"), unless that is all it is. */
+function withoutVerb(name: string, verb: string): string {
+  const match = /^(\S+)\s+(\S.*)$/.exec(name)
+  return match && match[1].toLowerCase().startsWith(verb.toLowerCase()) ? match[2] : name
+}
+
+/** Duplicate parts of a row: agy names the same file twice, once relative and once absolute. */
+function sameFile(a: string, b: string): boolean {
+  const last = (path: string) => path.replace(/\\/g, '/').split('/').filter(Boolean).pop()?.toLowerCase() ?? ''
+  return /\./.test(last(a)) && last(a) === last(b)
+}
+
+/**
+ * One step: the word for what it did, then what it acted on, said once.
+ * Nothing is shown for a step that finished; one still going says so, and
+ * one that failed says how. A step with more to it (what it was asked, what
+ * came back, what it changed) opens in place.
+ */
 function ToolLine({ item, rootPath }: { item: WorkItem; rootPath?: string }) {
+  const [open, setOpen] = useState(false)
   const row = toolRow(item.text, rootPath)
   const status = item.status ? statusLabel(item.status) : undefined
-  // Drivers join a row's parts with " · "; here each part is its own piece, set apart by space and weight.
-  const targets = row.target ? row.target.split(' · ').filter(Boolean) : []
-  const line = <span className="ambio-turn__tool">
-    <span className="ambio-turn__tool-state" data-status={status} aria-hidden="true" />
-    <span className="ambio-turn__badge" data-badge={row.badge.toLowerCase()}>{row.badge}</span>
-    {row.subagent !== undefined && <span className="ambio-turn__subagent" title="Done by a subagent">{row.subagent || 'Subagent'}</span>}
-    <span className="ambio-turn__tool-name">{row.tool}</span>
-    {targets.map((target, index) => <span key={index} className="ambio-turn__target" title={target}>{target}</span>)}
-    {status && <small>{status}{item.exitCode != null ? `, exit ${item.exitCode}` : ''}</small>}
-    {(item.output || item.diff) && <span className="ambio-turn__more">{item.diff ? 'View changes' : 'View output'}</span>}
-  </span>
-  return item.output || item.diff
-    ? <details><DisclosureSummary>{line}</DisclosureSummary><pre>{item.diff || item.output}</pre></details>
-    : line
+  // Drivers join a row's parts with a separator; each part is its own piece here.
+  const parts = [row.tool, ...(row.target ? row.target.split(' \u00b7 ') : [])].map(part => part.trim()).filter(Boolean)
+  const said = parts.filter((part, index) => !parts.slice(0, index).some(earlier => earlier === part || sameFile(earlier, part)))
+  // "Bash", "Read", "Shell" only repeat the step's word; their target says what it did.
+  const verb = STEP_VERBS[row.badge]
+  const named = (row.badge === 'Ambio' ? [toolWords(row.tool), ...said.slice(1)]
+    : said.length > 1 && isGenericTool(said[0]) ? said.slice(1) : said)
+    // "Edit fixture.txt", "Reading src/app.ts": the leading word is the step's own.
+    .map((part, index) => index === 0 && row.badge !== 'Ambio' && row.badge !== 'Tool' ? withoutVerb(part, verb) : part)
+  const about = named.length > 1 ? named.slice(1).join(', ') : row.badge === 'Ambio' ? inputSummary(item.input) : ''
+  const failed = status === 'failed' || status === 'declined' || status === 'error' || (item.exitCode != null && item.exitCode !== 0)
+  const state = failed ? (item.exitCode != null && item.exitCode !== 0 ? `failed, exit ${item.exitCode}` : status === 'declined' ? 'declined' : 'failed')
+    : status === 'running' || status === 'waiting' ? status : ''
+  const more = !!(item.input || item.output || item.diff)
+  const line = <>
+    <span className="ambio-turn__verb" data-badge={row.badge.toLowerCase()}>{verb}</span>
+    <span className="ambio-turn__what">
+      {row.subagent !== undefined && <span className="ambio-turn__subagent" title="Done by a subagent">{row.subagent || 'Subagent'}</span>}
+      <span className="ambio-turn__tool-name">{named[0] ?? row.tool}</span>
+      {about && <span className="ambio-turn__target" title={about}>{about}</span>}
+    </span>
+    {state && <span className="ambio-turn__state" data-failed={failed || undefined}>{state}</span>}
+  </>
+  if (!more) return <div className="ambio-turn__tool"><span className="ambio-turn__chevron-space" aria-hidden="true" />{line}</div>
+  return <div className="ambio-turn__tool-item" data-open={open || undefined}>
+    <button type="button" className="ambio-turn__tool" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <Chevron size={10} expanded={open} />{line}
+    </button>
+    {open && <div className="ambio-turn__tool-detail">
+      {item.input && <section><h4>Asked</h4><pre>{item.input}</pre></section>}
+      {item.diff && <section><h4>Changes</h4><pre>{item.diff}</pre></section>}
+      {item.output && <section><h4>{failed ? 'Error' : 'Answer'}</h4><pre>{item.output}</pre></section>}
+    </div>}
+  </div>
 }
 
 /**
@@ -155,7 +200,7 @@ export function AgentTurnCard({ agent, working, startedAt, lastAt, items, rootPa
   return <section className={`ambio-inbox__reply ambio-turn${className ? ` ${className}` : ''}`} data-state={working ? 'working' : answer ? 'answered' : 'ended'} aria-label={`${agent}${working ? ' working' : ''}`}>
     <div className="ambio-inbox__reply-heading">
       <InboxIcon name="agent" size={16} /><strong>{agent}</strong>
-      {working && <span className="ambio-turn__working" role="status"><span className="ambio-turn__pulse" aria-hidden="true" />{took ? `Working for ${took}` : 'Working'}</span>}
+      {working && <span className="ambio-turn__working" role="status">{took ? `Working for ${took}` : 'Working'}</span>}
       {answer?.onCopy && !working && <button type="button" className="ambio-inbox__copy-reply" aria-label={answer.copied ? 'Reply copied' : 'Copy reply'} onClick={answer.onCopy}><InboxIcon name={answer.copied ? 'check' : 'copy'} size={13} />{answer.copied ? 'Copied' : 'Copy'}</button>}
     </div>
     {folded

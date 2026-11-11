@@ -291,7 +291,13 @@ export class CodexAppServer {
     if (item.type === 'reasoning' && done) update(item.id, { kind: 'thinking', text: (item.summary ?? []).join('\n').slice(0, 64000) })
     if (item.type === 'commandExecution') update(item.id, { kind: 'tool', text: `Shell · ${item.command ?? ''}`, status: item.status, output: String(item.aggregatedOutput ?? old?.output ?? '').slice(-16000), exitCode: item.exitCode })
     if (item.type === 'fileChange') update(item.id, { kind: 'tool', text: `Edit · ${(item.changes ?? []).map((change: any) => change.path).join(', ')}`, status: item.status, diff: (item.changes ?? []).map((change: any) => `${change.path}\n${change.diff ?? ''}`).join('\n').slice(0, 64000) })
-    if (item.type === 'mcpToolCall') update(item.id, { kind: 'tool', text: `${item.server === 'ambio' ? 'Ambio' : item.server} · ${item.tool}`, status: item.status })
+    if (item.type === 'mcpToolCall') {
+      // What it was asked and what it answered, so the step can be opened.
+      const answered = Array.isArray(item.result?.content) ? item.result.content.filter((part: any) => part?.type === 'text').map((part: any) => String(part.text ?? '')).join('\n') : ''
+      const input = item.arguments && typeof item.arguments === 'object' && Object.keys(item.arguments).length ? JSON.stringify(item.arguments, null, 2).slice(0, 4000) : undefined
+      const output = (item.error?.message ? String(item.error.message) : answered).slice(0, 8000)
+      update(item.id, { kind: 'tool', text: `${item.server === 'ambio' ? 'Ambio' : item.server} · ${item.tool}`, status: item.status, ...(input ? { input } : {}), ...(output ? { output } : {}) })
+    }
     if (item.type === 'dynamicToolCall') update(item.id, { kind: 'tool', text: String(item.tool ?? item.type), status: item.status })
     if (item.type === 'collabAgentToolCall') {
       const receivers = [...new Set<string>([...(item.receiverThreadIds ?? []), ...Object.keys(item.agentsStates ?? {})])]

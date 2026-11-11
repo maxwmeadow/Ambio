@@ -23,7 +23,8 @@ export interface ToolRow {
 const BADGES: Array<[ActivityBadge, RegExp]> = [
   ['Run', /^(bash|powershell|shell|run|exec|execute|terminal|command|cmd|killshell|bashoutput)\b/i],
   ['Edit', /^(edit|multiedit|write|notebookedit|apply_patch|patch|create|delete|move)\b/i],
-  ['Read', /^(read|view|notebookread|open|cat)\b/i],
+  // Antigravity titles a file it reads "File <path>".
+  ['Read', /^(read|view|notebookread|open|cat|file)\b/i],
   ['Search', /^(grep|glob|search|find|websearch|toolsearch)\b/i],
   ['List', /^(ls|list|dir)\b/i],
   ['Web', /^(webfetch|fetch|browse)\b/i],
@@ -45,6 +46,32 @@ function badgeFor(tool: string): ActivityBadge {
 
 const KNOWN_TOOL = (part: string) => BADGES.some(([, pattern]) => pattern.test(part.trim()))
 
+/** Whether a tool's own name only says its kind (Bash, Shell, Read, Grep…), so its target says the rest. */
+export function isGenericTool(tool: string): boolean {
+  return /^\S+$/.test(tool.trim()) && KNOWN_TOOL(tool)
+}
+
+/** The word a step leads with, by what its tool does. */
+export const STEP_VERBS: Record<ActivityBadge, string> = {
+  Ambio: 'Ambio', Read: 'Read', List: 'List', Search: 'Search', Run: 'Run', Edit: 'Edit', Web: 'Fetch', Agent: 'Agent', Tool: 'Tool',
+}
+
+/**
+ * What an Ambio call was about, from its arguments, when its row names no
+ * target: `{"op":"overview"}` reads "overview".
+ */
+export function inputSummary(input: string | undefined): string {
+  if (!input) return ''
+  let value: unknown
+  try { value = JSON.parse(input) } catch { return '' }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
+  const record = value as Record<string, unknown>
+  const leading = ['op', 'scope', 'action', 'kind', 'name', 'query', 'path', 'target', 'sheet', 'title']
+  const said = [...leading.filter(key => key in record), ...Object.keys(record).filter(key => !leading.includes(key))]
+    .map(key => record[key]).filter((item): item is string | number => (typeof item === 'string' && !!item.trim() && item.length <= 80) || typeof item === 'number')
+  return said.slice(0, 2).map(String).join(', ')
+}
+
 /**
  * A path inside the project as it is written in the project (`src/app.ts`),
  * whichever slashes the agent used; anything else is left as it is.
@@ -56,6 +83,20 @@ export function projectPath(text: string, rootPath?: string): string {
   const escaped = root.replace(/[.*+?^${}()|[\]]/g, '\\$&').replace(/\//g, '[\\\\/]')
   // Windows paths compare without case; a POSIX root keeps it.
   return text.replace(new RegExp(`${escaped}[\\\\/]([^\\s'"\`]*)`, /^[a-z]:/i.test(root) ? 'gi' : 'g'), (_match, rest: string) => rest.replace(/\\/g, '/') || '.')
+}
+
+/**
+ * An MCP tool as agents name it outside Ambio's own label: Antigravity's
+ * `mcp_ambio_get_inbox` (titled `Run mcp_ambio_get_inbox`), Claude Code's
+ * `mcp__ambio__get_inbox`. The server and the tool.
+ */
+const MCP_NAME = /^(?:run\s+)?mcp__?([a-z0-9-]+?)__?([a-z0-9_]+)$/i
+
+/** A tool's own name as words: `get_architecture` reads "Get architecture". */
+export function toolWords(tool: string): string {
+  if (!/^[a-z0-9]+(_[a-z0-9]+)+$/i.test(tool)) return tool
+  const words = tool.replace(/_/g, ' ').toLowerCase()
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 /** A tool row's parts: badge, tool name, target and the subagent, if any. */
@@ -72,6 +113,10 @@ export function toolRow(text: string, rootPath?: string): ToolRow {
     parts = parts.slice(named)
   }
   if (parts[0] === 'Ambio' && parts.length > 1) return { badge: 'Ambio', tool: parts[1], target: parts.slice(2).join(' · '), ...(subagent !== undefined ? { subagent } : {}) }
+  const mcp = MCP_NAME.exec((parts[0] ?? '').trim())
+  if (mcp) return { badge: mcp[1].toLowerCase() === 'ambio' ? 'Ambio' : 'Tool', tool: mcp[1].toLowerCase() === 'ambio' ? mcp[2] : `${mcp[1]} ${mcp[2]}`, target: parts.slice(1).join(' · '), ...(subagent !== undefined ? { subagent } : {}) }
+  // "File <path>" is the path itself, read.
+  if (/^file\s+\S/i.test(parts[0] ?? '')) return { badge: 'Read', tool: (parts[0] ?? '').replace(/^file\s+/i, ''), target: parts.slice(1).join(' · '), ...(subagent !== undefined ? { subagent } : {}) }
   const tool = parts[0] ?? ''
   return { badge: badgeFor(tool), tool, target: parts.slice(1).join(' · '), ...(subagent !== undefined ? { subagent } : {}) }
 }

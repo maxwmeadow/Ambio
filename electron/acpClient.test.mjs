@@ -127,7 +127,8 @@ test('an ACP turn hands the agent Ambio\'s tools, records what it does and remem
     // What it thought arrives in pieces and is said once, before what it said.
     ['thinking', 'Reading the request.'],
     ['text', 'Mode agent. Tools from ambio@ws.'],
-    ['tool', 'Edit worker.ts · src/worker.ts'],
+    // The title already names the file: it is said once.
+    ['tool', 'Edit worker.ts'],
     ['text', 'Permission yes for: Claim work order x'],
   ])
 })
@@ -271,9 +272,9 @@ test('an ACP tool call and its updates are one item with its output, diff and ex
   ])
   await client.run()
   const run = events.filter(event => event.id === 'run'), edit = events.filter(event => event.id === 'edit')
-  assert.deepEqual(run.at(-1), { id: 'run', kind: 'tool', text: 'npm test', status: 'completed', output: '1 failing', exitCode: 1 })
+  assert.deepEqual(run.at(-1), { id: 'run', kind: 'tool', text: 'Run · npm test', status: 'completed', output: '1 failing', exitCode: 1 })
   // A later update without content keeps the diff, and the label the call started with.
-  assert.equal(edit.at(-1).text, 'File a.txt · a.txt')
+  assert.equal(edit.at(-1).text, 'Edit · a.txt')
   assert.equal(edit.at(-1).diff, '--- a/a.txt\n+++ b/a.txt\n@@ -1,2 +1,2 @@\n one\n-two\n+2')
   assert.ok(!events.some(event => 'content' in event || 'toolCallId' in event))
   assert.deepEqual(usages.at(-1), { inputTokens: 100, cachedInputTokens: 40, outputTokens: 7, reasoningOutputTokens: 3, totalTokens: 107 })
@@ -291,4 +292,23 @@ test('Antigravity\'s ACP connection offers Ask me and Full access, its print rou
   assert.deepEqual(agentDriver('antigravity-cli', 'acp').access, ['ask', 'full'])
   assert.equal(agentDriver('antigravity-cli').access, undefined)
   assert.equal(agentDriver('antigravity-cli', 'print').access, undefined)
+})
+
+test('an ACP tool call is labelled once, with its verb and the file from home', async () => {
+  const { acpToolLabel, homeShortened } = await import('./acpClient.ts')
+  const home = 'C:\\Users\\max'
+  // agy: "File <relative>" plus the same file as an absolute location.
+  assert.equal(acpToolLabel('File ../../.gemini/config/skills/ambio-inbox/SKILL.md', 'read', 'C:\\Users\\max\\.gemini\\config\\skills\\ambio-inbox\\SKILL.md', home),
+    'Read \u00b7 ~/.gemini/config/skills/ambio-inbox/SKILL.md')
+  // agy titles an edit the same way; its kind says it is one.
+  assert.equal(acpToolLabel('File a.txt', 'edit', 'a.txt', home), 'Edit · a.txt')
+  // A title that already names the file keeps no second copy of it.
+  assert.equal(acpToolLabel('Edit src/app.ts', 'edit', 'C:\\work\\src\\app.ts', home), 'Edit src/app.ts')
+  // A kind adds its verb when the title has none; MCP titles are left to the view.
+  assert.equal(acpToolLabel('npm test', 'execute', undefined, home), 'Run \u00b7 npm test')
+  assert.equal(acpToolLabel('Run mcp_ambio_get_inbox', 'execute', undefined, home), 'Run mcp_ambio_get_inbox')
+  assert.equal(homeShortened('/home/max/notes.md', '/home/max'), '~/notes.md')
+  // Inside the project, a path is written from the project.
+  assert.equal(homeShortened('/home/max/work/app/src/a.ts', '/home/max', '/home/max/work/app'), 'src/a.ts')
+  assert.equal(acpToolLabel('File notes/missing.md', 'read', '/home/max/work/app/notes/missing.md', '/home/max', '/home/max/work/app'), 'Read · notes/missing.md')
 })

@@ -157,7 +157,7 @@ test('Claude Code tool calls become one item each, completed by their result (2.
   assert.deepEqual(result({ type: 'tool_result', tool_use_id: 'r1', content: '1\tconst a = 1' })[0], { id: 'claude:r1', kind: 'tool', text: 'Read · a.ts', status: 'completed' })
   use({ type: 'tool_use', id: 'w1', name: 'Write', input: { file_path: 'b.ts', content: 'x' } })
   assert.deepEqual(result({ type: 'tool_result', tool_use_id: 'w1', is_error: true, content: 'Permission denied by the user' })[0],
-    { id: 'claude:w1', kind: 'error', text: 'Write · b.ts', status: 'failed', output: 'Permission denied by the user' })
+    { id: 'claude:w1', kind: 'tool', text: 'Write · b.ts', status: 'failed', output: 'Permission denied by the user' })
   // A subagent's tool is still marked as its; a result for an unknown call adds nothing.
   assert.equal(use({ type: 'tool_use', id: 's1', name: 'Grep', input: { pattern: 'x' } }, 'parent').text, 'Subagent · Grep · x')
   assert.deepEqual(result({ type: 'tool_result', tool_use_id: 'nobody', content: 'x' }), [])

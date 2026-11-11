@@ -109,7 +109,7 @@ test('Harbor Checkout: sheet request, linked work, structural match, submission 
     await inbox.getByRole('button', { name: /Review result/ }).click()
     await expect(inbox.getByRole('button', { name: 'Accept result' })).toBeVisible({ timeout: 12000 })
     await expect(inbox.getByText('Sent structure matches the live architecture')).toBeVisible()
-    await expect(inbox.getByText('Indexed changes')).toBeVisible()
+    await expect(inbox.getByText('Map changes')).toBeVisible()
     await page.screenshot({ path: 'test-results/work-order-commerce-review.png' })
     await inbox.getByRole('button', { name: 'Accept result' }).click()
     await expect(inbox.getByText('Accepted', { exact: true }).first()).toBeVisible()

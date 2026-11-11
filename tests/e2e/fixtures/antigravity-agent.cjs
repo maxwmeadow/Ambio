@@ -53,6 +53,17 @@ reader.on('line', line => {
     }
     promptId = id
     capture({ prompt: params.prompt[0].text })
+    // What agy 1.5 sends before it edits, as it sends it: thinking, a skill
+    // read titled "File <relative path>" with the same file as an absolute
+    // location, an Ambio call titled "Run mcp_ambio_…", and a read that fails.
+    const skill = path.join(require('node:os').homedir(), '.gemini', 'config', 'skills', 'ambio-inbox', 'SKILL.md')
+    update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'The fixture needs one approved line; checking what Ambio knows first.' } })
+    update({ sessionUpdate: 'tool_call', toolCallId: 'skill', kind: 'read', title: 'File ../../.gemini/config/skills/ambio-inbox/SKILL.md', status: 'in_progress', locations: [{ path: skill }] })
+    update({ sessionUpdate: 'tool_call_update', toolCallId: 'skill', status: 'completed' })
+    update({ sessionUpdate: 'tool_call', toolCallId: 'arch', kind: 'execute', title: 'Run mcp_ambio_get_architecture', status: 'in_progress', rawInput: { op: 'overview' } })
+    update({ sessionUpdate: 'tool_call_update', toolCallId: 'arch', status: 'completed', content: [{ type: 'content', content: { type: 'text', text: '3 systems: Canvas Renderer, MCP Server, archd Daemon' } }] })
+    update({ sessionUpdate: 'tool_call', toolCallId: 'missing', kind: 'read', title: 'File notes/missing.md', status: 'in_progress', locations: [{ path: path.join(process.cwd(), 'notes', 'missing.md') }] })
+    update({ sessionUpdate: 'tool_call_update', toolCallId: 'missing', status: 'failed', content: [{ type: 'content', content: { type: 'text', text: 'File not found' } }] })
     update({ sessionUpdate: 'tool_call', toolCallId: 'edit', kind: 'edit', title: 'Edit fixture.txt', status: 'pending' })
     return send({ id: 777, method: 'session/request_permission', params: { sessionId, toolCall: { toolCallId: 'edit', kind: 'edit', title: 'Edit fixture.txt' }, options: [{ optionId: 'yes', kind: 'allow_once' }, { optionId: 'no', kind: 'reject_once' }] } })
   }
