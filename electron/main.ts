@@ -34,7 +34,7 @@ import type { ProjectConfig, WsMessage } from '../src/shared/types'
 import { completeSourceBoundaries, mergePersistedProjectConfig } from '../src/shared/projectLifecycle'
 import { buildHosts, detectHosts, inspectHostConfiguration, installFamily } from './agentInstallers'
 import { CLI_CLIENTS, RUN_NEEDS_INSTALL, SHARED_APP_CLIENTS, installerHostId, isAgentAccess } from '../src/shared/agentDelivery'
-import { attachmentsDirectory, describePaths, saveAttachment } from './attachments'
+import { attachmentsDirectory, describePaths, imagePreview, saveAttachment } from './attachments'
 import { discoverAppClients } from './agentClientDiscovery'
 import { readExecutableOverrides, setExecutableOverride, clearExecutableOverride } from './agentExecutableOverrides'
 import { removeLegacyServer, uninstallAll, uninstallHost } from './agentUninstall'
@@ -1235,6 +1235,10 @@ function setupIPC(): void {
       ? { title: 'Attach a folder', properties: ['openDirectory'] }
       : { title: 'Attach files', properties: ['openFile', 'multiSelections'] })
     return result.canceled ? [] : describePaths(result.filePaths)
+  })
+  ipcMain.handle('attachments:preview', (_event, target: string) => {
+    if (typeof target !== 'string' || !target) throw new Error('No image to preview.')
+    return imagePreview(target)
   })
   ipcMain.handle('attachments:open', async (_event, target: string) => {
     if (typeof target !== 'string' || !target || !fs.existsSync(target)) throw new Error('This attachment is no longer on this computer.')

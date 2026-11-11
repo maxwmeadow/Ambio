@@ -129,7 +129,7 @@ test('Northstar API: selected systems, failed check, feedback, second attempt an
     await page.locator('.ambio-selection-actions').getByRole('button', { name: 'Message agent', exact: true }).click()
     const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
     await expect(page.locator('.ambio-selection-actions')).toBeHidden()
-    await expect(inbox.locator('.ambio-inbox__compose .ambio-inbox__targets button')).toHaveCount(2)
+    await expect(inbox.locator('.ambio-inbox__compose .ambio-inbox__chip')).toHaveCount(2)
     await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Add a timeout response to the selected API system.')
     await inbox.getByRole('button', { name: 'Send to inbox' }).click()
     await expect.poll(() => orders.length).toBe(1)

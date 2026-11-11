@@ -218,6 +218,7 @@ contextBridge.exposeInMainWorld('ambio', {
   describeAttachments: (paths: string[]): Promise<Attachment[]> => ipcRenderer.invoke('attachments:describe', paths),
   pickAttachments: (kind: 'files' | 'folder'): Promise<Attachment[]> => ipcRenderer.invoke('attachments:pick', kind),
   openAttachment: (path: string): Promise<void> => ipcRenderer.invoke('attachments:open', path),
+  previewAttachment: (path: string): Promise<string> => ipcRenderer.invoke('attachments:preview', path),
   installCli: (): Promise<{ ok: boolean; path?: string; manual?: string; detail: string }> => ipcRenderer.invoke('cli:install'),
   takeWhatsNew: (): Promise<{ version: string; notes: string } | null> => ipcRenderer.invoke('app:take-whats-new'),
   whatsNew: (): Promise<{ version: string; notes: string } | null> => ipcRenderer.invoke('app:whats-new'),
@@ -463,6 +464,7 @@ declare global {
       describeAttachments: (paths: string[]) => Promise<Attachment[]>
       pickAttachments: (kind: 'files' | 'folder') => Promise<Attachment[]>
       openAttachment: (path: string) => Promise<void>
+      previewAttachment: (path: string) => Promise<string>
       installCli: () => Promise<{ ok: boolean; path?: string; manual?: string; detail: string }>
       takeWhatsNew: () => Promise<{ version: string; notes: string } | null>
       whatsNew: () => Promise<{ version: string; notes: string } | null>

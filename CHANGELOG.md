@@ -7,6 +7,9 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Attached images show as thumbnails; click one to see it full size. Everything
+  attached to a message sits in one row you can scroll sideways, and each item
+  has its own remove button.
 - Attach files, folders and screenshots to a message: drop them on the message
   box, paste them, or choose Files… or Folder… under Attach context. Pasting a
   long block of text attaches it instead of filling the box.

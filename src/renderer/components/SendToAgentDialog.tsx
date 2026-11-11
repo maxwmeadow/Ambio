@@ -28,6 +28,7 @@ import { ChatTranscript, chatAgentLabel, chatThreadId, OPEN_MODEL_SERVICES, useA
 import { conversationKey, useConversationPreferences } from '../store/conversationPreferences'
 import { ConversationMenu, type ConversationEntry } from './ConversationMenu'
 import { attachesPaste, attachmentOf, attachmentReference, type Attachment } from '../../shared/attachments'
+import { AttachmentThumbnail, ImageLightbox } from './AttachmentImage'
 import '../styles/inbox.css'
 
 export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResize }: { isOpen: boolean; onClose: () => void; onManageConnections?: () => void; onResize: (width: number) => void }) {
@@ -88,6 +89,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   const [pickerOpen, setPickerOpen] = useState(false)
   // Files being dragged over the message box.
   const [dropping, setDropping] = useState(false)
+  // An attached image shown large.
+  const [viewing, setViewing] = useState<{ path: string; label: string } | null>(null)
   const [unseen, setUnseen] = useState(false)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
   const [excluded, setExcluded] = useState<string[]>([])
@@ -345,15 +348,26 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
     dismissPicker()
     void window.ambio.pickAttachments(kind).then(attachOutside, attachFailed)
   }
+  // What goes with a message, one chip each: opening it (an image shows large,
+  // a file or folder opens, map items show on the map) is separate from
+  // removing it, which only the message box offers.
   const chips = (refs: string[], editable = false) => refs.length > 0 && <div className="ambio-inbox__targets">{refs.map(ref => {
     const outside = attachmentOf(ref)
     const label = outside?.label ?? referenceTarget(ref).label
     const icon = outside ? (outside.kind === 'folder' ? 'folder' : outside.kind === 'image' ? 'image' : outside.kind === 'text' ? 'text' : 'file') : referenceLines(ref) ? 'code' : 'canvas'
-    const open = () => outside ? void window.ambio.openAttachment(outside.path).catch(cause => setError(cause instanceof Error ? cause.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(cause))) : focus(ref)
-    return <button type="button" key={ref} data-kind={outside?.kind} disabled={editable && locked} onClick={() => editable ? removeFromMessage(ref) : open()}
-      title={editable ? `Remove ${label} from message${outside ? ` (${outside.path})` : ''}` : outside ? `Open ${outside.path}` : referenceLines(ref) ? 'Open these lines' : 'Show on canvas'}>
-      <InboxIcon name={icon} size={12} /><span>{label}</span>{editable && !locked && <InboxIcon name="close" size={11} />}
-    </button>
+    const image = outside?.kind === 'image'
+    const open = () => image ? setViewing({ path: outside!.path, label })
+      : outside ? void window.ambio.openAttachment(outside.path).catch(cause => setError(cause instanceof Error ? cause.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(cause)))
+      : focus(ref)
+    return <span key={ref} className="ambio-inbox__chip" data-kind={outside?.kind}>
+      <button type="button" className="ambio-inbox__chip-open" onClick={open}
+        title={image ? `View ${label}` : outside ? `Open ${outside.path}` : referenceLines(ref) ? 'Open these lines' : 'Show on canvas'}>
+        {image ? <AttachmentThumbnail path={outside!.path} /> : <InboxIcon name={icon} size={12} />}<span>{label}</span>
+      </button>
+      {editable && <button type="button" className="ambio-inbox__chip-remove" disabled={locked} aria-label={`Remove ${label} from message`} title={`Remove ${label} from message`} onClick={() => removeFromMessage(ref)}>
+        <InboxIcon name="close" size={11} />
+      </button>}
+    </span>
   })}</div>
   const copy = (text: string, id: string) => { void navigator.clipboard.writeText(text).then(() => setCopied(id), () => setError('Clipboard unavailable. Select the visible work order ID and tell your agent to call get_inbox with that messageId.')) }
   const submit = async (event: FormEvent) => {
@@ -522,6 +536,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       {unseen && <button className="ambio-inbox__latest" type="button" onClick={latest}>Jump to latest ↓</button>}
     </div>
     </StepTargetsContext.Provider>
+    {viewing && <ImageLightbox path={viewing.path} label={viewing.label} onClose={() => setViewing(null)} />}
     <div className="ambio-inbox__bottom">
       {!caseTarget && (readiness => readiness.tone === 'ready' || readiness.tone === 'neutral' ? null : <DeliveryReadiness onFix={onManageConnections} readiness={readiness} />)(deliveryReadiness({ hostId: retry.current?.hostId ?? delivery.hostId, hosts: delivery.hosts, installedIds: delivery.installedIds, configuredIds: delivery.configuredIds, watchers: delivery.watchers, watchingHosts: delivery.watchingHosts,
         chat: toChat ? { service: chatProvider?.name ?? 'this service', auth: chatProvider?.auth, keyMissing: !!chatProvider && !chatProvider.hasKey && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(chatProvider.baseUrl) } : undefined }))}

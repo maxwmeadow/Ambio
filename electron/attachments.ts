@@ -41,6 +41,24 @@ export function saveAttachment(directory: string, input: { kind: 'text'; text: s
   return { path: file, kind: 'image', label: input.name || `Pasted image ${at}` }
 }
 
+const PREVIEW_TYPES: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml',
+}
+
+/**
+ * An attached image as a data URL, to show it in the message box: the page
+ * cannot load files from disk itself. Only images, and only up to the size
+ * Ambio would keep.
+ */
+export function imagePreview(target: string): string {
+  const type = PREVIEW_TYPES[fileName(target).split('.').pop()?.toLowerCase() ?? '']
+  if (!type) throw new Error('Only images have a preview.')
+  const stat = fs.statSync(target)
+  if (!stat.isFile()) throw new Error('Only images have a preview.')
+  if (stat.size > ATTACHMENT_MAX_BYTES) throw new Error('That image is too large to preview.')
+  return `data:${type};base64,${fs.readFileSync(target).toString('base64')}`
+}
+
 /** What paths on this computer are, to attach them: folders, images or files. Missing paths are left out. */
 export function describePaths(paths: readonly string[]): Attachment[] {
   return paths.flatMap(item => {

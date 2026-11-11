@@ -56,7 +56,7 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     await page.locator('.ambio-selection-actions').getByRole('button', { name: 'Message agent', exact: true }).click()
     const panel = page.getByRole('complementary', { name: 'Agent inbox' })
     await expect(panel).toBeVisible()
-    await expect(panel.locator('.ambio-inbox__compose .ambio-inbox__targets button')).toHaveCount(2)
+    await expect(panel.locator('.ambio-inbox__compose .ambio-inbox__chip')).toHaveCount(2)
     const textbox = panel.getByRole('textbox', { name: 'Instruction for your agent' })
     await textbox.fill('Explain how these systems communicate.')
     await panel.getByRole('button', { name: 'Send to inbox', exact: true }).click()
@@ -66,7 +66,7 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     await page.reload()
     await page.getByRole('button', { name: /^Message agent/ }).click()
     await expect(textbox).toHaveValue('Explain how these systems communicate.')
-    await expect(panel.locator('.ambio-inbox__compose .ambio-inbox__targets button')).toHaveCount(2)
+    await expect(panel.locator('.ambio-inbox__compose .ambio-inbox__chip')).toHaveCount(2)
     await panel.getByRole('button', { name: 'Send to inbox', exact: true }).click()
     await expect(textbox).toHaveValue('')
     // Readiness is said for the chosen destination, never as MCP status.
@@ -204,7 +204,7 @@ test('the attach picker adds systems and files as context, and the Unsorted wind
     await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject?.name)).toBe('Ambio Canvas Fixture')
     await page.getByRole('button', { name: /^Message agent/ }).click()
     const panel = page.getByRole('complementary', { name: 'Agent inbox' })
-    const chips = panel.locator('.ambio-inbox__compose .ambio-inbox__targets button')
+    const chips = panel.locator('.ambio-inbox__compose .ambio-inbox__chip')
     await expect(chips).toHaveCount(0)
 
     // Before typing it offers the map's systems, under a heading, with no extra explanations.
@@ -265,14 +265,15 @@ test('long pasted text, a pasted screenshot and files from this computer attach 
     await page.getByRole('button', { name: /^Message agent/ }).click()
     const panel = page.getByRole('complementary', { name: 'Agent inbox' })
     const box = panel.getByRole('textbox', { name: 'Instruction for your agent' })
-    const chips = panel.locator('.ambio-inbox__compose .ambio-inbox__targets button')
+    const chips = panel.locator('.ambio-inbox__compose .ambio-inbox__chip')
 
     // A long block of text attaches instead of filling the box; a short one is typed in.
     const log = Array.from({ length: 30 }, (_, i) => `at frame ${i} (renderer.ts:${i + 10})`).join('\n')
     const paste = (text: string | null, image?: boolean) => box.evaluate((element, { text, image }) => {
       const data = new DataTransfer()
       if (text) data.setData('text/plain', text)
-      if (image) data.items.add(new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'image.png', { type: 'image/png' }))
+      // A real 2x1 PNG, so its thumbnail draws.
+      if (image) data.items.add(new File([Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAEUlEQVR4nGP4z8DwHwqZYRwAU7QG/i/m3WkAAAAASUVORK5CYII='), c => c.charCodeAt(0))], 'image.png', { type: 'image/png' }))
       element.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
     }, { text, image })
     await box.fill('Why does this crash?')
@@ -280,9 +281,18 @@ test('long pasted text, a pasted screenshot and files from this computer attach 
     await expect(chips.filter({ hasText: 'Pasted text, 30 lines' })).toHaveCount(1)
     await expect(box).toHaveValue('Why does this crash?')
 
-    // A screenshot on the clipboard is saved and attached.
+    // A screenshot on the clipboard is saved and attached, as a thumbnail that opens large.
     await paste(null, true)
-    await expect(chips.filter({ hasText: /^Pasted image/ })).toHaveCount(1)
+    const shot = chips.filter({ hasText: /^Pasted image/ })
+    await expect(shot).toHaveCount(1)
+    await expect.poll(() => shot.locator('img').evaluate(img => (img as HTMLImageElement).naturalWidth)).toBe(2)
+    await shot.getByRole('button', { name: /^Pasted image/ }).click()
+    const lightbox = page.getByRole('dialog', { name: /^Pasted image/ })
+    await expect(lightbox.getByRole('img')).toBeVisible()
+    await page.screenshot({ path: 'test-results/attachment-lightbox.png' })
+    await page.keyboard.press('Escape')
+    await expect(lightbox).toHaveCount(0)
+    await expect(shot).toHaveCount(1)
 
     // Files from this computer, through the system dialog.
     await app.evaluate(({ dialog }, file) => { (dialog as any).showOpenDialog = async () => ({ canceled: false, filePaths: [file] }) }, picked)
@@ -290,6 +300,10 @@ test('long pasted text, a pasted screenshot and files from this computer attach 
     await panel.getByRole('dialog', { name: 'Attach context' }).getByRole('button', { name: 'Files…' }).click()
     await expect(chips.filter({ hasText: 'design-notes.md' })).toHaveCount(1)
     await page.screenshot({ path: 'test-results/attachments-from-computer.png' })
+    // Everything attached is one row, left to right.
+    const tops = await chips.evaluateAll(items => items.map(item => Math.round(item.getBoundingClientRect().top + item.getBoundingClientRect().height / 2)))
+    expect(new Set(tops).size).toBe(1)
+    expect(await panel.locator('.ambio-inbox__attachments').evaluate(row => getComputedStyle(row).overflowX)).toBe('auto')
 
     // Sent, they travel as path references; the pasted text and image are files Ambio kept.
     await panel.getByRole('button', { name: 'Send to inbox', exact: true }).click()

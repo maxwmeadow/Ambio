@@ -4906,10 +4906,11 @@ test('the editor marks what changed since the commit, whose change it is, and ca
   await page.keyboard.press('ControlOrMeta+I')
   await expect(page.locator('.source-preview-backdrop')).toBeHidden()
   await expect(composer).toHaveValue('')
-  const attached = page.locator('.ambio-inbox__attachments').getByRole('button', { name: `${file}:3-4` })
-  await expect(attached).toHaveAttribute('title', `Remove ${file}:3-4 from message`)
+  const attached = page.locator('.ambio-inbox__attachments').getByRole('button', { name: `${file}:3-4`, exact: true })
+  await expect(attached).toHaveAttribute('title', 'Open these lines')
   await page.locator('.ambio-inbox__compose, .ambio-inbox form').first().screenshot({ path: 'test-results/agent-code-attachment.png' })
-  await attached.click()
+  // Removing is its own button beside the chip; clicking the chip opens it.
+  await page.locator('.ambio-inbox__attachments').getByRole('button', { name: `Remove ${file}:3-4 from message` }).click()
   await expect(attached).toHaveCount(0)
 
   // Opening the file again brings its tab back, edits and all; closing its tab asks about them.
