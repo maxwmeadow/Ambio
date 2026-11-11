@@ -303,8 +303,12 @@ test('long pasted text, a pasted screenshot and files from this computer attach 
     const lightbox = page.locator('.ambio-lightbox__frame')
     await expect(lightbox.getByRole('img')).toBeVisible()
     await expect(lightbox).toContainText('1 of 2')
+    // The viewer keeps its size from image to image; each image fits inside it.
+    const frame = await lightbox.boundingBox()
     await lightbox.getByRole('button', { name: 'Next image' }).click()
     await expect(lightbox).toHaveAttribute('aria-label', 'diagram.png')
+    expect(await lightbox.boundingBox()).toEqual(frame)
+    expect(await lightbox.getByRole('img').evaluate(img => getComputedStyle(img).objectFit)).toBe('contain')
     await expect(lightbox).toContainText('2 of 2')
     await page.screenshot({ path: 'test-results/attachment-lightbox.png' })
     await page.keyboard.press('ArrowRight')

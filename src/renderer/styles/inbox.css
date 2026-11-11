@@ -62,14 +62,15 @@
 
 /* An attached image at full size. */
 .ambio-lightbox { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 32px; background: rgba(12, 18, 16, .72); }
-.ambio-lightbox__frame { display: flex; flex-direction: column; max-width: min(92vw, 1400px); max-height: 88vh; margin: 0; border: 1px solid #1d2925; background: #f0eee6; box-shadow: 0 24px 70px rgba(0, 0, 0, .45); }
+/* One size whatever the image, so stepping between images moves nothing; each image fits inside it at its own proportions. */
+.ambio-lightbox__frame { display: flex; flex-direction: column; width: min(92vw, 1400px); height: 88vh; margin: 0; border: 1px solid #1d2925; background: #f0eee6; box-shadow: 0 24px 70px rgba(0, 0, 0, .45); }
 .ambio-lightbox__frame figcaption { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; background: linear-gradient(180deg, #4a5a56 0%, #2c3935 100%); color: #fffdf5; font: 600 12px var(--font-ui, sans-serif); }
 .ambio-lightbox__frame figcaption > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ambio-lightbox__frame figcaption button { padding: 3px 9px; border: 1px solid #6f807a; background: #3b4a46; color: #e9efe8; font: 600 11px var(--font-ui, sans-serif); cursor: pointer; }
 .ambio-lightbox__frame figcaption button:hover { background: #4c5d58; }
 .ambio-lightbox__frame .ambio-lightbox__close { display: grid; place-items: center; width: 26px; height: 24px; padding: 0; }
-.ambio-lightbox__image { position: relative; display: grid; place-items: center; min-width: 240px; min-height: 160px; overflow: auto; padding: 8px; background: #dcdad2; }
-.ambio-lightbox__image img { display: block; max-width: calc(min(92vw, 1400px) - 18px); max-height: calc(88vh - 56px); object-fit: contain; }
+.ambio-lightbox__image { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; padding: 8px; background: #dcdad2; }
+.ambio-lightbox__image img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .ambio-lightbox__image p { margin: 0; color: #5f6f67; font: 12px var(--font-ui, sans-serif); }
 .ambio-inbox__targets span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ambio-inbox__targets .ambio-inbox__chip { overflow: visible; }
