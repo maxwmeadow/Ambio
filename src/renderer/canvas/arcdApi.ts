@@ -113,6 +113,42 @@ export function apiSyncCheckout(workspaceId: string, action: CheckoutSyncAction)
   return postCheckout<{ action: CheckoutSyncAction; branch: string }>('/api/checkouts/sync', { workspaceId, action }, 'Unable to reach the remote')
 }
 
+/** A changed file in the Floor's checkout, with Git's one-letter states
+ *  (docs/GIT_WORKFLOW.md stage 2). */
+export interface CheckoutChange {
+  /** Relative to the checkout's folder, as the map's files are. */
+  path: string
+  /** A rename's original path. */
+  from?: string
+  /** The index against HEAD: M, A, D, R, C; absent when nothing is staged. */
+  staged?: string
+  /** The working tree against the index; U for untracked or conflicted. */
+  unstaged?: string
+  untracked?: boolean
+  conflicted?: boolean
+}
+
+export async function apiListChanges(workspaceId: string, signal?: AbortSignal): Promise<{ branch: string; files: CheckoutChange[] }> {
+  const res = await fetch(`${archdWsHttp()}/api/checkouts/changes?workspace=${encodeURIComponent(workspaceId)}`, { signal })
+  if (!res.ok) throw new Error(await res.text() || `Unable to list changes (${res.status})`)
+  return res.json()
+}
+
+/** Stage or unstage files in the Floor's checkout. */
+export function apiStageChanges(workspaceId: string, paths: string[], stage: boolean) {
+  return postCheckout<{ files: number }>('/api/checkouts/stage', { workspaceId, paths, stage }, stage ? 'Unable to stage' : 'Unable to unstage')
+}
+
+/** Throw away files' unstaged changes; an untracked file is deleted. */
+export function apiDiscardChanges(workspaceId: string, paths: string[]) {
+  return postCheckout<{ files: number }>('/api/checkouts/discard', { workspaceId, paths }, 'Unable to discard')
+}
+
+/** Commit what is staged, or with all, every change. */
+export function apiCommit(workspaceId: string, message: string, all: boolean) {
+  return postCheckout<{ commit: string; branch: string; files: number }>('/api/checkouts/commit', { workspaceId, message, all }, 'Unable to commit')
+}
+
 /** A local branch as the branch menu lists it. */
 export interface BranchListing {
   name: string

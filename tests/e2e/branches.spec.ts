@@ -74,11 +74,21 @@ const PLAIN = {
 let focusRequests: unknown[] = []
 let runRequests: Array<{ path: string; body: unknown }> = []
 let syncRequests: unknown[] = []
+// The Floor's checkout's changed files, as /api/checkouts/changes answers;
+// staging and committing change them like Git would.
+let changes: Array<{ path: string; staged?: string; unstaged?: string; untracked?: boolean }> = []
+let commitRequests: unknown[] = []
+const CHANGES = () => [
+  { path: 'src/renderer/canvas/AmbioCanvas.tsx', unstaged: 'M' },
+  { path: 'notes/plan.md', unstaged: 'U', untracked: true },
+]
 
 async function launch(checkouts: unknown) {
   focusRequests = []
   runRequests = []
   syncRequests = []
+  changes = CHANGES()
+  commitRequests = []
   const { ELECTRON_RUN_AS_NODE: _electronRunAsNode, ...env } = process.env
   e2eHome = mkdtempSync(join(tmpdir(), 'ambio-e2e-home-'))
   mkdirSync(join(e2eHome, 'AppData', 'Roaming'), { recursive: true })
@@ -105,7 +115,23 @@ async function launch(checkouts: unknown) {
     for (const path of ['/api/checkouts/finish', '/api/checkouts/switch', '/api/checkouts/branches/delete']) {
       if (url.includes(path)) runRequests.push({ path, body: route.request().postDataJSON() })
     }
+    if (url.includes('/api/checkouts/stage')) {
+      const { paths, stage } = route.request().postDataJSON()
+      changes = changes.map(change => !paths.includes(change.path) ? change : stage
+        ? { path: change.path, staged: change.untracked ? 'A' : change.unstaged }
+        : { path: change.path, ...(change.staged === 'A' ? { unstaged: 'U', untracked: true } : { unstaged: change.staged }) })
+    }
+    if (url.includes('/api/checkouts/commit')) {
+      const request = route.request().postDataJSON()
+      commitRequests.push(request)
+      const files = changes.filter(change => request.all || change.staged).length
+      changes = request.all ? [] : changes.filter(change => !change.staged)
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ commit: 'c0ffee1', branch: 'main', files }) })
+      return
+    }
     const body = url.includes('/api/checkouts/focus') ? { ok: true }
+      : url.includes('/api/checkouts/changes?') ? { branch: 'main', files: changes }
+      : url.includes('/api/checkouts/stage') ? { files: route.request().postDataJSON().paths.length }
       : url.includes('/api/checkouts/sync') ? { action: route.request().postDataJSON().action, branch: 'main' }
       : url.includes('/api/checkouts/finish') ? { action: route.request().postDataJSON().action, into: 'main', files: 3 }
       : url.includes('/api/checkouts/switch') ? { branch: route.request().postDataJSON().branch }
@@ -160,7 +186,7 @@ test('the branch chip shows the Floor’s branch and opens every checkout', asyn
   await expect(rows.first()).toContainText('origin/main')
   await expect(rows.first().getByLabel('0 to pull, 1 to push')).toBeVisible()
   await expect(rows.first().getByRole('button', { name: 'Push 1 commit' })).toBeVisible()
-  await expect(rows.first()).toContainText('2 uncommitted files')
+  await expect(rows.first().getByRole('list', { name: 'Changes', exact: true }).getByRole('listitem')).toHaveCount(2)
   // Opening asked the remote what is new; nothing else ran.
   await expect.poll(() => syncRequests).toEqual([{ workspaceId: 'demo', action: 'fetch' }])
   await rows.first().getByRole('button', { name: 'Push 1 commit' }).click()
@@ -417,4 +443,41 @@ test('a folder of repositories shows each repository and its branch', async () =
     await page.waitForTimeout(400)
     await page.screenshot({ path: join(SHOTS, 'repositories.png') })
   }
+})
+
+test('changed files are listed, staged and committed from the branch menu', async () => {
+  await launch(PARALLEL)
+  await page.keyboard.press('ControlOrMeta+Shift+B')
+  const popover = page.getByRole('dialog', { name: 'Branches and worktrees' })
+  const unstaged = popover.getByRole('list', { name: 'Changes', exact: true })
+  await expect(unstaged.getByRole('listitem')).toHaveCount(2)
+  const canvas = unstaged.getByRole('listitem').filter({ hasText: 'AmbioCanvas.tsx' })
+  await expect(canvas).toContainText('src/renderer/canvas')
+  await expect(canvas.getByRole('button', { name: /AmbioCanvas\.tsx, Modified/ })).toBeVisible()
+
+  // With changes to commit, Commit leads and Push steps back.
+  const commit = popover.getByRole('button', { name: 'Commit all 2' })
+  await expect(commit).toBeDisabled()
+  await expect(popover.getByRole('button', { name: 'Push 1 commit' })).toHaveAttribute('data-secondary', 'true')
+
+  await canvas.hover()
+  await canvas.getByRole('button', { name: 'Stage', exact: true }).click()
+  const staged = popover.getByRole('list', { name: 'Staged changes' })
+  await expect(staged.getByRole('listitem')).toHaveCount(1)
+  await expect(unstaged.getByRole('listitem')).toHaveCount(1)
+
+  // Discarding asks first and sends nothing until confirmed.
+  const plan = unstaged.getByRole('listitem').filter({ hasText: 'plan.md' })
+  await plan.hover()
+  await plan.getByRole('button', { name: 'Delete file…' }).click()
+  await expect(plan).toContainText('It was never committed')
+  await plan.getByRole('button', { name: 'Keep them' }).click()
+
+  await popover.getByRole('textbox', { name: 'Commit message' }).fill('Tidy the canvas')
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'source-control-commit.png') })
+  await popover.getByRole('textbox', { name: 'Commit message' }).press('ControlOrMeta+Enter')
+  await expect.poll(() => commitRequests).toEqual([{ workspaceId: 'demo', message: 'Tidy the canvas', all: false }])
+  await expect(popover).toContainText('Committed 1 file to main as c0ffee1.')
+  await expect(staged).toHaveCount(0)
+  await expect(popover.getByRole('textbox', { name: 'Commit message' })).toHaveValue('')
 })

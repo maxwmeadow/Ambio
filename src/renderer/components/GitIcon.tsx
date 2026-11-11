@@ -7,7 +7,7 @@ import { Chevron } from './ui/Chevron'
 type GitIconName =
   | 'branch' | 'pull' | 'push' | 'publish' | 'cloud' | 'cloudOff' | 'refresh'
   | 'folder' | 'code' | 'eye' | 'review' | 'apply' | 'trash'
-  | 'upToDate' | 'diverged' | 'edit' | 'clean' | 'chevronDown' | 'agent' | 'search' | 'plus' | 'copy'
+  | 'upToDate' | 'diverged' | 'edit' | 'clean' | 'chevronDown' | 'agent' | 'search' | 'plus' | 'copy' | 'minus' | 'discard' | 'file'
 
 const paths: Record<Exclude<GitIconName, 'chevronDown'>, React.ReactNode> = {
   branch: <><circle cx="6" cy="5" r="2.2" /><circle cx="6" cy="19" r="2.2" /><circle cx="18" cy="7" r="2.2" /><path d="M6 7.2v9.6M18 9.2c0 4.5-6.5 3.8-11.2 8" /></>,
@@ -29,6 +29,9 @@ const paths: Record<Exclude<GitIconName, 'chevronDown'>, React.ReactNode> = {
   clean: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   search: <><circle cx="10.5" cy="10.5" r="6" /><path d="m15 15 5 5" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
+  minus: <path d="M5 12h14" />,
+  discard: <><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></>,
+  file: <><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z" /><path d="M14 3v5h5" /></>,
   copy: <><rect x="8.5" y="8.5" width="11" height="11" rx="1" /><path d="M15.5 8.5V5.5a1 1 0 0 0-1-1h-9a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3" /></>,
   agent: <><path d="m12 2.5 8.5 4.75v9.5L12 21.5l-8.5-4.75v-9.5z" /><path d="m3.5 7.25 8.5 4.75 8.5-4.75M12 12v9.5" /></>,
 }

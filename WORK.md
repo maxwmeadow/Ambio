@@ -119,7 +119,8 @@ Design: [docs/GIT_AND_PROJECT_SHAPES.md](docs/GIT_AND_PROJECT_SHAPES.md) (decide
 
 Native Git: [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md) (decided 2026-10-28). Stage 1 (sync and the branch popover) is built.
 
-- ⬜ `git-commit` **Stage 2: commit from Ambio.** Changed files grouped by system on the popover and the map; stage by file or system; a message written by hand or drafted by the conversation's agent; the commit journalled as one reviewable entry. [archd gitworktree/api, BranchChip, canvas]
+- ⬜ `git-commit` **Stage 2: commit from Ambio, the rest.** Listing, staging by file, discarding and committing with a message are built (Source control panel). Still to do: stage a whole system at once and mark changed files by system on the map; the conversation's agent drafting the message from the diff and architectural summary; the commit journalled as one reviewable entry. [archd gitworktree/api, BranchChip, canvas]
+- ⬜ `git-commit-agent` **Agents commit through MCP too** (PRODUCT.md §1, the other direction of the Source control panel): an `op` on an existing tool that lists changes, stages and commits on the Floor's checkout through the same archd endpoints, so a person can ask an agent to commit and an agent can hand a commit back for review. [mcp, archd api]
 - ⬜ `git-merge-with-map` **Stage 3: merge, previewed and resolved on the map.** Architectural preview from the branch review; clean merges journalled; each conflict shown on the systems it hits, resolvable here, in the editor or by an agent as a work order; map edits that disagree treated the same way; abort until committed. Needs `git-workflow-questions` Q2-Q4. [archd, Review Changes, agent panel]
 - ⬜ `git-pull-requests` **Stage 4: pull requests** opened from a branch with the architectural diff as the description; review state and checks on the branch's row.
 - ⬜ `git-sync-mcp` **Stage 5 (the agent direction of stage 1, PRODUCT §1):** agents can see where a branch stands and ask for fetch/pull/push, list branches and ask to create, switch or delete one, through an `op` on an existing tool (MCP_SURFACE budget), the person seeing each and approving anything that writes.
@@ -263,6 +264,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `metadata-watcher-test-windows` `TestMetadataWatcherIgnoresAStatusInALinkedWorktree` (archd-go/internal/gitworktree) fails every run on Max's Windows machine on main at 91e315a: a status in a linked worktree is taken for a Git metadata change. (2026-11-10)
 - ⬜ `e2e-preexisting-failures` On main at b299fe6 these e2e tests fail: canvas.spec "Delete on a sheet proposes removing live code", canvas.spec "the editor shows where you are...", and both sheet-authoring "keeps the layout after reopening" cases. Found while checking the toolbar change; not caused by it. (2026-11-10)
 - ⬜ `branch-chip-crowding` At ~1400px the toolbar's branch chip squeezes the branch name to "m…" beside "+1 worktree" and "1 shared". Needs Max's call since the toolbar is reference look. (2026-11-10)
 - ⬜ `sheet-bin-native-drop` The native drag payload handler in `AmbioCanvas` can call the Floor file-assignment path while a sheet is active. Check which bin drag sources still emit that payload. (2026-11-10)
@@ -450,6 +452,7 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 
 ## Done log
 
+- 2026-11-10 `git-commit` (part) Source control panel lists changed files with their system, stages and unstages per file or all, discards with confirmation, and commits with a message (Ctrl+Enter); new archd /api/checkouts/changes, stage, discard, commit. (`main`)
 - 2026-11-10 `source-control-panel` Branch popover redrawn as a Source control panel in the sheet rail's style: title bar with fetch/folder/editor, branch switcher, full-width sync action, Remote/Changes/Worktrees sections, rail rows; 380px wide. (`main`)
 - 2026-11-10 `toolbar-layout` Toolbar reordered as where you are, Select | Lasso | Note tool switch, workflows, centred Search, Terminal | Message Agent; Fit moved under the minimap; Note places a note at the next canvas click. (`main`)
 - 2026-11-10 `scoped-sheet-selection` Sheets draw their members, descendants and proposal context. New sheets from selection preserve world spacing, size and nesting and frame the group on open. Schema v14 stores initial layout as presentation and keeps it out of structural comparison.

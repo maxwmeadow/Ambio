@@ -57,17 +57,25 @@ bar, small-caps section labels with a rule and a count, and rail rows.
    a ▾ opens the branch list in place under it (see *Switching branches*);
    the same button closes it. Under the name, the folder (home written as
    `~`), and an ON THE FLOOR tag when other checkouts are open.
-3. **The one action**, a full-width primary button with its symbol, first:
+3. **Commit**, when there are changes: a message box (Ctrl+Enter commits)
+   and a full-width **✓ Commit N** for what is staged, or **Commit all N**
+   when nothing is, as an editor's source control does.
+4. **The one sync action**, a full-width button with its symbol (primary,
+   or secondary under Commit while there are changes):
    **↓ Pull N commits**, **↑ Push N commits** or **Publish to origin**. When
    there is an action, the button is the status; an icon and headline appear
    only when there is nothing to press or it needs explaining: ✓ Up to date,
    ⚠ Diverged (needs a merge, so no button), Not published yet, No remote.
-4. **Remote:** the upstream (`origin/main`), ↓/↑ counters (bold when
+5. **Staged changes** and **Changes:** a row per file with its name, folder,
+   the system it belongs to on the map and Git's letter (M, A, D, R, U, !
+   for a conflict). Clicking a file opens it in Ambio's editor. Row actions
+   show on hover: Stage (+), Unstage (-), and Discard, which asks first and
+   says when a file was never committed and cannot be brought back. Each
+   section has Stage all or Unstage all.
+6. **Remote:** the upstream (`origin/main`), ↓/↑ counters (bold when
    non-zero) and when it was last checked.
-5. **Changes:** ✎ N uncommitted files, or ✓ No uncommitted changes (stage 2
-   makes this the way into committing), then the agents working in this
-   checkout.
-6. **Worktrees**, only when there are any, with the Off / Agents only / All
+7. **Agents working in this checkout.**
+8. **Worktrees**, only when there are any, with the Off / Agents only / All
    lens beside the label: name, what it changes, its agent, and a row of
    icon buttons that brightens while the row is hovered or focused (show on the Floor, review, apply,
    discard, folder, editor), each named in its tooltip. Discard asks inline
@@ -126,13 +134,24 @@ replaces the panel until it is closed by the same button, Escape, or a choice.
   `POST /api/checkouts/switch {create}` creates one at the Floor's HEAD;
   `POST /api/checkouts/branches/delete` deletes one safely.
 
-### Stage 2 - commit
+### Stage 2 - commit (building)
 
-- Changed files grouped by the system they belong to, on the popover and on
-  the map (the Floor already marks uncommitted files).
-- Stage by file or by system; write the message, or have the conversation's
-  agent draft it from the diff and the architectural summary.
-- Commit journals as one entry, reviewable as claims like a pull.
+- Built: `GET /api/checkouts/changes` lists the Floor's checkout's changed
+  files (`git status --porcelain=v2`, untracked files one by one, paths
+  relative to the checkout folder); `POST /api/checkouts/stage {paths,
+  stage}` stages (`git add --all`) or unstages (`git restore --staged`);
+  `POST /api/checkouts/discard {paths}` restores tracked files from the index
+  and deletes untracked ones; `POST /api/checkouts/commit {message, all}`
+  commits what is staged, or everything with `all`. Paths must be among the
+  current changes and inside the folder, and are passed as literal
+  pathspecs. One index change runs per project at a time, apart from network
+  syncs; hooks run, with no terminal to prompt on and a 2-minute limit.
+- The popover lists each file with its system on the map; see *The branch
+  popover*.
+- Still to do: staging a whole system at once and marking changed files by
+  system on the map; the conversation's agent drafting the message from the
+  diff and the architectural summary; the commit journalled as one entry,
+  reviewable as claims like a pull; agents committing through MCP.
 
 ### Stage 3 - merge, with the map
 

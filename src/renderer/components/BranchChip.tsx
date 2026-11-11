@@ -4,6 +4,8 @@ import { CHECKOUTS_CHANGED, REVIEW_BRANCH, useCheckoutStore } from '../store/che
 import { useCommandHandlers } from '../app/commands'
 import { buildBranchChip, buildBranchRows, buildCheckoutRows, buildRepositoryRows, buildSync, focusedCheckout, homePath, type OverlayLens, type SyncState } from './checkoutModel'
 import { GitIcon } from './GitIcon'
+import { SectionLabel, ToolButton } from './SourceControlParts'
+import { SourceControlChanges } from './SourceControlChanges'
 import { apiDeleteBranch, apiFinishRunWorktree, apiFocusCheckout, apiGetBranchReview, apiListBranches, apiSwitchBranch, apiSyncCheckout, type BranchListing, type CheckoutSyncAction } from '../canvas/arcdApi'
 import { useGraphStore } from '../store/graphStore'
 import type { BranchReview } from '../../shared/types'
@@ -17,62 +19,6 @@ const LENSES: Array<{ value: OverlayLens; label: string; title: string }> = [
 /** The symbol for each situation the Floor's branch can be in. */
 const STATE_ICON: Record<SyncState, React.ComponentProps<typeof GitIcon>['name'] | null> = {
   behind: 'pull', ahead: 'push', current: 'upToDate', diverged: 'diverged', unpublished: 'publish', local: 'cloudOff', other: null,
-}
-
-/** How long the pointer rests on an icon button before its label shows. */
-const TIP_DELAY_MS = 350
-
-/**
- * A square icon button, named for screen readers and in a label that shows
- * while it is hovered or focused, so no icon is a guess. The label is drawn
- * over everything, outside the popover's scrolling body, so it is never
- * clipped.
- */
-function ToolButton({ icon, label, hint, onClick, disabled, danger, spinning }: {
-  icon: React.ComponentProps<typeof GitIcon>['name']; label: string; hint?: string; onClick: () => void
-  disabled?: boolean; danger?: boolean; spinning?: boolean
-}) {
-  const [tip, setTip] = useState<{ x: number; y: number; above: boolean } | null>(null)
-  const timer = useRef<number | undefined>(undefined)
-  const show = (target: HTMLElement, delay: number) => {
-    window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => {
-      const bounds = target.getBoundingClientRect()
-      const above = bounds.bottom + 60 > window.innerHeight
-      setTip({ x: bounds.left + bounds.width / 2, y: above ? bounds.top - 6 : bounds.bottom + 6, above })
-    }, delay)
-  }
-  const hide = () => { window.clearTimeout(timer.current); setTip(null) }
-  useEffect(() => () => window.clearTimeout(timer.current), [])
-  return (
-    <>
-      <button type="button" className="ambio-tool" aria-label={label}
-        data-danger={danger || undefined} disabled={disabled}
-        onPointerEnter={event => show(event.currentTarget, TIP_DELAY_MS)} onPointerLeave={hide}
-        onFocus={event => { if (event.currentTarget.matches(':focus-visible')) show(event.currentTarget, 0) }} onBlur={hide}
-        onClick={() => { hide(); onClick() }}>
-        <GitIcon name={icon} size={16} className={spinning ? 'ambio-tool__spin' : undefined} />
-      </button>
-      {tip && createPortal(
-        <div className="ambio-tool-tip" role="tooltip" data-above={tip.above || undefined}
-          style={{ '--ambio-tip-x': `${tip.x}px`, '--ambio-tip-y': `${tip.y}px` } as React.CSSProperties}>
-          <strong>{label}</strong>{hint && <span>{hint}</span>}
-        </div>,
-        document.body,
-      )}
-    </>
-  )
-}
-
-/** A section heading in the sheet rail's manner: small caps, a rule, a count. */
-function SectionLabel({ children, count }: { children: React.ReactNode; count?: number }) {
-  return (
-    <h3 className="ambio-scm__section">
-      <span>{children}</span>
-      <span className="ambio-scm__rule" aria-hidden="true" />
-      {count !== undefined && <span className="ambio-scm__count">{count}</span>}
-    </h3>
-  )
 }
 
 const REFRESH_MS = 5000
@@ -535,27 +481,32 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
             <div className="ambio-checkouts__body">
               {floorRow && (
                 <article className="ambio-checkout ambio-sync" data-focused data-state={sync.state}>
-                  {sync.action && (
-                    <button
-                      type="button"
-                      className="ambio-sync__action"
-                      disabled={busy !== null || checking}
-                      onClick={() => void runSync(sync.action!.kind)}
-                    >
-                      <GitIcon name={sync.action.kind} size={14} className={busy === `sync:${sync.action.kind}` ? 'ambio-tool__pulse' : undefined} />
-                      <span>{busy === `sync:${sync.action.kind}` ? SYNCING[sync.action.kind] : sync.action.label}</span>
-                    </button>
-                  )}
-                  {/* With an action, the button is the status; the situation is
-                      spelled out only when there is nothing to press or it needs
-                      explaining. */}
-                  {(!sync.action || sync.state === 'unpublished') && <div className="ambio-sync__status">
-                    {STATE_ICON[sync.state] && <GitIcon name={STATE_ICON[sync.state]!} size={15} />}
-                    <div>
-                      <p className="ambio-sync__headline">{sync.headline}</p>
-                      {sync.detail && <p className="ambio-sync__detail">{sync.detail}</p>}
-                    </div>
-                  </div>}
+                  <SourceControlChanges workspaceId={workspaceId} branch={floorRow.name} uncommitted={sync.uncommitted}
+                    onNotice={(text, done) => { setNotice(text); setNoticeDone(done) }}
+                    between={<>
+                      {sync.action && (
+                        <button
+                          type="button"
+                          className="ambio-sync__action"
+                          data-secondary={sync.uncommitted > 0 || undefined}
+                          disabled={busy !== null || checking}
+                          onClick={() => void runSync(sync.action!.kind)}
+                        >
+                          <GitIcon name={sync.action.kind} size={14} className={busy === `sync:${sync.action.kind}` ? 'ambio-tool__pulse' : undefined} />
+                          <span>{busy === `sync:${sync.action.kind}` ? SYNCING[sync.action.kind] : sync.action.label}</span>
+                        </button>
+                      )}
+                      {/* With an action, the button is the status; the situation is
+                          spelled out only when there is nothing to press or it needs
+                          explaining. */}
+                      {(!sync.action || sync.state === 'unpublished') && <div className="ambio-sync__status">
+                        {STATE_ICON[sync.state] && <GitIcon name={STATE_ICON[sync.state]!} size={15} />}
+                        <div>
+                          <p className="ambio-sync__headline">{sync.headline}</p>
+                          {sync.detail && <p className="ambio-sync__detail">{sync.detail}</p>}
+                        </div>
+                      </div>}
+                    </>} />
                   {checkError && !checking && <p className="ambio-sync__error" role="alert">{checkError}</p>}
                   {sync.remote && <>
                     <SectionLabel>Remote</SectionLabel>
@@ -571,11 +522,6 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
                       <span className="ambio-sync__checked">{checking || busy === 'sync:fetch' ? 'Checking…' : checkError ? 'Check failed' : sync.checked}</span>
                     </div>
                   </>}
-                  <SectionLabel count={sync.uncommitted || undefined}>Changes</SectionLabel>
-                  <div className="ambio-scm__row ambio-sync__tree" data-dirty={sync.uncommitted > 0 || undefined}>
-                    <GitIcon name={sync.uncommitted > 0 ? 'edit' : 'clean'} size={14} />
-                    <span>{sync.uncommitted > 0 ? `${sync.uncommitted} uncommitted file${sync.uncommitted === 1 ? '' : 's'}` : 'No uncommitted changes'}</span>
-                  </div>
                   {floorRow.agents.length > 0 && (
                     <ul className="ambio-checkout__agents">
                       {floorRow.agents.map(agent => (

@@ -602,6 +602,14 @@ to API-key billing or another account. Setup and live-account validation:
   Floor instead. `POST /api/checkouts/branches/delete` runs `git branch -d`,
   refused for a branch checked out anywhere and, by Git, for one whose
   commits are on no other branch.
+- **Committing** (docs/GIT_WORKFLOW.md stage 2, `api/checkout_commit.go`,
+  `gitworktree/commit.go`): `GET /api/checkouts/changes` reads the Floor's
+  checkout's changed files with Git's index and working-tree letters;
+  `POST /api/checkouts/stage`, `/discard` and `/commit` change them, each
+  path checked against those changes and passed as a literal pathspec, one
+  index change per project at a time. The popover's `SourceControlChanges`
+  shows the message box, Commit, and Staged Changes / Changes with each
+  file's system from the graph store, opening a file in the source editor.
 - **Talking to the remote** (docs/GIT_WORKFLOW.md stage 1,
   `api/checkout_sync.go`, `gitworktree/sync.go`): `POST
   /api/checkouts/sync` fetches, pulls (`--ff-only`), pushes (never forced)
