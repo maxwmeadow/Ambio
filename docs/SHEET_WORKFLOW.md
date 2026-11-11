@@ -6,7 +6,7 @@ code, while Ambio compares the authored requirements against its indexed live mo
 
 ## Canvas workflow
 
-Choose **Attach a sheet** in the agent inbox, or use the arrow beside the active
+Choose **Attach context** in the agent inbox and pick the sheet, or use the arrow beside the active
 sheet in the Drawings rail. The attachment shows its name and current revision.
 It remains attached when navigating to **The Floor** with **Watch live canvas**.
 A project message can explicitly select no sheet. Attachments are saved with drafts;

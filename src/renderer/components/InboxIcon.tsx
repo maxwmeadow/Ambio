@@ -1,6 +1,6 @@
 import { Chevron } from './ui/Chevron'
 
-type IconName = 'close' | 'attach' | 'send' | 'sheet' | 'canvas' | 'chevron' | 'check' | 'copy' | 'help' | 'search' | 'agent' | 'retry' | 'plus' | 'info' | 'stop' | 'code'
+type IconName = 'close' | 'attach' | 'send' | 'sheet' | 'canvas' | 'chevron' | 'check' | 'copy' | 'help' | 'search' | 'agent' | 'retry' | 'plus' | 'info' | 'stop' | 'code' | 'system' | 'infra' | 'file' | 'symbol'
 
 const paths: Record<Exclude<IconName, 'chevron'>, React.ReactNode> = {
   close: <path d="m6 6 12 12M18 6 6 18" />,
@@ -18,6 +18,10 @@ const paths: Record<Exclude<IconName, 'chevron'>, React.ReactNode> = {
   info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.1" /></>,
   stop: <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />,
   code: <path d="m8 7-5 5 5 5M16 7l5 5-5 5" />,
+  system: <path d="M3 6h7l2 2h9v11H3z" />,
+  infra: <><ellipse cx="12" cy="6" rx="7" ry="3" /><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3" /></>,
+  file: <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4" /></>,
+  symbol: <path d="M9 4c-3 0-2 4-3 6-.4.8-1 1.5-2 2 1 .5 1.6 1.2 2 2 1 2 0 6 3 6M15 4c3 0 2 4 3 6 .4.8 1 1.5 2 2-1 .5-1.6 1.2-2 2-1 2 0 6-3 6" />,
 }
 
 export function InboxIcon({ name, size = 16 }: { name: IconName; size?: number }) {

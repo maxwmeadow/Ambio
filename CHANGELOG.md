@@ -7,6 +7,10 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Attach context in Message agent finds systems, infrastructure, files and
+  functions as well as sheets, and is shorter on words.
+- Unsorted and Documents open right above their buttons, also when the agent or
+  terminal panel is open.
 - The Agent Log is gone. What an agent outside Ambio does with Ambio (from a
   handoff, or Claude Code, Cursor or a terminal session on its own) now shows in
   Message agent as steps you can open, with what each call asked and returned,

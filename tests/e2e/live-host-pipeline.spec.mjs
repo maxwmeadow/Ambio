@@ -61,7 +61,7 @@ for (const withSheet of [false, true]) {
       const instruction = inbox.getByRole('textbox', { name: 'Instruction for your agent' })
       if (withSheet) {
         await instruction.press('@')
-        await inbox.getByRole('dialog', { name: 'Attach a sheet' }).getByRole('option', { name: /Health endpoint contract/ }).click()
+        await inbox.getByRole('dialog', { name: 'Attach context' }).getByRole('option', { name: /Health endpoint contract/ }).click()
         await expect(inbox.locator('.ambio-inbox__attachment')).toContainText(sheet.name)
       }
       await instruction.fill('In api/handlers.py, add health_status() -> str returning "ok". Run python3 -m py_compile api/handlers.py. Report the changed file and check result. Leave any attached sheet active for user review. Do not edit other files.')

@@ -503,8 +503,9 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
         }} />
         {!caseTarget && toChat && chatProvider?.auth === 'chatgpt' && <div className="ambio-chat__plan">Using ChatGPT plan, <button type="button" onClick={() => void window.ambio.manageChatGPTUsage()}>Manage usage</button></div>}
         <div className={`ambio-inbox__compose-tools${caseTarget ? ' ambio-inbox__compose-tools--case' : ''}`}>{!caseTarget && <><div ref={attachmentArea} className="ambio-inbox__attach-anchor">
-          <button type="button" className="ambio-inbox__icon" disabled={locked} aria-label="Attach context" aria-haspopup="dialog" aria-expanded={pickerOpen} title="Attach a sheet (@)" onClick={() => setPickerOpen(!pickerOpen)}><InboxIcon name="attach" size={19} /></button>
-          {pickerOpen && <InboxSheetPicker sheets={sheet.sheets} attachedId={effectiveSheetId} onClose={dismissPicker} onSelect={id => { attachSheet(id); dismissPicker() }} />}
+          <button type="button" className="ambio-inbox__icon" disabled={locked} aria-label="Attach context" aria-haspopup="dialog" aria-expanded={pickerOpen} title="Attach a sheet, system, file or function (@)" onClick={() => setPickerOpen(!pickerOpen)}><InboxIcon name="attach" size={19} /></button>
+          {pickerOpen && <InboxSheetPicker sheets={sheet.sheets} attachedId={effectiveSheetId} attachedRefs={outgoing} onClose={dismissPicker} onSelect={id => { attachSheet(id); dismissPicker() }}
+            onAttach={reference => { setExcluded(current => current.filter(item => item !== reference)); setAttachedCode(current => [...new Set([...current, reference])]); dismissPicker() }} />}
         </div><AgentDeliveryDestination hosts={delivery.hosts} hostId={retry.current?.hostId ?? (delivery.hostId.startsWith(`${CHAT_DELIVERY}:`) && !chatProvider ? '' : delivery.hostId)} installedIds={delivery.installedIds} watchers={delivery.watchers} watchingHosts={delivery.watchingHosts} onChange={delivery.setHostId} disabled={locked || !!delivery.busy || inProgress} rootPath={graph.rootPath} onManageConnections={onManageConnections}
           chatServices={chat.providers.map(provider => ({ id: provider.id, label: chatAgentLabel(provider, provider.model) }))}
           // A conversation under way keeps its client; Ambio chat is still offered, as a new conversation.

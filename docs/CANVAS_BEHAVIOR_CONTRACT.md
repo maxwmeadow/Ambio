@@ -301,6 +301,9 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   bin pulses once for the first arrival of a burst and stays lit until the
   burst goes quiet. Assignment to a system is when the file arrives on the
   canvas, shown as `ADDED`; moving between systems shows as `MOVED`.
+- The Unsorted and Documents windows open directly above their buttons,
+  right-aligned to them, wherever the buttons are: they move left when the
+  agent or terminal panel is open, by that panel's width.
 - The header shelf is the strip at the top of a pad and the body below it is
   the page, so the shelf carries the warmth and the body stays plain. On a
   sheet the shelf deepens to pad yellow; on the Floor it stays quiet.

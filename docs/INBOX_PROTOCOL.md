@@ -16,8 +16,10 @@ Selections use canonical IDs with a display label captured at send time. Active 
 attach their original context and approved build specification. Selecting nothing sends
 a project instruction. Drafts and uncertain sends are saved per workspace.
 
-Sheets can now be selected explicitly with **Attach a sheet**, independently of the
-active canvas. The attachment includes a structural comparison snapshot. See
+Sheets can now be selected explicitly with **Attach context** (the paperclip, or
+`@`), independently of the active canvas. The same picker attaches any system,
+infrastructure, file, or function or class (as its file and lines), found as
+Find in project finds them; each goes with the message like a canvas selection. The attachment includes a structural comparison snapshot. See
 [SHEET_WORKFLOW.md](SHEET_WORKFLOW.md) for comparison, implementation and checked resolution.
 
 Each new canvas send creates an **addressed work order** with a durable ID. Copy the

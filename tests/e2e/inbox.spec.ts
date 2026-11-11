@@ -184,3 +184,56 @@ test('what an agent outside Ambio does shows in Message agent: a turn it took, a
     expect(await page.evaluate(() => document.body.innerText.includes('Agent Log'))).toBe(false)
   } finally { await app.close() }
 })
+
+test('the attach picker adds systems and files as context, and the Unsorted window opens above its button beside the panel', async () => {
+  const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
+  const app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1' } })
+  try {
+    const page = await app.firstWindow()
+    await skipAgentGuides(page)
+    await page.setViewportSize({ width: 1400, height: 900 })
+    await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
+      const url = new URL(route.request().url())
+      const body = url.pathname === '/api/canvas/history' ? { messages: [], nextCursor: '' } : url.pathname === '/api/agent/presence' ? { connections: [] } : []
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+    })
+    await page.reload()
+    await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject?.name)).toBe('Ambio Canvas Fixture')
+    await page.getByRole('button', { name: /^Message agent/ }).click()
+    const panel = page.getByRole('complementary', { name: 'Agent inbox' })
+    const chips = panel.locator('.ambio-inbox__compose .ambio-inbox__targets button')
+    await expect(chips).toHaveCount(0)
+
+    // Before typing it offers the map's systems, under a heading, with no extra explanations.
+    await panel.getByRole('button', { name: 'Attach context' }).click()
+    const picker = panel.getByRole('dialog', { name: 'Attach context' })
+    await expect(picker.locator('.ambio-inbox__picker-label').first()).toHaveText('Systems')
+    await expect(picker).not.toContainText(/Snapshot|live comparison|Select a sheet/)
+    const search = picker.getByRole('combobox', { name: 'Search for context to attach' })
+    await search.fill('mcp')
+    await page.screenshot({ path: 'test-results/attach-context.png' })
+    await picker.getByRole('option', { name: /MCP Server/ }).first().click()
+    await expect(picker).toHaveCount(0)
+    await expect(chips).toHaveCount(1)
+    await expect(chips.first()).toContainText('MCP Server')
+
+    // A file the same way; what is attached shows as attached in the picker.
+    await panel.getByRole('button', { name: 'Attach context' }).click()
+    await search.fill('AmbioCanvas')
+    await picker.getByRole('option', { name: /AmbioCanvas\.tsx/ }).first().click()
+    await expect(chips).toHaveCount(2)
+    await panel.getByRole('button', { name: 'Attach context' }).click()
+    await search.fill('mcp')
+    await expect(picker.getByRole('option', { name: /MCP Server/ }).first().locator('svg').last()).toBeVisible()
+    await search.press('Escape')
+
+    // With the panel open the bins sit left of it; Unsorted opens right above them.
+    const bins = await page.locator('.ambio-bins__row').boundingBox()
+    await page.getByRole('button', { name: 'Unsorted files' }).click()
+    const window = await page.locator('[data-bin-window]').boundingBox()
+    expect(bins && window).toBeTruthy()
+    expect(Math.abs((window!.x + window!.width) - (bins!.x + bins!.width))).toBeLessThan(2)
+    expect(window!.y + window!.height).toBeLessThanOrEqual(bins!.y)
+    expect(bins!.y - (window!.y + window!.height)).toBeLessThan(20)
+  } finally { await app.close() }
+})

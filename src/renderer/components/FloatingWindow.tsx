@@ -63,8 +63,22 @@ export function FloatingWindow({
         height,
       }
     }
-    // Sat directly above the bins in the bottom-right, aligned to their right
-    // edge, so it reads as having come out of the control that opened it.
+    // Sat directly above the bins, aligned to their right edge, so it reads as
+    // having come out of the control that opened it. The bins move left when
+    // the agent or terminal panel opens (and with its width), so it is measured
+    // where they are now rather than assumed at the window's edge.
+    const bins = document.querySelector('.ambio-bins__row')?.getBoundingClientRect()
+    if (bins && bins.width > 0) {
+      const gap = 8
+      // Shorter when there is not room above the bins for the whole window.
+      const fitted = Math.min(height, Math.max(minHeight, Math.round(bins.top - gap - 16)))
+      return {
+        x: Math.max(16, Math.min(Math.round(bins.right - width), window.innerWidth - width - 16)),
+        y: Math.max(16, Math.round(bins.top - fitted - gap)),
+        width,
+        height: fitted,
+      }
+    }
     const inset = 12
     const binsHeight = 92
     return {

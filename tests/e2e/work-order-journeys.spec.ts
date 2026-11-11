@@ -84,7 +84,7 @@ test('Harbor Checkout: sheet request, linked work, structural match, submission 
     const inbox = await openInbox(page)
     const instruction = inbox.getByRole('textbox', { name: 'Instruction for your agent' })
     await instruction.press('@')
-    await inbox.getByRole('dialog', { name: 'Attach a sheet' }).getByRole('option', { name: /Checkout flow/ }).click()
+    await inbox.getByRole('dialog', { name: 'Attach context' }).getByRole('option', { name: /Checkout flow/ }).click()
     await expect(inbox.locator('.ambio-inbox__attachment')).toContainText('Checkout flow')
     await instruction.fill('Implement the checkout sheet and verify payment retry.')
     await inbox.getByRole('button', { name: 'Send to inbox' }).click()
