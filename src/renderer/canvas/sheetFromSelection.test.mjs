@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { describeSheetMembers, sheetMembersFor, sheetSelectionLayouts } from './sheetFromSelection.ts'
+import { describeSheetMembers, floorCopyMembers, sheetMembersFor, sheetSelectionLayouts } from './sheetFromSelection.ts'
 
 const map = {
   systems: [{ id: 'sys_pay' }],
@@ -43,4 +43,28 @@ test('a nested selection uses world geometry and keeps selected ancestors intact
   assert.deepEqual([other.positionX, other.positionY], [170, 80])
   const [, nested] = sheetSelectionLayouts([{ systemId: 'outer' }, { systemId: 'inner' }], nodes)
   assert.deepEqual([nested.parentNodeId, nested.positionX, nested.positionY, nested.width, nested.scale], ['outer', 100, 160, 300, 1])
+})
+
+test('a copy of the Floor starts with everything at its top level, each system bringing its contents', () => {
+  const members = floorCopyMembers({
+    systems: [
+      { id: 'pay', parentId: null, source: 'agent' },
+      { id: 'pay-api', parentId: 'pay', source: 'agent' },
+      { id: 'new', parentId: null, source: 'agent' },
+      { id: 'cluster', parentId: null, source: 'cluster' },
+    ],
+    files: [{ id: 'in-pay' }, { id: 'loose' }, { id: 'unsorted' }],
+    infraNodes: [{ id: 'redis' }, { id: 'queue' }],
+    floorLayouts: [
+      { nodeId: 'pay', nodeType: 'system', parentNodeId: null },
+      { nodeId: 'pay-api', nodeType: 'system', parentNodeId: 'pay' },
+      { nodeId: 'in-pay', nodeType: 'file', parentNodeId: 'pay-api' },
+      { nodeId: 'loose', nodeType: 'file', parentNodeId: null },
+      { nodeId: 'redis', nodeType: 'infra', parentNodeId: null },
+      { nodeId: 'note-1', nodeType: 'note', parentNodeId: null },
+    ],
+  })
+  // Nested systems and files come with their system; inferred clusters, notes
+  // and files not on the Floor (unsorted) are not members of their own.
+  assert.deepEqual(members, [{ systemId: 'pay' }, { systemId: 'new' }, { fileId: 'loose' }, { infraId: 'redis' }, { infraId: 'queue' }])
 })

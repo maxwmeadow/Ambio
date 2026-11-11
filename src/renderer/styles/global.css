@@ -2713,12 +2713,44 @@ a { color: var(--accent); text-decoration: none; }
   border-color: #a4534a;
 }
 
-.ambio-sheet-rail__commit-hint {
+.ambio-sheet-rail__commit-hint,
+.ambio-sheet-rail__cancel-new {
   flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
   color: #375c55;
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
+  cursor: pointer;
+}
+
+.ambio-sheet-rail__cancel-new {
+  margin-left: -4px;
+  color: #6b5a52;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.ambio-sheet-rail__commit-hint:hover:not(:disabled),
+.ambio-sheet-rail__cancel-new:hover:not(:disabled) {
+  border-color: #8e9a93;
+  background: #fbfaf5;
+}
+
+.ambio-sheet-rail__cancel-new:hover:not(:disabled) {
+  color: #853b2f;
+}
+
+.ambio-sheet-rail__commit-hint:disabled,
+.ambio-sheet-rail__cancel-new:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .ambio-sheet-rail__visibility {

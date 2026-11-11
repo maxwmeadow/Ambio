@@ -6,6 +6,12 @@
 // of them, with the same name and the same key.
 
 /** Contextual sheet actions share their wording across the rail's menus. */
+/** The sheet rail's + menu: what a new overlay sheet starts with. */
+export const NEW_SHEET_KINDS = {
+  blank: { label: 'Blank sheet', hint: 'Start empty and draw' },
+  floor: { label: 'Copy of the Floor', hint: 'Everything on the map, kept live' },
+} as const
+
 export const SHEET_ACTIONS = {
   rename: 'Rename…',
   discuss: 'Discuss or implement…',

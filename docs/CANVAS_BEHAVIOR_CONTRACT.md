@@ -532,6 +532,12 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   connections bring in the live nodes they reference. Live dependencies require
   both endpoints in scope. A blank sheet opens with an empty canvas and the
   stencil palette.
+- The sheet rail's + asks what a new sheet starts with (Max, 2026-11-11):
+  Blank sheet, or Copy of the Floor, whose members are everything at the
+  Floor's top level. Members bring their contents and follow the Floor, so the
+  copy opens as the Floor does and stays live.
+- Naming a new sheet happens in the rail row: Enter or its return button
+  creates it; Escape or its cancel button closes the row and creates nothing.
 - A sheet's overview is a clean proposed arrangement. Relationships are hidden
   by default; selecting a node shows its connections. Selecting a relationship
   review row frames and accents both endpoints and explains the interaction.

@@ -2071,6 +2071,14 @@ test('preserves sheet rail hierarchy, layer visibility, and Floor navigation', a
 
   const addSheet = rail.getByRole('button', { name: 'Create new overlay sheet' })
   await addSheet.click()
+  // The + asks what the sheet starts with.
+  const kinds = page.getByRole('menu', { name: 'New overlay sheet' })
+  await expect(addSheet).toHaveAttribute('aria-expanded', 'true')
+  await expect(kinds.getByRole('menuitem')).toHaveText([/^Blank sheet/, /^Copy of the Floor/])
+  await expect(kinds.getByRole('menuitem').first()).toBeFocused()
+  await page.screenshot({ path: 'test-results/new-sheet-menu.png' })
+  await kinds.getByRole('menuitem', { name: /^Blank sheet/ }).click()
+  await expect(kinds).toBeHidden()
   const nameInput = rail.getByRole('textbox', { name: 'New sheet name' })
   await expect(nameInput).toBeVisible()
   await expect(nameInput).toBeFocused()
@@ -2083,11 +2091,23 @@ test('preserves sheet rail hierarchy, layer visibility, and Floor navigation', a
     const style = getComputedStyle(element)
     return { color: style.color, background: style.backgroundColor }
   })).toEqual({ color: 'rgb(23, 36, 31)', background: 'rgb(255, 254, 248)' })
-  await expect(addSheet).toHaveAttribute('aria-expanded', 'true')
+  await expect(addSheet).toBeDisabled()
   await nameInput.press('Escape')
   await expect(nameInput).toHaveCount(0)
   await expect(addSheet).toBeEnabled()
   await expect(addSheet).toHaveAttribute('aria-expanded', 'false')
+  // It can be cancelled without the keyboard too, and nothing is created.
+  const sheetsBefore = await rail.locator('.ambio-sheet-entry').count()
+  await addSheet.click()
+  await page.getByRole('menu', { name: 'New overlay sheet' }).getByRole('menuitem', { name: /^Blank sheet/ }).click()
+  await expect(nameInput).toBeVisible()
+  await page.locator('.ambio-sheet-rail__row--creating').screenshot({ path: 'test-results/new-sheet-row.png' })
+  await nameInput.fill('')
+  await expect(rail.getByRole('button', { name: 'Create sheet' })).toBeDisabled()
+  await rail.getByRole('button', { name: 'Cancel new sheet' }).click()
+  await expect(nameInput).toHaveCount(0)
+  await expect(addSheet).toBeFocused()
+  await expect(rail.locator('.ambio-sheet-entry')).toHaveCount(sheetsBefore)
 })
 
 test('uses the shared workbench dialog system without dropping form behavior', async () => {
@@ -3564,6 +3584,7 @@ test('a sheet from two systems preserves their layout, fits its scope, and retur
   await expect(node('outside-file')).toHaveCount(0)
 
   await rail.getByRole('button', { name: 'Create new overlay sheet' }).click()
+  await page.getByRole('menu', { name: 'New overlay sheet' }).getByRole('menuitem', { name: /^Blank sheet/ }).click()
   const blank = rail.getByRole('textbox', { name: 'New sheet name' })
   await blank.fill('Blank scope')
   await blank.press('Enter')
@@ -3582,6 +3603,17 @@ test('a sheet from two systems preserves their layout, fits its scope, and retur
   await page.getByRole('option').first().click()
   await expect(rail.getByRole('button', { name: /^The Floor/ })).toHaveAttribute('aria-current', 'page')
   await expect(node('outside')).toBeVisible()
+
+  // A copy of the Floor starts with everything on it, kept live.
+  await rail.getByRole('button', { name: 'Create new overlay sheet' }).click()
+  await page.getByRole('menu', { name: 'New overlay sheet' }).getByRole('menuitem', { name: /^Copy of the Floor/ }).click()
+  const copyName = rail.getByRole('textbox', { name: 'New sheet name' })
+  await expect(copyName).toHaveValue(/^Floor Copy/)
+  await copyName.press('Enter')
+  await expect(rail.getByRole('button', { name: /^Floor Copy/ })).toHaveAttribute('aria-current', 'page')
+  await expect(node('outside')).toBeVisible()
+  await rail.getByRole('button', { name: /^The Floor/ }).click()
+  expect(await page.evaluate(() => (window as any).__ambioGraphStore.getState().floorLayouts)).toEqual(floorLayouts)
 })
 
 test('culls a large planned sheet and retains measurements during zoom', async () => {

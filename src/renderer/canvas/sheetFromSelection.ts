@@ -87,6 +87,30 @@ export function sheetMembersFor(
   return members.sort((a, b) => rank(a) - rank(b))
 }
 
+/**
+ * Everything on the Floor as sheet members: what sits at its top level
+ * (systems, files and infrastructure). A member system brings its whole
+ * contents, and members with no sheet position follow the Floor, so the
+ * sheet opens as the Floor does and stays live.
+ */
+export function floorCopyMembers(map: {
+  systems: Array<{ id: string; parentId?: string | null; source?: string }>
+  files: Array<{ id: string }>
+  infraNodes: Array<{ id: string }>
+  floorLayouts: Array<{ nodeId: string; nodeType: string; parentNodeId: string | null }>
+}): SheetMember[] {
+  // Inferred (cluster) systems are not drawn; their files already sit at the top.
+  const drawn = map.systems.filter(system => system.source !== 'cluster')
+  const placed = new Set(map.floorLayouts.map(layout => layout.nodeId))
+  const ids = [
+    ...map.floorLayouts.filter(layout => layout.parentNodeId === null).map(layout => layout.nodeId),
+    // Not saved yet, but at the top all the same.
+    ...drawn.filter(system => !system.parentId && !placed.has(system.id)).map(system => system.id),
+    ...map.infraNodes.filter(node => !placed.has(node.id)).map(node => node.id),
+  ]
+  return sheetMembersFor(ids, { systems: drawn, files: map.files, infraNodes: map.infraNodes })
+}
+
 /** "3 systems and 2 files" - what the dialog says it will put on the sheet. */
 export function describeSheetMembers(members: SheetMember[]): string {
   const count = (kind: 'systemId' | 'fileId' | 'infraId') => members.filter(member => kind in member).length

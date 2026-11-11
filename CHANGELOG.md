@@ -7,6 +7,8 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- The + beside Overlay sheets lets you start a blank sheet or a live copy of
+  the whole Floor. Naming a new sheet can be cancelled with its × button.
 - The toolbar no longer repeats the open sheet's name; the sheet rail shows it.
 - A system that grows when files are added to it stays inside the system
   around it: that parent keeps its size and shrinks its contents to fit.

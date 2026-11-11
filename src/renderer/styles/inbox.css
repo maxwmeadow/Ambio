@@ -600,6 +600,16 @@
 .ambio-sheet-menu { position: fixed; margin: 0; padding: 4px; width: 200px; border: 1px solid #65746d; background: #f1efe7; color: #26332f; box-shadow: 3px 3px #26332f44; }
 .ambio-sheet-menu button { display: block; width: 100%; padding: 8px; border: 0; background: transparent; color: inherit; text-align: left; font: 11px var(--font-ui); cursor: pointer; }
 .ambio-sheet-menu button:hover, .ambio-sheet-menu button:focus-visible { background: #d5e1d8; }
+/* The + menu: what a new sheet starts with, each choice with its icon and a line on what it gives you. */
+.ambio-sheet-menu--new { width: 236px; padding: 0 0 4px; }
+.ambio-sheet-menu__heading { display: block; margin-bottom: 4px; padding: 6px 10px 5px; border-bottom: 1px solid #bdc3ba; background: #26332f; color: #e9eee8; font: 700 9px var(--font-mono, monospace); letter-spacing: .1em; text-transform: uppercase; }
+.ambio-sheet-menu--new button { display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: center; gap: 8px; width: calc(100% - 8px); margin: 0 4px; padding: 7px 8px; }
+.ambio-sheet-menu__icon { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid #8e9a93; background: #fbfaf5; color: #3c7d76; }
+.ambio-sheet-menu__icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.ambio-sheet-menu--new button:hover .ambio-sheet-menu__icon, .ambio-sheet-menu--new button:focus-visible .ambio-sheet-menu__icon { border-color: #3c7d76; }
+.ambio-sheet-menu__text { display: grid; gap: 1px; min-width: 0; }
+.ambio-sheet-menu__text strong { font: 600 11.5px var(--font-ui); }
+.ambio-sheet-menu__text small { color: #5f6f67; font: 10px var(--font-ui); }
 .ambio-sheet-menu .ambio-sheet-menu__delete { margin-top: 4px; border-top: 1px solid #bdc3ba; color: #853b2f; }
 .ambio-sheet-rail__review { flex: 0 1 auto; min-height: 0; max-height: 40%; overflow-y: auto; }
 .ambio-sheet-rail__review[data-exiting] { overflow: hidden; }

@@ -9,7 +9,8 @@ import { handleSheetPatch, sheetElementHasChange, useSheetStore, type Sheet } fr
 import { archdApi } from '../archdEndpoint.ts'
 import { SheetRemovedList } from './SheetRemovedList'
 import { useSheetView } from '../canvas/sheetView'
-import { COMMANDS, SHEET_ACTIONS } from '../../shared/appMenu'
+import { COMMANDS, NEW_SHEET_KINDS, SHEET_ACTIONS } from '../../shared/appMenu'
+import { floorCopyMembers } from '../canvas/sheetFromSelection'
 import { SheetChangeDetails } from './SheetChangeDetails'
 import { SheetProposalReview } from './SheetProposalReview'
 import { plannedFilename } from '../canvas/plannedFileIdentity'
@@ -275,6 +276,8 @@ export function SheetRail() {
       createSheet: s.createSheet,
     })))
   const [creating, setCreating] = useState(false)
+  // What the sheet being named starts with.
+  const [startWith, setStartWith] = useState<keyof typeof NEW_SHEET_KINDS>('blank')
   const [submitting, setSubmitting] = useState(false)
   const [newName, setNewName] = useState('New Sheet')
   const [createError, setCreateError] = useState<string | null>(null)
@@ -306,10 +309,41 @@ export function SheetRail() {
     newNameInput.current?.select()
   }, [creating])
 
-  const beginCreating = () => {
-    setNewName(untakenSheetName(sheets, 'New Sheet'))
+  const beginCreating = (kind: keyof typeof NEW_SHEET_KINDS) => {
+    setStartWith(kind)
+    setNewName(untakenSheetName(sheets, kind === 'floor' ? 'Floor Copy' : 'New Sheet'))
     setCreateError(null)
     setCreating(true)
+  }
+
+  // The + opens a choice of what the sheet starts with, in the rail's own menu.
+  const [kindMenuOpen, setKindMenuOpen] = useState(false)
+  const kindMenu = useRef<HTMLDivElement>(null)
+  const addButton = useRef<HTMLButtonElement>(null)
+  const kindMenuId = useId()
+  useEffect(() => {
+    const panel = kindMenu.current
+    if (!panel) return
+    panel.popover = 'auto'
+    const toggle = () => setKindMenuOpen(panel.matches(':popover-open'))
+    panel.addEventListener('toggle', toggle)
+    const close = () => { if (panel.matches(':popover-open')) panel.hidePopover() }
+    window.addEventListener('resize', close)
+    return () => { panel.removeEventListener('toggle', toggle); window.removeEventListener('resize', close) }
+  }, [])
+  const showKindMenu = () => {
+    const panel = kindMenu.current, anchor = addButton.current
+    if (!panel || !anchor) return
+    if (panel.matches(':popover-open')) { panel.hidePopover(); return }
+    panel.showPopover()
+    const rect = anchor.getBoundingClientRect()
+    panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - panel.offsetWidth - 8))}px`
+    panel.style.top = `${Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - panel.offsetHeight - 8))}px`
+    panel.querySelector<HTMLButtonElement>('button')?.focus()
+  }
+  const chooseKind = (kind: keyof typeof NEW_SHEET_KINDS) => {
+    kindMenu.current?.hidePopover()
+    beginCreating(kind)
   }
 
   const cancelCreating = () => {
@@ -326,7 +360,8 @@ export function SheetRail() {
     setSubmitting(true)
     setCreateError(null)
     try {
-      const sheet = await createSheet(workspaceId, name, '', [])
+      const members = startWith === 'floor' ? floorCopyMembers(useGraphStore.getState()) : []
+      const sheet = await createSheet(workspaceId, name, '', members)
       setCreating(false)
       void openSheet(workspaceId, sheet.id, { exclusive: true })
     } catch (err) {
@@ -374,15 +409,33 @@ export function SheetRail() {
         <span>Overlay sheets</span>
         <span className="ambio-sheet-rail__section-rule" />
         <button
+          ref={addButton}
           type="button"
           className="ambio-sheet-rail__add-sheet"
           aria-label="Create new overlay sheet"
-          aria-expanded={creating}
+          aria-haspopup="menu"
+          aria-expanded={kindMenuOpen}
+          aria-controls={kindMenuId}
           disabled={creating}
-          onClick={beginCreating}
+          onClick={showKindMenu}
         >
           +
         </button>
+      </div>
+      <div ref={kindMenu} id={kindMenuId} className="ambio-sheet-menu ambio-sheet-menu--new" role="menu" aria-label="New overlay sheet" onKeyDown={event => {
+        if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); kindMenu.current?.hidePopover(); addButton.current?.focus() }
+        if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+          event.preventDefault(); const options = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')]; const index = options.indexOf(document.activeElement as HTMLButtonElement)
+          options[event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1 : (index + (event.key === 'ArrowUp' ? -1 : 1) + options.length) % options.length]?.focus()
+        }
+      }}>
+        <span className="ambio-sheet-menu__heading" aria-hidden="true">New sheet</span>
+        {(Object.keys(NEW_SHEET_KINDS) as Array<keyof typeof NEW_SHEET_KINDS>).map(kind => (
+          <button key={kind} type="button" role="menuitem" data-kind={kind} onClick={() => chooseKind(kind)}>
+            <span className="ambio-sheet-menu__icon" aria-hidden="true">{kind === 'floor' ? <FloorIcon /> : <SheetIcon />}</span>
+            <span className="ambio-sheet-menu__text"><strong>{NEW_SHEET_KINDS[kind].label}</strong><small>{NEW_SHEET_KINDS[kind].hint}</small></span>
+          </button>
+        ))}
       </div>
 
       <div className="ambio-sheet-rail__list">
@@ -407,9 +460,13 @@ export function SheetRail() {
                 if (event.key === 'Escape') cancelCreating()
               }}
             />
-            <span className="ambio-sheet-rail__commit-hint" aria-hidden="true">
+            {/* Enter or ↵ creates it; Escape or × cancels. */}
+            <button type="submit" className="ambio-sheet-rail__commit-hint" aria-label="Create sheet" title="Create (Enter)" disabled={submitting || !newName.trim()}>
               {submitting ? '…' : '↵'}
-            </span>
+            </button>
+            <button type="button" className="ambio-sheet-rail__cancel-new" aria-label="Cancel new sheet" title="Cancel (Esc)" disabled={submitting} onClick={() => { cancelCreating(); /* + is enabled again once the row closes */ setTimeout(() => addButton.current?.focus(), 0) }}>
+              ×
+            </button>
           </form>
         )}
 
