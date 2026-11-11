@@ -45,7 +45,9 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
   const lock = useRef(false)
   const workspace = useRef(workspaceId)
   workspace.current = workspaceId
-  useEffect(() => { chosen.current = false; setHostIdState(''); setInstalledIds([]); setConfiguredIds([]); setRuns([]); setEvents({}); seen.current = {}; setNotice('') }, [workspaceId])
+  // Another project's agents are not this one's: until this project's are read,
+  // there are none, so no agent's introduction shows for a choice not yet made.
+  useEffect(() => { chosen.current = false; setHosts([]); setHostIdState(''); setInstalledIds([]); setConfiguredIds([]); setRuns([]); setEvents({}); seen.current = {}; setNotice('') }, [workspaceId])
   useEffect(() => {
     if (!isOpen) return
     let active = true
@@ -87,7 +89,10 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
         if (hostsPending) {
           const hostsNow = await window.ambio.listDeliveryHosts()
           hostsPending = hostsNow.some(item => item.accessPending)
-          if (active) setHosts(current => JSON.stringify(current) === JSON.stringify(hostsNow) ? current : hostsNow)
+          // The first read sets the agents together with the one to start on;
+          // setting them here first would show "Copy the handoff myself" (and
+          // its introduction) for a moment before that choice lands.
+          if (active) setHosts(current => current.length === 0 || JSON.stringify(current) === JSON.stringify(hostsNow) ? current : hostsNow)
         }
         const items = await window.ambio.listDeliveryRuns(workspaceId)
         if (!active) return

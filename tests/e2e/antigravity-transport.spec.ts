@@ -139,3 +139,47 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     await page.screenshot({ path: 'test-results/antigravity-transport.png' })
   } finally { await app.close(); fs.rmSync(home, { recursive: true, force: true }) }
 })
+
+test('opening the agent panel goes straight to the agent used last, with no introduction flashing first', async () => {
+  test.setTimeout(60000)
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-agy-reopen-'))
+  const root = path.join(home, 'project')
+  fs.mkdirSync(root); fs.mkdirSync(path.join(home, '.ambio'))
+  fs.writeFileSync(path.join(home, '.ambio', 'projects.json'), JSON.stringify([{ id: 'demo', name: 'Antigravity fixture', rootPath: root, ignoredPaths: [], createdAt: 1 }]))
+  fs.writeFileSync(path.join(home, '.ambio', 'agent-executable-overrides.json'), JSON.stringify({ 'antigravity-cli': path.resolve(__dirname, 'fixtures', 'antigravity-agent.cjs') }))
+  const config = path.join(home, '.gemini', 'config')
+  fs.mkdirSync(config, { recursive: true }); fs.writeFileSync(path.join(config, 'mcp_config.json'), JSON.stringify({ mcpServers: { ambio: { command: 'fixture' } } }))
+  const windowsProfile = process.platform === 'win32' ? { APPDATA: path.join(home, 'AppData', 'Roaming'), LOCALAPPDATA: path.join(home, 'AppData', 'Local') } : {}
+  for (const dir of Object.values(windowsProfile)) fs.mkdirSync(dir, { recursive: true })
+  const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
+  const app = await electron.launch({ args: ['.'], env: { ...env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: path.join(home, '.config'), ...windowsProfile, AMBIO_E2E: '1', AMBIO_E2E_AGENTS: '1', AMBIO_API_TOKEN: 'ambio-antigravity-reopen-ui-token-1234567' } })
+  try {
+    const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1400, height: 1000 })
+    // Every guide read except the handoff's, and Antigravity chosen here before.
+    await skipAgentGuides(page)
+    await page.evaluate(() => {
+      const seen = JSON.parse(localStorage.getItem('ambio:destination-guides-seen') ?? '[]') as string[]
+      localStorage.setItem('ambio:destination-guides-seen', JSON.stringify(seen.filter(id => id !== '')))
+      localStorage.setItem('delivery_host_demo', 'antigravity-cli')
+    })
+    // Which agents are connected is slow to answer, so the agents arrive before the one to start on.
+    await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
+      const url = new URL(route.request().url())
+      if (url.pathname === '/api/agent/presence') await new Promise(resolve => setTimeout(resolve, 2500))
+      const body = url.pathname === '/api/canvas/history' ? { messages: [], nextCursor: '' } : url.pathname === '/api/agent/presence' ? { connections: [] } : []
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }).catch(() => {})
+    })
+    await page.reload()
+    await page.evaluate(() => {
+      (window as any).__introSeen = false
+      new MutationObserver(() => { const intro = document.querySelector('[role="dialog"][aria-label^="Before you use"]'); if (intro) (window as any).__introSeen = intro.getAttribute('aria-label') })
+        .observe(document.body, { childList: true, subtree: true })
+    })
+    await page.getByRole('button', { name: /^Message agent/ }).click()
+    const panel = page.getByRole('complementary', { name: 'Agent inbox' })
+    await expect(agentSetup(panel).trigger).toHaveAccessibleName(/^Client and model: Antigravity CLI/, { timeout: 15000 })
+    expect(await page.evaluate(() => (window as any).__introSeen)).toBe(false)
+    await expect(page.getByRole('dialog', { name: /^Before you use / })).toHaveCount(0)
+  } finally { await app.close() }
+})

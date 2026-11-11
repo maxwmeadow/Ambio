@@ -7,6 +7,8 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Opening Message agent no longer flashes the "Copy the handoff myself"
+  introduction before your agent is picked.
 - A step names a file by its name, with its folder after it, and long steps
   wrap instead of being cut off. A system named inside a bold title stays
   bold and reads as part of the title, still clickable.
