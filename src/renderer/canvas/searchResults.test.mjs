@@ -40,6 +40,12 @@ test('says where a system sits, and a symbol frames its file', () => {
   assert.equal(symbol.detail, 'class · src/shop/orders/order.ts:4')
 })
 
-test('a blank query finds nothing', () => {
-  assert.deepEqual(buildSearchResults({ query: '  ', systems, infraNodes, files, symbols }), [])
+test('a blank query lists systems outermost first, then infrastructure', () => {
+  const results = buildSearchResults({ query: '  ', systems, infraNodes, files, symbols })
+  assert.deepEqual(results.map(result => `${result.kind}:${result.title}:${result.detail}`), [
+    'system:Shop:Top level',
+    'system:Orders:Shop',
+    'system:Order History:Shop › Orders',
+    'infra:Orders DB:aws, database',
+  ])
 })

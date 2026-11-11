@@ -1769,7 +1769,8 @@ test('searches the project index and navigates to a keyboard-selected file', asy
   const searchWindow = searchDialog
   await expect(searchDialog).toBeVisible()
   await expect(searchInput).toBeFocused()
-  await expect(searchDialog).toContainText('Search the project index')
+  // Before typing it lists the map's systems, or says what to search for.
+  await expect(searchDialog).toContainText(/On the map|Search the project index/)
 
   await expect.poll(() => searchWindow.evaluate(element => {
     const style = getComputedStyle(element)

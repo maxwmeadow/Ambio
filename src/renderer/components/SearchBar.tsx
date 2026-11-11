@@ -58,6 +58,8 @@ export function SearchBar({ onClose }: SearchBarProps) {
     [query, systems, infraNodes, files, symbols],
   )
 
+  const browsing = !query.trim()
+
   const systemNames = useMemo(
     () => new Map(systems.map(system => [system.id, system.name])),
     [systems],
@@ -141,8 +143,11 @@ export function SearchBar({ onClose }: SearchBarProps) {
           {results.length > 0 && (
             <>
               <div className="ambio-search-results-header">
-                <span>Results</span>
-                <output>{results.length} {results.length === 1 ? 'match' : 'matches'}</output>
+                <span>{browsing ? 'On the map' : 'Results'}</span>
+                <output>
+                  {browsing ? 'Type to search files and symbols too'
+                    : `${results.length} ${results.length === 1 ? 'match' : 'matches'}`}
+                </output>
               </div>
               <div className="ambio-search-results" id="ambio-search-results" role="listbox" aria-label="Search results">
                 {results.map((result, index) => {
@@ -182,14 +187,14 @@ export function SearchBar({ onClose }: SearchBarProps) {
             </>
           )}
 
-          {query && results.length === 0 && (
+          {!browsing && results.length === 0 && (
             <div className="ambio-search-empty">
               <strong>No matches</strong>
               <span>No system, file or symbol is named like “{query}”.</span>
             </div>
           )}
 
-          {!query && (
+          {browsing && results.length === 0 && (
             <div className="ambio-search-empty ambio-search-empty--idle">
               <strong>Search the project index</strong>
               <span>Start with a system, a filename or path fragment, or a function or class name.</span>

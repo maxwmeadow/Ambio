@@ -3,7 +3,8 @@ import type { DbFile, DbInfraNode, DbSystem } from '../../shared/types'
 /**
  * ⌘K results: everything on the map a name can find - systems, infrastructure,
  * files, and symbols from archd's symbol index - in that order, each group
- * ranked exact, then prefix, then contains. Pure, so the search window only
+ * ranked exact, then prefix, then contains; with no query, the systems and
+ * infrastructure to browse. Pure, so the search window only
  * renders and fetches.
  */
 
@@ -63,6 +64,39 @@ function systemPath(systemId: string | null | undefined, byId: Map<string, Pick<
   return names.join(' › ')
 }
 
+const BROWSE_LIMITS = { system: 24, infra: 12 }
+
+/**
+ * Before anything is typed: the map's systems, outermost first and then by
+ * path, and its infrastructure by name, so the window opens on something to
+ * pick rather than an empty box.
+ */
+function browseResults(
+  systems: Array<Pick<DbSystem, 'id' | 'name' | 'parentId'>>,
+  infraNodes: Array<Pick<DbInfraNode, 'id' | 'name' | 'provider' | 'category'>>,
+  systemsById: Map<string, Pick<DbSystem, 'name' | 'parentId'>>,
+): SearchResult[] {
+  const browseSystems = systems
+    .map(system => {
+      const parents = systemPath(system.parentId, systemsById)
+      return { system, parents, depth: parents ? parents.split(' › ').length : 0 }
+    })
+    .sort((a, b) => a.depth - b.depth || a.parents.localeCompare(b.parents) ||
+      a.system.name.localeCompare(b.system.name))
+    .slice(0, BROWSE_LIMITS.system)
+    .map(({ system, parents }): SearchResult => ({
+      kind: 'system', id: system.id, nodeId: system.id, title: system.name, detail: parents || 'Top level',
+    }))
+  const browseInfra = [...infraNodes]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, BROWSE_LIMITS.infra)
+    .map((node): SearchResult => ({
+      kind: 'infra', id: node.id, nodeId: node.id, title: node.name,
+      detail: [node.provider, node.category].filter(Boolean).join(', '),
+    }))
+  return [...browseSystems, ...browseInfra]
+}
+
 export function buildSearchResults(input: {
   query: string
   systems: Array<Pick<DbSystem, 'id' | 'name' | 'parentId'>>
@@ -71,8 +105,8 @@ export function buildSearchResults(input: {
   symbols: SymbolMatch[]
 }): SearchResult[] {
   const needle = input.query.trim().toLowerCase()
-  if (!needle) return []
   const systemsById = new Map(input.systems.map(system => [system.id, system]))
+  if (!needle) return browseResults(input.systems, input.infraNodes, systemsById)
   const filesById = new Map(input.files.map(file => [file.id, file]))
   const fileName = (relPath: string) => relPath.split('/').pop() ?? relPath
 
