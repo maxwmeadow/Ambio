@@ -11,6 +11,9 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
   const [hosts, setHosts] = useState<DeliveryHost[]>([])
   const [hostId, setHostIdState] = useState('')
   const [installedIds, setInstalledIds] = useState<string[]>([])
+  // Apps whose settings name Ambio's server, whatever else is set up there:
+  // all a CLI that reads its tools from that app needs (RUN_NEEDS_INSTALL).
+  const [configuredIds, setConfiguredIds] = useState<string[]>([])
   // Once the user picks a destination in this panel, a refresh must not move it.
   const chosen = useRef(false)
   const setHostId = (value: string) => {
@@ -42,14 +45,15 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
   const lock = useRef(false)
   const workspace = useRef(workspaceId)
   workspace.current = workspaceId
-  useEffect(() => { chosen.current = false; setHostIdState(''); setInstalledIds([]); setRuns([]); setEvents({}); seen.current = {}; setNotice('') }, [workspaceId])
+  useEffect(() => { chosen.current = false; setHostIdState(''); setInstalledIds([]); setConfiguredIds([]); setRuns([]); setEvents({}); seen.current = {}; setNotice('') }, [workspaceId])
   useEffect(() => {
     if (!isOpen) return
     let active = true
     // Start on an agent that can receive the request: the one used last here,
     // else one connected now, else one Ambio is installed in.
-    const installed = Promise.resolve().then(() => window.ambio.listAgentHosts(rootPath))
-      .then(items => items.filter(item => item.configured && item.workflowInstalled).map(item => item.id), () => [] as string[])
+    const agentHosts = Promise.resolve().then(() => window.ambio.listAgentHosts(rootPath)).catch(() => [])
+    const installed = agentHosts.then(items => items.filter(item => item.configured && item.workflowInstalled).map(item => item.id))
+    const configured = agentHosts.then(items => items.filter(item => item.configured).map(item => item.id))
     const live = fetch(`${archdApi()}/api/agent/presence?workspace=${encodeURIComponent(workspaceId)}`)
       .then(response => response.ok ? response.json() as Promise<{ connections?: Array<{ hostId: string }> }> : {})
       .then(body => (body as { connections?: Array<{ hostId: string }> }).connections?.map(item => item.hostId) ?? [], () => [] as string[])
@@ -61,10 +65,11 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
     let hostsPending = true
     void window.ambio.listDeliveryHosts().then(async items => {
       hostsPending = items.some(item => item.accessPending)
-      const [installedNow, liveNow, watchingNow] = await Promise.all([installed, live, watching()])
+      const [installedNow, configuredNow, liveNow, watchingNow] = await Promise.all([installed, configured, live, watching()])
       if (!active) return
       setHosts(items)
       setInstalledIds([...new Set([...liveNow, ...installedNow])])
+      setConfiguredIds(configuredNow)
       setWatchingHosts(watchingNow)
       if (!chosen.current) {
         const remembered = rememberedDeliveryHost(workspaceId)
@@ -126,7 +131,7 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
       if (workspace.current === workspaceId) setRuns(await window.ambio.listDeliveryRuns(workspaceId))
     } catch (error) { if (workspace.current === workspaceId) setNotice(String(error)) }
   }
-  return { hosts, hostId, setHostId, installedIds, runs, events, watchers, watchingHosts, notice, setNotice, busy, deliver, stop, where, setWhere }
+  return { hosts, hostId, setHostId, installedIds, configuredIds, runs, events, watchers, watchingHosts, notice, setNotice, busy, deliver, stop, where, setWhere }
 }
 
 export function deliveryAction(host?: DeliveryHost, hostId = '', watchingHosts: string[] = []): string {

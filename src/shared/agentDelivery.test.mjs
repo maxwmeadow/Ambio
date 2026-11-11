@@ -39,6 +39,9 @@ test('an agent that only reaches Ambio through its app is blocked until Ambio is
   assert.equal(readiness([]).tone, 'blocked')
   assert.match(readiness([]).text, /once Ambio is added to Antigravity/)
   assert.equal(readiness(['antigravity']).tone, 'ready')
+  // Ambio in Antigravity's settings is enough, before this project has its
+  // rule file or the app its skills (a new project, 2026-11-10).
+  assert.equal(deliveryReadiness({ hostId: 'antigravity-cli', hosts, installedIds: [], configuredIds: ['antigravity'], watchers: 0, watchingHosts: [] }).tone, 'ready')
   // Claude Code is handed Ambio's server on its command line: nothing to install.
   assert.equal(deliveryReadiness({ hostId: 'claude-code', hosts, installedIds: [], watchers: 0, watchingHosts: [] }).tone, 'ready')
 })

@@ -453,7 +453,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       {unseen && <button className="ambio-inbox__latest" type="button" onClick={latest}>Jump to latest ↓</button>}
     </div>
     <div className="ambio-inbox__bottom">
-      {!caseTarget && (readiness => readiness.tone === 'ready' || readiness.tone === 'neutral' ? null : <DeliveryReadiness onFix={onManageConnections} readiness={readiness} />)(deliveryReadiness({ hostId: retry.current?.hostId ?? delivery.hostId, hosts: delivery.hosts, installedIds: delivery.installedIds, watchers: delivery.watchers, watchingHosts: delivery.watchingHosts,
+      {!caseTarget && (readiness => readiness.tone === 'ready' || readiness.tone === 'neutral' ? null : <DeliveryReadiness onFix={onManageConnections} readiness={readiness} />)(deliveryReadiness({ hostId: retry.current?.hostId ?? delivery.hostId, hosts: delivery.hosts, installedIds: delivery.installedIds, configuredIds: delivery.configuredIds, watchers: delivery.watchers, watchingHosts: delivery.watchingHosts,
         chat: toChat ? { service: chatProvider?.name ?? 'this service', auth: chatProvider?.auth, keyMissing: !!chatProvider && !chatProvider.hasKey && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(chatProvider.baseUrl) } : undefined }))}
       {!caseTarget && effectiveSheetId && attachedSheet && <SheetComparison key={effectiveSheetId} workspaceId={graph.workspaceId} sheetId={effectiveSheetId} />}
       <form className="ambio-inbox__compose" onSubmit={submit}>

@@ -431,8 +431,11 @@ export const RUN_NEEDS_INSTALL: Record<string, { installer: string; app: string;
   'cursor-cli': { installer: 'cursor', app: 'Cursor' },
 }
 
-export function deliveryReadiness({ hostId, hosts, installedIds, watchers, watchingHosts, chat }: {
-  hostId: string; hosts: DeliveryHost[]; installedIds: string[]; watchers: number; watchingHosts: string[]
+export function deliveryReadiness({ hostId, hosts, installedIds, configuredIds = installedIds, watchers, watchingHosts, chat }: {
+  /** Apps whose settings name Ambio's server. A CLI that reads its tools from
+   * one needs only that, not the app's skills or this project's rule files,
+   * which is what starting the run checks too (electron/main.ts). */
+  hostId: string; hosts: DeliveryHost[]; installedIds: string[]; configuredIds?: string[]; watchers: number; watchingHosts: string[]
   chat?: { service: string; keyMissing: boolean; auth?: 'chatgpt' }
 }): DeliveryReadinessResult {
   if (chat) return chat.keyMissing
@@ -444,7 +447,7 @@ export function deliveryReadiness({ hostId, hosts, installedIds, watchers, watch
   const host = hosts.find(item => item.id === hostId)
   if (!host) return { tone: 'neutral', text: 'Send saves your message. Copy its handoff into any agent chat that has Ambio.' }
   const needs = RUN_NEEDS_INSTALL[host.id]
-  if (host.route === 'run' && host.available && needs && !installedIds.includes(needs.installer)) {
+  if (host.route === 'run' && host.available && needs && !configuredIds.includes(needs.installer)) {
     return { tone: 'blocked', text: `${host.label} can only use Ambio\u2019s tools once Ambio is added to ${needs.app}. Add it in Settings \u2192 Agents, then send.`, fix: 'agents' }
   }
   if (host.route === 'run') return host.available

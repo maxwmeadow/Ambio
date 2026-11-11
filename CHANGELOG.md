@@ -7,6 +7,8 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Antigravity CLI no longer warns that Ambio must be added to Antigravity in
+  a new project when Ambio is already in Antigravity's settings.
 - The branch menu is now a compact Source control panel that matches the
   Drawings sidebar: the branch and its switcher at the top, one Push, Pull or
   Publish button, then Remote, Changes and Worktrees sections.
