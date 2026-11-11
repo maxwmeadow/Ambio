@@ -2054,7 +2054,8 @@ test('preserves sheet rail hierarchy, layer visibility, and Floor navigation', a
   await runtime.click()
   await expect(runtime).toHaveAttribute('aria-current', 'page')
   await expect.poll(() => runtime.evaluate(element => parseFloat(getComputedStyle(element).paddingRight))).toBeLessThan(10)
-  await expect(page.locator('.ambio-surface-readout')).toContainText('Runtime Draft')
+  // The sheet is named in the rail only; the toolbar does not repeat it.
+  await expect(page.locator('.ambio-location')).not.toContainText('Runtime Draft')
   await expect(runtime.locator('..')).toHaveClass(/row--visible/)
   await expect(page.locator('.ambio-sheet-palette')).toBeVisible()
   await expect(page.locator('.ambio-sheet-palette__item')).toHaveCount(6)

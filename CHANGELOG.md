@@ -7,6 +7,7 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- The toolbar no longer repeats the open sheet's name; the sheet rail shows it.
 - A system that grows when files are added to it stays inside the system
   around it: that parent keeps its size and shrinks its contents to fit.
   Systems that had already spilled out are put back when you open the map.

@@ -874,8 +874,8 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   investigations popover under its button (also Tools ▸ Saved
   Investigations…). Recording lives in Tools; an active recording retains a
   visible Stop control.
-- The Floor name appears in the left rail only; its toolbar label and reserved
-  space are omitted. Open sheets keep their name in the toolbar.
+- The Floor and sheet names appear in the left rail only; the toolbar shows
+  neither (Max, 2026-11-11).
 - The saved project title appears immediately left of the branch control on
   both surfaces (Max, November 3). Long titles truncate with the full name on
   hover; changing the project or its name updates the readout. The branch

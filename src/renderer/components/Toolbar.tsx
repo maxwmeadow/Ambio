@@ -70,10 +70,6 @@ export function Toolbar({
   const requestedConversation = useConversationPreferences(s => s.requested)
   useEffect(() => { if (requestedConversation?.workspaceId === workspaceId) setSidebar('agent') }, [requestedConversation, workspaceId])
   const queuedMsgs = useConversationPreferences(s => s.attention[workspaceId] ?? 0)
-  const activeSheetId = useSheetStore(s => s.activeSheetId)
-  const activeSheetName = useSheetStore(s =>
-    s.activeSheetId ? s.sheets.find(sheet => sheet.id === s.activeSheetId)?.name : undefined
-  )
 
   useEffect(() => {
     setTerminalMounted(false)
@@ -133,9 +129,6 @@ export function Toolbar({
             <ErrorBoundary fallback={null}>
               <BranchChip workspaceId={workspaceId} />
             </ErrorBoundary>
-            {activeSheetId && <div className="ambio-surface-readout">
-              <strong>{activeSheetName ?? 'Overlay Sheet'}</strong>
-            </div>}
           </div>
 
           <div className="ambio-command-separator" />
