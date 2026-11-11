@@ -650,3 +650,12 @@
 .ambio-sheet-review-panel .ambio-sheet-rail__review-reason { flex-wrap: wrap; margin-top: 10px; }
 .ambio-sheet-review-panel .ambio-sheet-rail__review-reason input { flex-basis: 100%; }
 .ambio-sheet-review-panel button:disabled { opacity: .5; cursor: default; }
+
+/* Agents working outside Ambio with no conversation: one quiet line each at the top, opening to their steps. */
+.ambio-outside { display: grid; gap: 4px; margin: 0 0 10px; }
+.ambio-outside__item { border: 1px solid #c7cec6; background: #eef0ea; }
+.ambio-outside__item[data-working] { border-color: #8fb0a2; }
+.ambio-inbox .ambio-outside__line { display: grid; grid-template-columns: 11px minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; padding: 6px 9px; color: #33433d; font: 12px/1.4 var(--font-ui, sans-serif); text-align: left; }
+.ambio-outside__line strong { color: #26332e; font-weight: 600; }
+.ambio-outside__line small { color: #5f6f67; font: 10.5px var(--font-ui, sans-serif); white-space: nowrap; }
+.ambio-outside__turn { margin: 0 6px 6px; }

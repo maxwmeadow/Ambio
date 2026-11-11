@@ -53,6 +53,8 @@ button.ambio-turn__tool:focus-visible { outline: 2px solid #69a799; outline-offs
 .ambio-turn__state[data-failed] { color: #9b3d2a; font-style: normal; font-weight: 600; }
 
 /* What a step was asked and what came back, opened in place under it. */
+.ambio-inbox .ambio-turn__show-targets { justify-self: start; padding: 3px 8px; border: 1px solid #8fb0a2; background: #eef3ee; color: #2f5d50; font: 600 10.5px var(--font-ui, sans-serif); }
+.ambio-inbox .ambio-turn__show-targets:hover { border-color: #2f6a5d; background: #e2ece4; }
 .ambio-turn__tool-detail { display: grid; gap: 6px; margin: 3px 0 4px 16px; }
 .ambio-turn__tool-detail h4 { margin: 0 0 2px; color: #5f6f67; font: 700 9px var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
 .ambio-turn__tool-detail pre { margin: 0; padding: 6px 8px; max-height: 300px; overflow: auto; border-left: 2px solid #d1d8ce; background: #ecede5; color: #26332e; white-space: pre-wrap; overflow-wrap: anywhere; font: 10.5px/1.5 var(--font-mono, monospace); }

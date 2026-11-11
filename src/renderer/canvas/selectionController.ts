@@ -86,7 +86,7 @@ export function selectionAfterDragStart(
  *
  * Takes the set and nothing else. It used to accept a second "primary" node
  * that was force-selected on top, which meant a node revealed from the search
- * bar or the agent log could never be deselected by any canvas gesture: every
+ * bar or an agent's step could never be deselected by any canvas gesture: every
  * rebuild put the highlight back. A reveal now writes the selection instead of
  * riding alongside it.
  */

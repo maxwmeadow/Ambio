@@ -198,6 +198,23 @@ only new ones. Both label a tool row with `components/agentActivity.ts`: one
 badge per kind of tool across every agent's tool names, a subagent marker,
 project paths relative to the run's root, and shared status words.
 
+Every Ambio tool call any agent makes is recorded from one wrapper in the MCP
+server (`mcp/agentAction.ts`): its kind, the map nodes it touched (ids at the
+top of its arguments or inside batches of edits), one line on what it was
+about with system names looked up, and its arguments and result, trimmed, as
+`detail`. archd stores it (`agent_actions`) and broadcasts `agent:action`,
+which lights up what an agent reads and may start an investigation
+recording. An agent Ambio runs already shows these calls in its own turn, so
+Message agent shows the record only where no Ambio run does
+(`components/outsideAgentActivity.ts`): a call belongs to an Ambio run when
+the same agent had a run at work then (from its start to a minute after its
+last event). A turn an outside agent took, from a handoff or while watching,
+gets its work sessions' calls as its steps; outside work in no conversation
+is grouped by agent, work session and pauses over 15 minutes, and the last
+two hours of it sit as one line each at the top of the panel
+(`OutsideAgents.tsx`). A step with map targets offers Show on map. This
+replaced the Agent Log panel (DECISIONS 2026-11-11).
+
 `internal/db/mapping_attempts.go` owns the attempt lifecycle (schema v11): one
 unfinished attempt per workspace, bound to one draft and optional addressed
 request. Draft commit runs in one immediate transaction with proposal creation,

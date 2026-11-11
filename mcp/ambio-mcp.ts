@@ -16,7 +16,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { join } from 'path'
 import { homedir } from 'os'
-import { actionKind, actionSummary, actionTargets } from './agentAction.ts'
+import { actionDetail as recordedDetail, actionKind, actionNameIds, actionSummary, actionTargets } from './agentAction.ts'
 import { routeTool } from './toolRouting.ts'
 import { LOOP_PROMPTS, loopPromptText } from './prompts.ts'
 import { findWorktreeForCwd, type WorktreeContext, type WorktreeRow } from './worktreeContext.ts'
@@ -271,6 +271,14 @@ async function postAgentAction(
   session?: ActiveWorkSession,
 ) {
   try {
+    // A summary names systems, not ids; a failed lookup only means plainer words.
+    const ids = actionNameIds(args)
+    const names = new Map<string, string>()
+    if (ids.length) {
+      try {
+        for (const row of await queryDb(workspaceId, `SELECT id, name FROM systems WHERE id IN (${ids.map(() => '?').join(',')})`, ids)) names.set(row.id, row.name)
+      } catch { /* plainer words */ }
+    }
     await fetch(`${API_BASE}/api/agent/action`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -283,8 +291,9 @@ async function postAgentAction(
         sessionId: session?.id,
         tool,
         kind: actionKind(tool),
-        summary: actionSummary(tool, args),
+        summary: actionSummary(tool, args, names),
         targets: actionTargets(tool, args, result),
+        detail: recordedDetail(args, result, error),
         durationMs: Date.now() - startedAt,
         status: error ? 'error' : 'ok',
         error: error ?? '',

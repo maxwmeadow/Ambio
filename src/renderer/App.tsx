@@ -13,7 +13,6 @@ import { SourcePreviewHost } from './components/SourcePreviewDialog'
 import { useSourcePreviewStore } from './store/sourcePreviewStore'
 import { ModelExplorer } from './components/ModelExplorer'
 import { InjectConfirmBanner } from './components/InjectConfirmBanner'
-import { AgentLogPanel } from './components/AgentLogPanel'
 import { PaperTextureDefs } from './canvas/nodes/PaperTexture'
 import { DeltaPanel } from './components/DeltaPanel'
 import { ArchitectureProposalPanel } from './components/ArchitectureProposalPanel'
@@ -174,7 +173,6 @@ export default function App() {
     detailPanel: usePanelStore(s => s.detailPanel),
   }
   const [explorerOpen, setExplorerOpen] = useState(false)
-  const [agentLogOpen, setAgentLogOpen] = useState(false)
   const caseOpen = useGraphStore(state => state.caseFile !== null || state.replay !== null)
   // Shared with the canvas documents bin, so both entry points open one browser.
   const documentsOpen = useGraphStore(state => state.documentsOpen)
@@ -772,7 +770,6 @@ export default function App() {
     'project.close': () => { if (currentProject) void closeProject() },
     'view.search': () => { if (currentProject) setSearchOpen(open => !open) },
     'view.explorer': () => { if (currentProject) setExplorerOpen(open => !open) },
-    'view.agentLog': () => { if (currentProject) setAgentLogOpen(open => !open) },
     'view.documents': () => { if (currentProject) setDocumentsOpen(!useGraphStore.getState().documentsOpen) },
     'view.reviewChanges': async () => {
       const store = useGraphStore.getState()
@@ -1084,7 +1081,6 @@ export default function App() {
           />
 
           {/* Agent activity log - everything the agent is doing, live */}
-          {agentLogOpen && <AgentLogPanel onClose={() => setAgentLogOpen(false)} />}
 
           {/* The agent's investigation: hypotheses, runs and their evidence,
               verdicts, the conclusion, and a way to talk back. Before the

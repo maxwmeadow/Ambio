@@ -1,6 +1,6 @@
 import { useShowOnMap } from '../canvas/useShowOnMap'
 import { canvasScene } from '../canvas/scene/canonicalScene'
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useReactFlow, useStoreApi } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
@@ -13,7 +13,9 @@ import { InboxSheetPicker } from './InboxSheetPicker'
 import { AgentMessageContent } from './AgentMessageContent'
 import { WorkOrderReview } from './WorkOrderReview'
 import { AgentDeliveryDestination, DeliveryReadiness, deliveryAction, runWorking, useAgentDelivery } from './AgentDelivery'
-import { AgentRunTurn } from './AgentTurn'
+import { AgentRunTurn, StepTargetsContext } from './AgentTurn'
+import { ambioRunWindows, outsideActivity, turnActions } from './outsideAgentActivity'
+import { OutsideAgents, OutsideAgentTurn } from './OutsideAgents'
 import { useCheckoutStore } from '../store/checkoutStore'
 import { conversationWorkplace, focusedCheckout } from './checkoutModel'
 import { CHAT_DELIVERY, WATCHING_DELIVERY, deliveryReadiness, type AgentAccess, type ModelOption } from '../../shared/agentDelivery'
@@ -117,6 +119,25 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   const { getNode } = useReactFlow()
   const flowStore = useStoreApi()
   const showOnMap = useShowOnMap(true, { duration: 300, maxZoom: 1.2, padding: .5 })
+  // What agents did through Ambio's tools. An agent Ambio runs shows it in its
+  // own turn; the record fills in turns and work that no Ambio run shows.
+  const agentActions = useGraphStore(s => s.agentActions)
+  const workSessions = useGraphStore(s => s.activeWorkSessions)
+  useEffect(() => { if (isOpen) void useGraphStore.getState().loadAgentActions() }, [isOpen, graph.workspaceId])
+  const [clock, setClock] = useState(() => Date.now())
+  useEffect(() => {
+    if (!isOpen) return
+    setClock(Date.now())
+    const timer = setInterval(() => setClock(Date.now()), 30_000)
+    return () => clearInterval(timer)
+  }, [isOpen, agentActions])
+  const runWindows = useMemo(() => ambioRunWindows(delivery.runs, delivery.events, clock), [delivery.runs, delivery.events, clock])
+  const turnSessionIds = useMemo(() => new Set(sheet.messages.flatMap(message => (message.sessions ?? []).map(session => session.id))), [sheet.messages])
+  // Outside work from the last two hours, newest first.
+  const outside = useMemo(() => outsideActivity(agentActions, runWindows, turnSessionIds)
+    .filter(group => clock - group.lastAt < 2 * 60 * 60_000).slice(0, 3), [agentActions, runWindows, turnSessionIds, clock])
+  const sessionGoals = useMemo(() => new Map(workSessions.map(session => [session.id, session.goal])), [workSessions])
+  const showTargets = (nodeIds: string[]) => { if (nodeIds[0]) showOnMap(nodeIds[0]) }
   // Ambio's own agent is one kind of conversation here; the open one is
   // passed in once the list says which conversations are its.
   const [chatActiveId, setChatActiveId] = useState<string | null>(null)
@@ -411,12 +432,14 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       <button type="button" className="ambio-inbox__icon" onClick={onClose} aria-label="Close agent inbox"><InboxIcon name="close" /></button>
     </header>
     {(error || sheet.error || chat.error) && <div role="alert" className="ambio-inbox__error"><span>{error || sheet.error || chat.error}</span><button type="button" onClick={() => { setError(null); chat.setError(''); void refreshInbox(graph.workspaceId) }}>Refresh</button></div>}
+    <StepTargetsContext.Provider value={showTargets}>
     <div className="ambio-inbox__thread">
       <div ref={history} className={`ambio-inbox__history${shown.length ? ' ambio-inbox__history--messages' : ''}`} aria-label="Messages" onScroll={() => { const el = history.current!; nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; if (nearBottom.current) { setUnseen(false); if (document.hasFocus()) readReply() } }}>
         {!chatCurrent && sheet.next && <button className="ambio-inbox__earlier" type="button" disabled={loadingEarlier} onClick={() => {
           const el = history.current!; olderAnchor.current = { height: el.scrollHeight, top: el.scrollTop }; setLoadingEarlier(true)
           void refreshInbox(graph.workspaceId, sheet.next).finally(() => { olderAnchor.current = null; setLoadingEarlier(false) })
         }}>{loadingEarlier ? 'Loading…' : 'Load earlier messages'}</button>}
+        <OutsideAgents groups={outside} hosts={delivery.hosts} goals={sessionGoals} now={clock} />
         {chatCurrent && <ChatTranscript chat={chat} workspaceId={graph.workspaceId} workOrders={sheet.messages} agentLabel={chatAgentLabel(chatProvider, chatCurrent.model)} />}
         {shown.length === 0 && !chat.snapshot?.messages.length && <div className="ambio-inbox__empty"><h3>{threads.length ? 'New conversation' : 'Talk to your agent'}</h3><p>Ask a question, ask for a plan, or ask for a change. Follow-ups stay in this conversation, so the agent keeps what was said.</p></div>}
         {shown.map(message => <article key={`${graph.workspaceId}:${message.id}`} className="ambio-inbox__message">
@@ -425,6 +448,11 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           </div>
           {(run => {
             const unanswered = message.status === 'queued' || message.status === 'delivered'
+            // An agent outside Ambio that took this turn: its Ambio calls are its steps.
+            const outsideSteps = run ? [] : turnActions(agentActions, (message.sessions ?? []).map(session => session.id))
+            if (outsideSteps.length && (message.reply || unanswered)) return <OutsideAgentTurn agent={message.reply?.agent || message.sessions?.at(-1)?.agent || outsideSteps.at(-1)!.agent || ''}
+              actions={outsideSteps} hosts={delivery.hosts} working={unanswered && !!message.sessions?.some(session => !session.endedAt)}
+              answer={message.reply ? { text: message.reply.body, onCopy: () => copy(message.reply!.body, message.id), copied: copied === message.id } : undefined} />
             // The agent's turn, from its first step to its answer, in one card.
             if (message.reply || (run && unanswered)) return <AgentRunTurn run={run} hosts={delivery.hosts} events={run ? delivery.events[run.key] : undefined} reply={message.reply}
               onCopy={message.reply ? () => copy(message.reply!.body, message.id) : undefined} copied={copied === message.id}
@@ -436,7 +464,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
             </div>
           })(latestRun(message.id))}
           {permissions.filter(request => request.messageId === message.id).map(request => <AgentRequestCard key={request.id} request={request} hostLabel={delivery.hosts.find(host => host.id === request.hostId)?.label} />)}
-          {message.status !== 'answered' && !latestRun(message.id) && message.sessions?.filter(session => !session.endedAt).slice(-1).map(session => <section key={session.id} className="ambio-inbox__progress" aria-label={`Work progress: ${session.goal}`}><strong>{session.agent || 'Agent'}, {session.goal}</strong>{session.notes.length > 0 && <p>{session.notes.at(-1)?.text}</p>}</section>)}
+          {message.status !== 'answered' && !latestRun(message.id) && !turnActions(agentActions, (message.sessions ?? []).map(session => session.id)).length && message.sessions?.filter(session => !session.endedAt).slice(-1).map(session => <section key={session.id} className="ambio-inbox__progress" aria-label={`Work progress: ${session.goal}`}><strong>{session.agent || 'Agent'}, {session.goal}</strong>{session.notes.length > 0 && <p>{session.notes.at(-1)?.text}</p>}</section>)}
           {message.status === 'answered' && !message.reply && <p className="ambio-inbox__notice">This older reply is no longer available.</p>}
           {message.status === 'cancelled' && <p className="ambio-inbox__turn-status" data-state="stopped">Cancelled</p>}
           {/* Only a build changed anything; a question or a proposal has nothing to accept here. */}
@@ -452,6 +480,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       </div>
       {unseen && <button className="ambio-inbox__latest" type="button" onClick={latest}>Jump to latest ↓</button>}
     </div>
+    </StepTargetsContext.Provider>
     <div className="ambio-inbox__bottom">
       {!caseTarget && (readiness => readiness.tone === 'ready' || readiness.tone === 'neutral' ? null : <DeliveryReadiness onFix={onManageConnections} readiness={readiness} />)(deliveryReadiness({ hostId: retry.current?.hostId ?? delivery.hostId, hosts: delivery.hosts, installedIds: delivery.installedIds, configuredIds: delivery.configuredIds, watchers: delivery.watchers, watchingHosts: delivery.watchingHosts,
         chat: toChat ? { service: chatProvider?.name ?? 'this service', auth: chatProvider?.auth, keyMissing: !!chatProvider && !chatProvider.hasKey && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(chatProvider.baseUrl) } : undefined }))}

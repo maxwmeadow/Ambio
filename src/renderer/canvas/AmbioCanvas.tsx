@@ -2856,7 +2856,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     queueCameraFit(1800, { padding: 0.28, duration: 1100, maxZoom: 1.0 })
   }, [systems.length, files.length, infraNodes.length, queueCameraFit, deferCanvasMaterialization, reviewMode, overlaySheetId])
 
-  // Revealing a node from outside the canvas - search, the agent log, the
+  // Revealing a node from outside the canvas - search, an agent's step, the
   // detail panel - selects it, exactly as clicking it would.
   //
   // This used to paint `selected` straight onto the scene without telling the

@@ -51,7 +51,6 @@ export type CommandId =
   | 'view.commandPalette'
   | 'view.search'
   | 'view.fitView'
-  | 'view.agentLog'
   | 'view.terminal'
   | 'view.documents'
   | 'view.explorer'
@@ -144,7 +143,6 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'view.zoomMapOut': { id: 'view.zoomMapOut', label: 'Zoom Out Map', accelerator: 'CmdOrCtrl+-', needsProject: true },
   'view.sheetRelationships': { id: 'view.sheetRelationships', label: 'Show All Sheet Relationships', needsProject: true },
   'view.infrastructure': { id: 'view.infrastructure', label: 'Infrastructure Sidebar', accelerator: 'CmdOrCtrl+Shift+E', needsProject: true },
-  'view.agentLog': { id: 'view.agentLog', label: 'Agent Log', accelerator: 'CmdOrCtrl+Shift+A', needsProject: true },
   'view.terminal': { id: 'view.terminal', label: 'Toggle Terminal', accelerator: 'Ctrl+`', needsProject: true },
   'view.documents': { id: 'view.documents', label: 'Documents', accelerator: 'CmdOrCtrl+Shift+D', needsProject: true },
   'view.explorer': { id: 'view.explorer', label: 'Model Explorer', accelerator: 'CmdOrCtrl+Shift+O', needsProject: true },
@@ -242,7 +240,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
       command('view.commandPalette'), command('view.search'), separator,
       {
         kind: 'group', label: 'Panels', entries: [
-          'view.terminal', 'view.agentLog', 'view.documents', 'view.explorer', 'view.infrastructure', 'view.sheetRelationships',
+          'view.terminal', 'view.documents', 'view.explorer', 'view.infrastructure', 'view.sheetRelationships',
           'view.panelSheetRail', 'view.panelDetail',
         ],
       },
@@ -273,13 +271,13 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
 
   sections.push({
     id: 'tools', label: 'Tools', entries: [
-      command('investigation.record'), command('investigation.browse'), separator, command('view.agentLog'),
+      command('investigation.record'), command('investigation.browse'),
     ],
   })
 
   sections.push({
     id: 'agent', label: 'Agent', entries: [
-      command('agent.message'), command('view.agentLog'), command('agent.architectureDraft'), separator, command('agent.connect'), command('agent.guidedSetup'),
+      command('agent.message'), command('agent.architectureDraft'), separator, command('agent.connect'), command('agent.guidedSetup'),
     ],
   })
 

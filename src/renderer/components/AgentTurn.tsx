@@ -1,5 +1,5 @@
 import { Chevron, DisclosureSummary } from './ui/Chevron'
-import { useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../../shared/agentDelivery'
 import type { ChatPart } from '../../shared/agentChat'
 import { AgentMessageContent } from './AgentMessageContent'
@@ -26,9 +26,17 @@ export interface WorkItem {
   input?: string
   output?: string
   diff?: string
+  /** Map nodes the step touched, when known, so it can show them. */
+  targets?: string[]
   /** Still being written; the caret follows it. */
   live?: boolean
 }
+
+/**
+ * How a step shows the map nodes it touched. Provided where there is a map
+ * (the agent panel); without it, as in setup, steps offer no map link.
+ */
+export const StepTargetsContext = createContext<((nodeIds: string[]) => void) | null>(null)
 
 // A tool call that failed used to be reported as an error of its own, its
 // label shown raw outside the steps; it is the failed step it always was.
@@ -156,7 +164,9 @@ function ToolLine({ item, rootPath }: { item: WorkItem; rootPath?: string }) {
   const failed = status === 'failed' || status === 'declined' || status === 'error' || (item.exitCode != null && item.exitCode !== 0)
   const state = failed ? (item.exitCode != null && item.exitCode !== 0 ? `failed, exit ${item.exitCode}` : status === 'declined' ? 'declined' : 'failed')
     : status === 'running' || status === 'waiting' ? status : ''
-  const more = !!(item.input || item.output || item.diff)
+  const showTargets = useContext(StepTargetsContext)
+  const targets = showTargets && item.targets?.length ? item.targets : undefined
+  const more = !!(item.input || item.output || item.diff || targets)
   const line = <>
     <span className="ambio-turn__verb" data-badge={row.badge.toLowerCase()}>{verb}</span>
     <span className="ambio-turn__what">
@@ -175,6 +185,9 @@ function ToolLine({ item, rootPath }: { item: WorkItem; rootPath?: string }) {
       {item.input && <section><h4>Asked</h4><pre>{item.input}</pre></section>}
       {item.diff && <section><h4>Changes</h4><pre>{item.diff}</pre></section>}
       {item.output && <section><h4>{failed ? 'Error' : 'Answer'}</h4><pre>{item.output}</pre></section>}
+      {targets && <button type="button" className="ambio-turn__show-targets" onClick={() => showTargets!(targets)}>
+        Show on map{targets.length > 1 ? ` (${targets.length})` : ''}
+      </button>}
     </div>}
   </div>
 }

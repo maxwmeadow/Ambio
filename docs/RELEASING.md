@@ -53,7 +53,8 @@ Install the draft's artifact on each OS you can reach, then:
 2. Open a real project: indexing finishes, the Floor draws, a file opens in
    the editor.
 3. Connect an agent (Agent → Connect an Agent…), then from the agent call
-   `get_architecture` and see it in the agent log.
+   `get_architecture` and see it in Message agent, as a step of that agent's
+   work outside Ambio.
 4. Draw a planned system on a sheet, send it, and see the work order in the
    Agent inbox.
 5. Quit and reopen: the project and its layout come back.

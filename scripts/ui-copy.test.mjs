@@ -13,6 +13,7 @@ const activityFormat = new Set([
   'electron/codexTranscript.ts',
   'src/renderer/components/AgentTurn.tsx',
   'src/renderer/components/agentActivity.ts',
+  'src/renderer/components/outsideAgentActivity.ts',
   'src/renderer/screens/MapWithAgent.tsx',
 ])
 

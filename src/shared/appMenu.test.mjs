@@ -76,5 +76,6 @@ test('the palette filters by words and hides project commands on the launcher', 
   assert.ok(!paletteCommands('palette', true).some(spec => spec.id === 'view.commandPalette'))
   assert.equal(paletteCommands('set', false)[0].id, 'app.settings')
   assert.equal(paletteCommands('zoom', false)[0].id, 'view.zoomIn')
-  assert.equal(paletteCommands('log', true)[0].id, 'view.agentLog')
+  // The Agent Log is gone (2026-11-11); what agents do shows in Message agent.
+  assert.ok(!paletteCommands('log', true).some(spec => spec.id === 'view.agentLog'))
 })

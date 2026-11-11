@@ -388,7 +388,7 @@ export async function apiGetAgentActions(workspaceId: string, limit = 200): Prom
   const res = await fetch(
     `${archdWsHttp()}/api/agent/actions?workspace=${encodeURIComponent(workspaceId)}&limit=${limit}`,
   )
-  if (!res.ok) throw new Error(await res.text() || `Unable to load agent log (${res.status})`)
+  if (!res.ok) throw new Error(await res.text() || `Unable to load agent activity (${res.status})`)
   return res.json() as Promise<AgentAction[]>
 }
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { actionKind, actionSummary, actionTargets } from './agentAction.ts'
+import { actionDetail, actionKind, actionSummary, actionTargets } from './agentAction.ts'
 
 test('reads are the default so a new tool is still captured', () => {
   assert.equal(actionKind('some_tool_added_next_month'), 'read')
@@ -63,18 +63,44 @@ test('an action with nothing to point at yields no targets', () => {
   assert.deepEqual(actionTargets('get_systems_overview', {}), [])
 })
 
-test('summaries read like a sentence, not a tool name', () => {
+test('summaries say what a call was about, after the tool name the step already shows', () => {
   assert.equal(
     actionSummary('get_call_path', { from: 'handlers.py', to: 'store.py' }),
     'Traced handlers.py → store.py',
   )
   assert.equal(actionSummary('create_system', { name: 'Storage' }), 'Created system Storage')
-  assert.equal(actionSummary('start_work', { goal: 'Add caching' }), 'Started work: Add caching')
-  assert.equal(actionSummary('search_symbols', { query: 'TaskStore' }), 'Searched symbols for "TaskStore"')
+  assert.equal(actionSummary('start_work', { goal: 'Add caching' }), 'Add caching')
+  assert.equal(actionSummary('search_symbols', { query: 'TaskStore' }), '"TaskStore"')
 })
 
-test('an unmapped tool degrades to a readable name rather than nothing', () => {
-  assert.equal(actionSummary('get_systems_overview', {}), 'get systems overview')
+test("today's tools say what they did, naming systems rather than ids", () => {
+  const names = new Map([['s1', 'Payments'], ['s2', 'Billing']])
+  assert.equal(actionSummary('edit_systems', { op: 'assign', systemId: 's1', fileIds: ['a', 'b', 'c'] }, names), 'Put 3 files in Payments')
+  assert.equal(actionSummary('edit_systems', { op: 'merge', sourceSystemId: 's2', targetSystemId: 's1' }, names), 'Merged Billing into Payments')
+  assert.equal(actionSummary('edit_systems', { op: 'add_chunk', systems: [{}, {}] }), 'Drafted 2 systems')
+  assert.equal(actionSummary('edit_systems', { op: 'assign', systemId: 'gone', filePaths: ['x'] }), 'Put 1 file in a system')
+  assert.equal(actionSummary('get_architecture', {}), 'overview')
+  assert.equal(actionSummary('get_architecture', { scope: 'cross_dependencies', id: 's1' }, names), 'cross dependencies of Payments')
+  assert.equal(actionSummary('edit_sheet', { op: 'annotate', sheet: 'Checkout' }), 'Added a note on Checkout')
+  assert.equal(actionSummary('get_inbox', { messageHandle: 'h' }), 'Read a request')
+  assert.equal(actionSummary('update_work', { note: 'Wired the cache' }), 'Wired the cache')
+})
+
+test('an unmapped tool says nothing it does not know; its name is shown already', () => {
+  assert.equal(actionSummary('get_systems_overview', {}), '')
+})
+
+test('ids inside a batch of edits are targets too', () => {
+  assert.deepEqual(actionTargets('edit_systems', { op: 'bulk', updates: [{ systemId: 's1', name: 'A' }, { systemId: 's2' }] }).sort(), ['s1', 's2'])
+})
+
+test('an action keeps what it was asked and what came back, trimmed', () => {
+  const detail = JSON.parse(actionDetail({ op: 'overview' }, { systems: 3 }))
+  assert.match(detail.input, /"op": "overview"/)
+  assert.match(detail.output, /"systems": 3/)
+  assert.equal(JSON.parse(actionDetail({}, { ok: true }, 'boom')).output, 'boom')
+  assert.ok(JSON.parse(actionDetail({ text: 'x'.repeat(9000) }, null)).input.length < 4100)
+  assert.deepEqual(JSON.parse(actionDetail({}, undefined)), {})
 })
 
 test('every advertised tool is classified as the thing it actually does', () => {

@@ -125,3 +125,62 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     await expect(panel.locator('.ambio-inbox__attachment')).toHaveCount(0)
   } finally { await app.close() }
 })
+
+test('what an agent outside Ambio does shows in Message agent: a turn it took, and work in no conversation', async () => {
+  const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
+  const app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1' } })
+  try {
+    const page = await app.firstWindow()
+    await skipAgentGuides(page)
+    await page.setViewportSize({ width: 1400, height: 900 })
+    const now = Date.now()
+    const call = (id: number, ts: number, extra: Record<string, unknown>) => ({ id, workspaceId: 'demo', ts, tool: 'get_architecture', kind: 'read', summary: 'overview', targets: [], durationMs: 3, status: 'ok', ...extra })
+    // Cursor took a handoff and answered; Codex, in a terminal, used Ambio with no conversation.
+    const message = { id: 'outside-1', workspaceId: 'demo', sheetId: null, note: 'How is the canvas drawn?', selection: '[]', changeSummary: '', sheetContext: '', buildSpec: '',
+      status: 'answered', mode: 'ask', threadId: 'outside-1', createdAt: now - 600_000, deliveredTo: null, answerAnnotationId: null,
+      reply: { agent: 'cursor', body: 'The canvas is drawn by **Canvas Renderer**.', createdAt: now - 400_000 },
+      sessions: [{ id: 'sess-cursor', workspaceId: 'demo', agent: 'cursor', goal: 'Explain the canvas', notes: [], focusSystemIds: [], focusFileIds: [], startedAt: now - 590_000, endedAt: now - 400_000 }] }
+    const actions = [
+      call(3, now - 30_000, { agent: 'codex', tool: 'edit_systems', kind: 'write', summary: 'Put 2 files in Canvas Renderer', targets: ['sys_canvas'],
+        detail: JSON.stringify({ input: '{\n  "op": "assign"\n}', output: '{\n  "assigned": 2\n}' }) }),
+      call(2, now - 450_000, { agent: 'cursor', sessionId: 'sess-cursor', detail: JSON.stringify({ input: '{\n  "scope": "overview"\n}', output: '3 systems' }) }),
+      call(1, now - 500_000, { agent: 'cursor', sessionId: 'sess-cursor', tool: 'get_inbox', kind: 'plan', summary: 'Read a request' }),
+    ]
+    await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
+      const url = new URL(route.request().url())
+      const body = url.pathname === '/api/canvas/history' ? { messages: [message], nextCursor: '' }
+        : url.pathname === '/api/agent/actions' ? actions
+        : url.pathname === '/api/agent/presence' ? { connections: [] } : []
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+    })
+    await page.reload()
+    await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject?.name)).toBe('Ambio Canvas Fixture')
+    await page.getByRole('button', { name: /^Message agent/ }).click()
+    const panel = page.getByRole('complementary', { name: 'Agent inbox' })
+
+    // The turn Cursor took shows its Ambio calls as its steps, above its answer.
+    const turn = panel.locator('.ambio-turn').filter({ hasText: 'The canvas is drawn by' })
+    await expect(turn).toContainText('Cursor')
+    await turn.getByText(/Worked for/).click()
+    await expect(turn.locator('.ambio-turn__step-list > li')).toHaveCount(2)
+    await expect(turn.locator('.ambio-turn__step-list > li').last()).toContainText('Get architecture')
+
+    // Codex's work outside any conversation is one line at the top, opening to its steps.
+    const outside = panel.getByRole('region', { name: 'Agents working outside Ambio' })
+    const line = outside.getByRole('button', { expanded: false })
+    await expect(line).toContainText(/Codex.*is working outside Ambio/)
+    await expect(line).toContainText('1 step')
+    await line.click()
+    const step = outside.locator('.ambio-turn__step-list > li')
+    await expect(step).toContainText('Edit systems')
+    await expect(step).toContainText('Put 2 files in Canvas Renderer')
+    await step.getByRole('button', { expanded: false }).click()
+    await expect(step).toContainText('"assigned": 2')
+    await page.screenshot({ path: 'test-results/outside-agents.png' })
+    await step.getByRole('button', { name: 'Show on map' }).click()
+    await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().selectedNodeId)).toBe('sys_canvas')
+
+    // The old log is gone from the menus.
+    expect(await page.evaluate(() => document.body.innerText.includes('Agent Log'))).toBe(false)
+  } finally { await app.close() }
+})

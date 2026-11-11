@@ -7,6 +7,10 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- The Agent Log is gone. What an agent outside Ambio does with Ambio (from a
+  handoff, or Claude Code, Cursor or a terminal session on its own) now shows in
+  Message agent as steps you can open, with what each call asked and returned,
+  and Show on map.
 - Find in project (Ctrl/Cmd+K) is simpler and finds more: sheets, what is
   drawn on them, sticky notes, agent conversations and saved investigations,
   alongside systems, infrastructure, files, functions and classes. Each group
