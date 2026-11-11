@@ -46,14 +46,16 @@
 .ambio-inbox .ambio-inbox__handoff-copy { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; border: 1px solid #8ea99a; background: #e3ece2; color: #285e52; font: 700 8px var(--font-mono, monospace); white-space: nowrap; }
 .ambio-inbox__meta .ambio-inbox__cancel { margin: 0; padding-left: 5px; font-size: 10px; background: transparent; color: #7d8780; text-decoration: underline; text-underline-offset: 2px; }
 .ambio-inbox__targets { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
-.ambio-inbox__chip { display: inline-flex; align-items: stretch; max-width: 100%; border: 1px solid #adbfb0; background: #f0f2ea; }
-.ambio-inbox .ambio-inbox__targets .ambio-inbox__chip-open { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 220px; padding: 3px 5px; font: 9px var(--font-mono, monospace); color: #355e51; }
+.ambio-inbox__chip { position: relative; display: inline-flex; align-items: stretch; max-width: 100%; border: 1px solid #adbfb0; background: #f0f2ea; }
+.ambio-inbox .ambio-inbox__targets .ambio-inbox__chip-open { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 220px; padding: 3px 6px; font: 9px var(--font-mono, monospace); color: #355e51; }
 .ambio-inbox .ambio-inbox__targets .ambio-inbox__chip-open:hover { background: #e3ece4; }
-.ambio-inbox .ambio-inbox__targets .ambio-inbox__chip-remove { display: grid; place-items: center; width: 18px; border-left: 1px solid #c9d3c8; color: #6b5a52; }
-.ambio-inbox .ambio-inbox__targets .ambio-inbox__chip-remove:hover:not(:disabled) { background: #f2e1dc; color: #853b2f; }
+/* Remove shows on its chip's corner only while the chip is hovered or focused. */
+.ambio-inbox .ambio-inbox__targets .ambio-inbox__chip-remove { position: absolute; z-index: 1; top: -6px; right: -6px; display: grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 1px solid #f4f3ec; border-radius: 50%; background: #3b4a46; color: #f4f3ec; box-shadow: 0 1px 3px rgba(20, 30, 26, .35); opacity: 0; transition: opacity 90ms ease; }
+.ambio-inbox .ambio-inbox__targets .ambio-inbox__chip-remove svg { width: 9px; height: 9px; }
+.ambio-inbox__chip:hover .ambio-inbox__chip-remove, .ambio-inbox__chip:focus-within .ambio-inbox__chip-remove { opacity: 1; }
+.ambio-inbox .ambio-inbox__targets .ambio-inbox__chip-remove:hover:not(:disabled) { background: #853b2f; color: #fff; }
 /* An attached image is a thumbnail with its name under it. */
 .ambio-inbox .ambio-inbox__targets .ambio-inbox__chip[data-kind='image'] .ambio-inbox__chip-open { flex-direction: column; align-items: stretch; gap: 3px; width: 116px; padding: 3px; }
-.ambio-inbox__chip[data-kind='image'] .ambio-inbox__chip-remove { align-self: flex-start; height: 18px; border-bottom: 1px solid #c9d3c8; }
 .ambio-inbox__thumb { display: grid; place-items: center; width: 100%; height: 56px; overflow: hidden; background: #dfe3da; color: #6b7a72; }
 .ambio-inbox__thumb img { width: 100%; height: 100%; object-fit: cover; }
 .ambio-inbox__chip[data-kind='image'] .ambio-inbox__chip-open > span:last-child { font-size: 8.5px; }
@@ -66,10 +68,11 @@
 .ambio-lightbox__frame figcaption button { padding: 3px 9px; border: 1px solid #6f807a; background: #3b4a46; color: #e9efe8; font: 600 11px var(--font-ui, sans-serif); cursor: pointer; }
 .ambio-lightbox__frame figcaption button:hover { background: #4c5d58; }
 .ambio-lightbox__frame .ambio-lightbox__close { display: grid; place-items: center; width: 26px; height: 24px; padding: 0; }
-.ambio-lightbox__image { display: grid; place-items: center; min-width: 240px; min-height: 160px; overflow: auto; padding: 8px; background: #dcdad2; }
+.ambio-lightbox__image { position: relative; display: grid; place-items: center; min-width: 240px; min-height: 160px; overflow: auto; padding: 8px; background: #dcdad2; }
 .ambio-lightbox__image img { display: block; max-width: calc(min(92vw, 1400px) - 18px); max-height: calc(88vh - 56px); object-fit: contain; }
 .ambio-lightbox__image p { margin: 0; color: #5f6f67; font: 12px var(--font-ui, sans-serif); }
 .ambio-inbox__targets span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ambio-inbox__targets .ambio-inbox__chip { overflow: visible; }
 .ambio-inbox .ambio-inbox__message-sheet { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: #3b7166; font-size: 11px; font-weight: 600; }
 .ambio-inbox__message-sheet span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ambio-inbox__reply { background: #f3f2eb; border: 1px solid #c4cdc0; border-left: 3px solid #86998c; padding: 0 10px 9px; margin: 7px 0 0; box-shadow: inset 1px 1px #fff; }
@@ -190,13 +193,17 @@
 .ambio-inbox .ambio-inbox__send { display: grid; place-items: center; width: 32px; height: 28px; border: 1px solid #285e53; box-shadow: inset 1px 1px #6caaa0, inset -1px -1px #23473f; color: white; background: #3c7d76; }
 .ambio-inbox .ambio-inbox__send:hover:not(:disabled) { background: #2b655a; color: white; }
 .ambio-inbox .ambio-inbox__send:disabled { color: #899a90; background: #d8dfd5; border-color: #a0ada1; box-shadow: inset 1px 1px #eef0e8; opacity: 1; }
-.ambio-inbox__attachments { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 10px 12px 6px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: #9fb0a5 transparent; }
+.ambio-inbox__attachments { --attachment-rows: 1; display: grid; grid-auto-flow: column dense; grid-template-rows: repeat(var(--attachment-rows), auto); grid-auto-columns: max-content; justify-items: stretch; align-items: center; gap: 4px 8px; padding: 12px 12px 6px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: #9fb0a5 transparent; }
 .ambio-inbox__attachments::-webkit-scrollbar { height: 7px; }
 .ambio-inbox__attachments::-webkit-scrollbar-thumb { background: #9fb0a5; border-radius: 4px; }
 .ambio-inbox__attachments::-webkit-scrollbar-track { background: transparent; }
 /* In the message box everything attached is one row, left to right, scrolled sideways. */
 .ambio-inbox__attachments .ambio-inbox__targets { display: contents; }
-.ambio-inbox__attachments > *, .ambio-inbox__attachments .ambio-inbox__chip { flex: 0 0 auto; }
+/* Beside images, chips stack three high so they read at a glance, and each
+   image takes a whole column; with no images they are one line. */
+.ambio-inbox__attachments[data-images] { --attachment-rows: 3; align-items: stretch; }
+.ambio-inbox__attachments .ambio-inbox__chip[data-kind='image'] { grid-row: span var(--attachment-rows); align-self: start; }
+.ambio-inbox__attachments[data-images] .ambio-inbox__chip:not([data-kind='image']) .ambio-inbox__chip-open { width: 100%; }
 .ambio-inbox__attachments .ambio-inbox__attachment { max-width: 240px; }
 .ambio-inbox__attachment { display: flex; gap: 7px; align-items: center; min-width: 0; max-width: 100%; padding: 3px 4px 3px 3px; border: 1px solid #a6b7a7; background: #e3e9df; }
 .ambio-inbox__sheet-icon { width: 28px; height: 28px; flex: none; display: grid; place-items: center; color: #356e62; background: #d7e3d8; border: 1px solid #b1c4b5; }
@@ -697,3 +704,9 @@
 .ambio-inbox .ambio-inbox__picker-computer button:hover { border-color: #3c7d76; background: #fbfaf5; }
 /* Files dragged over the message box. */
 .ambio-inbox__compose[data-dropping] { outline: 2px dashed #3c7d76; outline-offset: -4px; background: #eef3ee; }
+.ambio-lightbox__frame figcaption > small { color: #c9d4cf; font: 11px var(--font-ui, sans-serif); white-space: nowrap; }
+/* Stepping between the images attached together. */
+.ambio-lightbox__step { position: absolute; top: 50%; display: grid; place-items: center; width: 36px; height: 56px; margin-top: -28px; padding: 0; border: 1px solid rgba(255, 255, 255, .25); background: rgba(29, 41, 37, .72); color: #f4f3ec; cursor: pointer; }
+.ambio-lightbox__step:hover { background: rgba(29, 41, 37, .92); }
+.ambio-lightbox__step[data-side='previous'] { left: 10px; }
+.ambio-lightbox__step[data-side='next'] { right: 10px; }

@@ -44,6 +44,7 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
       localStorage.removeItem('ambio:inbox-draft:demo')
       localStorage.removeItem('ambio:inbox-draft:demo:pending')
       localStorage.removeItem('ambio:inbox-draft:demo:sheet')
+      localStorage.removeItem('ambio:inbox-draft:demo:code')
     })
     await page.reload()
     await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject?.name)).toBe('Ambio Canvas Fixture')
@@ -200,6 +201,8 @@ test('the attach picker adds systems and files as context, and the Unsorted wind
       const body = url.pathname === '/api/canvas/history' ? { messages: [], nextCursor: '' } : url.pathname === '/api/agent/presence' ? { connections: [] } : []
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
     })
+    // A draft keeps its attachments; start from none.
+    await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.includes('inbox-draft')) localStorage.removeItem(key) })
     await page.reload()
     await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject?.name)).toBe('Ambio Canvas Fixture')
     await page.getByRole('button', { name: /^Message agent/ }).click()
@@ -260,6 +263,8 @@ test('long pasted text, a pasted screenshot and files from this computer attach 
       if (url.pathname === '/api/canvas/send') { const sent = route.request().postDataJSON(); sends.push(sent); body = { ...sent, status: 'queued', createdAt: Date.now() } }
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
     })
+    // A draft keeps its attachments; start from none.
+    await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.includes('inbox-draft')) localStorage.removeItem(key) })
     await page.reload()
     await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject?.name)).toBe('Ambio Canvas Fixture')
     await page.getByRole('button', { name: /^Message agent/ }).click()
@@ -269,13 +274,13 @@ test('long pasted text, a pasted screenshot and files from this computer attach 
 
     // A long block of text attaches instead of filling the box; a short one is typed in.
     const log = Array.from({ length: 30 }, (_, i) => `at frame ${i} (renderer.ts:${i + 10})`).join('\n')
-    const paste = (text: string | null, image?: boolean) => box.evaluate((element, { text, image }) => {
+    const paste = (text: string | null, image?: boolean, name = 'image.png') => box.evaluate((element, { text, image, name }) => {
       const data = new DataTransfer()
       if (text) data.setData('text/plain', text)
       // A real 2x1 PNG, so its thumbnail draws.
-      if (image) data.items.add(new File([Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAEUlEQVR4nGP4z8DwHwqZYRwAU7QG/i/m3WkAAAAASUVORK5CYII='), c => c.charCodeAt(0))], 'image.png', { type: 'image/png' }))
+      if (image) data.items.add(new File([Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAEUlEQVR4nGP4z8DwHwqZYRwAU7QG/i/m3WkAAAAASUVORK5CYII='), c => c.charCodeAt(0))], name, { type: 'image/png' }))
       element.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
-    }, { text, image })
+    }, { text, image, name })
     await box.fill('Why does this crash?')
     await paste(log)
     await expect(chips.filter({ hasText: 'Pasted text, 30 lines' })).toHaveCount(1)
@@ -286,10 +291,26 @@ test('long pasted text, a pasted screenshot and files from this computer attach 
     const shot = chips.filter({ hasText: /^Pasted image/ })
     await expect(shot).toHaveCount(1)
     await expect.poll(() => shot.locator('img').evaluate(img => (img as HTMLImageElement).naturalWidth)).toBe(2)
+    // Remove shows only on hover.
+    const remove = shot.getByRole('button', { name: /^Remove Pasted image/ })
+    await expect.poll(() => remove.evaluate(button => getComputedStyle(button).opacity)).toBe('0')
+    await shot.hover()
+    await expect.poll(() => remove.evaluate(button => getComputedStyle(button).opacity)).toBe('1')
+    // A second image; the large view steps between them.
+    await paste(null, true, 'diagram.png')
+    await expect(chips.filter({ hasText: 'diagram.png' })).toHaveCount(1)
     await shot.getByRole('button', { name: /^Pasted image/ }).click()
-    const lightbox = page.getByRole('dialog', { name: /^Pasted image/ })
+    const lightbox = page.locator('.ambio-lightbox__frame')
     await expect(lightbox.getByRole('img')).toBeVisible()
+    await expect(lightbox).toContainText('1 of 2')
+    await lightbox.getByRole('button', { name: 'Next image' }).click()
+    await expect(lightbox).toHaveAttribute('aria-label', 'diagram.png')
+    await expect(lightbox).toContainText('2 of 2')
     await page.screenshot({ path: 'test-results/attachment-lightbox.png' })
+    await page.keyboard.press('ArrowRight')
+    await expect(lightbox).toHaveAttribute('aria-label', /^Pasted image/)
+    await page.keyboard.press('ArrowLeft')
+    await expect(lightbox).toHaveAttribute('aria-label', 'diagram.png')
     await page.keyboard.press('Escape')
     await expect(lightbox).toHaveCount(0)
     await expect(shot).toHaveCount(1)
@@ -300,9 +321,11 @@ test('long pasted text, a pasted screenshot and files from this computer attach 
     await panel.getByRole('dialog', { name: 'Attach context' }).getByRole('button', { name: 'Files…' }).click()
     await expect(chips.filter({ hasText: 'design-notes.md' })).toHaveCount(1)
     await page.screenshot({ path: 'test-results/attachments-from-computer.png' })
-    // Everything attached is one row, left to right.
-    const tops = await chips.evaluateAll(items => items.map(item => Math.round(item.getBoundingClientRect().top + item.getBoundingClientRect().height / 2)))
-    expect(new Set(tops).size).toBe(1)
+    // Beside images, chips stack in a column; the row scrolls sideways.
+    const box2 = async (text: string | RegExp) => (await chips.filter({ hasText: text }).boundingBox())!
+    const pastedBox = await box2('Pasted text, 30 lines'), notesBox = await box2('design-notes.md')
+    expect(Math.abs(pastedBox.x - notesBox.x)).toBeLessThan(1)
+    expect(notesBox.y).toBeGreaterThan(pastedBox.y + pastedBox.height - 1)
     expect(await panel.locator('.ambio-inbox__attachments').evaluate(row => getComputedStyle(row).overflowX)).toBe('auto')
 
     // Sent, they travel as path references; the pasted text and image are files Ambio kept.
@@ -310,7 +333,7 @@ test('long pasted text, a pasted screenshot and files from this computer attach 
     await expect.poll(() => sends.length).toBe(1)
     const refs: string[] = JSON.parse(sends[0].selection)
     const paths = refs.filter(ref => ref.startsWith('ambio://path/')).map(ref => decodeURIComponent(/^ambio:\/\/path\/([^?]*)/.exec(ref)![1]))
-    expect(paths).toHaveLength(3)
+    expect(paths).toHaveLength(4)
     expect(paths).toContain(picked)
     const pasted = paths.find(item => item.endsWith('.txt'))!
     expect(pasted.startsWith(path.join(appData))).toBe(true)

@@ -90,7 +90,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   // Files being dragged over the message box.
   const [dropping, setDropping] = useState(false)
   // An attached image shown large.
-  const [viewing, setViewing] = useState<{ path: string; label: string } | null>(null)
+  const [viewing, setViewing] = useState<{ images: Array<{ path: string; label: string }>; start: number } | null>(null)
   const [unseen, setUnseen] = useState(false)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
   const [excluded, setExcluded] = useState<string[]>([])
@@ -351,12 +351,15 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   // What goes with a message, one chip each: opening it (an image shows large,
   // a file or folder opens, map items show on the map) is separate from
   // removing it, which only the message box offers.
-  const chips = (refs: string[], editable = false) => refs.length > 0 && <div className="ambio-inbox__targets">{refs.map(ref => {
+  const chips = (refs: string[], editable = false) => {
+    // The images in this group, so the large view can step between them.
+    const images = refs.flatMap(ref => { const item = attachmentOf(ref); return item?.kind === 'image' ? [{ path: item.path, label: item.label }] : [] })
+    return refs.length > 0 && <div className="ambio-inbox__targets">{refs.map(ref => {
     const outside = attachmentOf(ref)
     const label = outside?.label ?? referenceTarget(ref).label
     const icon = outside ? (outside.kind === 'folder' ? 'folder' : outside.kind === 'image' ? 'image' : outside.kind === 'text' ? 'text' : 'file') : referenceLines(ref) ? 'code' : 'canvas'
     const image = outside?.kind === 'image'
-    const open = () => image ? setViewing({ path: outside!.path, label })
+    const open = () => image ? setViewing({ images, start: images.findIndex(item => item.path === outside!.path) })
       : outside ? void window.ambio.openAttachment(outside.path).catch(cause => setError(cause instanceof Error ? cause.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(cause)))
       : focus(ref)
     return <span key={ref} className="ambio-inbox__chip" data-kind={outside?.kind}>
@@ -369,6 +372,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       </button>}
     </span>
   })}</div>
+  }
   const copy = (text: string, id: string) => { void navigator.clipboard.writeText(text).then(() => setCopied(id), () => setError('Clipboard unavailable. Select the visible work order ID and tell your agent to call get_inbox with that messageId.')) }
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -536,7 +540,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       {unseen && <button className="ambio-inbox__latest" type="button" onClick={latest}>Jump to latest ↓</button>}
     </div>
     </StepTargetsContext.Provider>
-    {viewing && <ImageLightbox path={viewing.path} label={viewing.label} onClose={() => setViewing(null)} />}
+    {viewing && <ImageLightbox images={viewing.images} start={viewing.start} onClose={() => setViewing(null)} />}
     <div className="ambio-inbox__bottom">
       {!caseTarget && (readiness => readiness.tone === 'ready' || readiness.tone === 'neutral' ? null : <DeliveryReadiness onFix={onManageConnections} readiness={readiness} />)(deliveryReadiness({ hostId: retry.current?.hostId ?? delivery.hostId, hosts: delivery.hosts, installedIds: delivery.installedIds, configuredIds: delivery.configuredIds, watchers: delivery.watchers, watchingHosts: delivery.watchingHosts,
         chat: toChat ? { service: chatProvider?.name ?? 'this service', auth: chatProvider?.auth, keyMissing: !!chatProvider && !chatProvider.hasKey && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(chatProvider.baseUrl) } : undefined }))}
@@ -556,7 +560,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           <span><strong title={caseTarget.name}>{caseTarget.name}</strong><small>{caseAvailable ? 'Reply to the investigating agent, arrives with its next step' : 'Investigation ended or changed, your draft is kept'}</small></span>
           <button type="button" className="ambio-inbox__icon" disabled={sendingCase} aria-label="Return to conversation" title="Return to conversation" onClick={() => { setCaseTarget(null); setError(null); textarea.current?.focus() }}><InboxIcon name="close" size={13} /></button>
         </div>}
-        {!caseTarget && (effectiveSheetId || effectiveSelection.length > 0 || codeFitFileIds.length > 0) && <div className="ambio-inbox__attachments">
+        {!caseTarget && (effectiveSheetId || effectiveSelection.length > 0 || codeFitFileIds.length > 0) && <div className="ambio-inbox__attachments" data-images={effectiveSelection.some(ref => attachmentOf(ref)?.kind === 'image') || undefined}>
           {codeFitFileIds.length > 0 && <div className="ambio-inbox__attachment" title="After the agent replies, Ambio checks that the code agrees with where the map puts these files"><span className="ambio-inbox__sheet-icon"><InboxIcon name="check" size={16} /></span><span><strong>Ambio checks the code afterwards</strong><small>{codeFitFileIds.length === 1 ? '1 file' : `${codeFitFileIds.length} files`}</small></span><button className="ambio-inbox__icon" type="button" disabled={locked} aria-label="Don't check the code afterwards" onClick={() => setCodeFitFileIds([])}><InboxIcon name="close" size={13} /></button></div>}
           {effectiveSheetId && <div className="ambio-inbox__attachment" title={attachedSheet ? `${attachedSheet.name}, revision ${attachedSheet.revision}, snapshot and structural comparison included` : 'This sheet is no longer available'}><span className="ambio-inbox__sheet-icon"><InboxIcon name="sheet" size={16} /></span><span><strong>{attachedSheet?.name ?? 'Sheet unavailable'}</strong><small>{attachedSheet?.resolvedAt ? 'Resolved sheet' : attachedSheet ? 'Sheet' : 'Remove attachment'}</small></span><button className="ambio-inbox__icon" type="button" disabled={locked} aria-label="Remove attached sheet" onClick={() => attachSheet(null)}><InboxIcon name="close" size={13} /></button></div>}
           {chips(effectiveSelection, true)}

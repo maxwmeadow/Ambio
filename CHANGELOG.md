@@ -7,6 +7,9 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Attachments: the remove button shows on hover. With images attached, the other
+  attachments stack three high beside them. The full-size view has arrows (and
+  the arrow keys) to step through every attached image.
 - Attached images show as thumbnails; click one to see it full size. Everything
   attached to a message sits in one row you can scroll sideways, and each item
   has its own remove button.
