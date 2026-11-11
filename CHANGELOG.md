@@ -7,6 +7,8 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Find in project (Ctrl+K) now opens with your systems and infrastructure
+  listed, so you can pick one without typing.
 - The top title bar's underline now extends all the way across to the right edge
   under the Windows minimize, maximize and close controls without being cut off.
 - Removed the passive setup and indexing status indicator from the top title bar.
