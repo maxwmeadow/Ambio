@@ -407,6 +407,11 @@
 .ambio-inbox__table th { background: #e9ede5; font-weight: 600; }
 .ambio-inbox .ambio-inbox__file-link { display: inline; padding: 0 4px; border: 1px solid #c4d1c7; background: #eef3ee; color: #2f5d50; font: 11px var(--font-mono, monospace); cursor: pointer; overflow-wrap: anywhere; }
 .ambio-inbox .ambio-inbox__file-link:hover { border-color: #6e9183; background: #e2ece4; color: #1f4a40; }
+/* Inside a bold phrase or a heading, a system link or code reads as part of the
+   phrase, in its type and weight; the tint and underline still say it opens. */
+.ambio-inbox__prose :is(strong, h4) :is(code, .ambio-inbox__file-link) { padding: 0 2px; font: inherit; }
+.ambio-inbox .ambio-inbox__prose :is(strong, h4) .ambio-inbox__file-link { border: 0; border-bottom: 1px solid #8fb0a2; background: #e6eee7; color: #1f4f43; }
+.ambio-inbox .ambio-inbox__prose :is(strong, h4) .ambio-inbox__file-link:hover { border-bottom-color: #2f6a5d; background: #d9e6dc; }
 /* The left edge resizes the panel; double-click returns it to its width. */
 .ambio-inbox__resize { position: absolute; z-index: 20; top: 0; bottom: 0; left: -3px; width: 7px; cursor: ew-resize; touch-action: none; }
 .ambio-inbox__resize:hover, .ambio-inbox__resize:active { background: linear-gradient(90deg, transparent 2px, #6caaa0 2px, #6caaa0 4px, transparent 4px); }

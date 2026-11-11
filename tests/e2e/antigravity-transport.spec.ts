@@ -85,7 +85,11 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     await edit.getByRole('button', { expanded: false }).click()
     await expect(edit.locator('pre')).toContainText('+approved')
     // agy's other steps: each said once, Ambio's call by name and opening to what it asked, the failed read marked.
-    await expect(activity.locator('.ambio-turn__step-list > li').filter({ hasText: '~/.gemini/config/skills/ambio-inbox/SKILL.md' })).toHaveCount(1)
+    // A file reads by its name, its folder after it; the row wraps rather than clipping.
+    const skill = activity.locator('.ambio-turn__step-list > li').filter({ has: page.locator('.ambio-turn__tool-name', { hasText: /^SKILL\.md$/ }) })
+    await expect(skill).toHaveCount(1)
+    await expect(skill.locator('.ambio-turn__target')).toHaveText('~/.gemini/config/skills/ambio-inbox')
+    expect(await skill.evaluate(row => getComputedStyle(row).whiteSpace)).toBe('normal')
     const architecture = activity.locator('.ambio-turn__step-list > li').filter({ hasText: 'Get architecture' })
     await expect(architecture).toContainText('overview')
     await expect(activity.locator('.ambio-turn__state[data-failed]')).toHaveText('failed')

@@ -25,7 +25,8 @@
 .ambio-turn__steps-toggle > svg { flex: none; }
 .ambio-turn__step-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; margin: 4px 0 4px 5px; padding: 2px 0 2px 10px; border-left: 2px solid #d1d8ce; list-style: none; }
 .ambio-turn__step-list[hidden] { display: none; }
-.ambio-turn__step-list > li { min-width: 0; }
+/* Steps wrap: the activity list's one-line, clipped tool rows don't apply here. */
+.ambio-inbox .ambio-turn__work .ambio-turn__step-list > li { min-width: 0; overflow: visible; color: inherit; font: 11.5px/1.5 var(--font-ui, sans-serif); white-space: normal; text-overflow: clip; }
 
 /* Thinking reads as the agent's own words, in full contrast, set apart only by its label. */
 .ambio-turn__thinking { padding: 1px 0 3px; }
@@ -37,7 +38,8 @@
 button.ambio-turn__tool { cursor: pointer; }
 button.ambio-turn__tool:hover .ambio-turn__tool-name { color: #1f5c50; }
 button.ambio-turn__tool:focus-visible { outline: 2px solid #69a799; outline-offset: 1px; }
-.ambio-turn__tool > svg { align-self: center; color: #6f7f77; }
+/* The chevron sits on the first line, however many lines the step wraps to. */
+.ambio-turn__tool > svg { align-self: start; margin-top: 4px; color: #6f7f77; }
 .ambio-turn__chevron-space { width: 10px; }
 .ambio-turn__verb { color: #6a7a72; font: 600 10px/1.6 var(--font-ui, sans-serif); white-space: nowrap; }
 .ambio-turn__verb[data-badge='ambio'] { color: #2b6d58; }

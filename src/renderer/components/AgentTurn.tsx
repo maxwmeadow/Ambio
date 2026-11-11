@@ -106,6 +106,17 @@ function AgentSteps({ items, rootPath, current }: { items: WorkItem[]; rootPath?
   </div>
 }
 
+const FILE_STEPS = new Set(['Read', 'Edit', 'List'])
+
+/** A path's last part and the folder before it, or nothing when it is not a path. */
+function splitPath(path: string): { name: string; folder: string } | undefined {
+  // A command ("sed -n 1,5p src/a.ts") is not a path.
+  if (/\s-\w/.test(path)) return undefined
+  const match = /^(.*[\\/])([^\\/]+)$/.exec(path.trim())
+  if (!match || /\s/.test(match[2]) && !/\.\w+$/.test(match[2])) return undefined
+  return { name: match[2], folder: match[1].replace(/[\\/]+$/, '') || match[1] }
+}
+
 /** A name without its leading verb ("Edit a.ts" under Edit reads "a.ts"), unless that is all it is. */
 function withoutVerb(name: string, verb: string): string {
   const match = /^(\S+)\s+(\S.*)$/.exec(name)
@@ -137,7 +148,11 @@ function ToolLine({ item, rootPath }: { item: WorkItem; rootPath?: string }) {
     : said.length > 1 && isGenericTool(said[0]) ? said.slice(1) : said)
     // "Edit fixture.txt", "Reading src/app.ts": the leading word is the step's own.
     .map((part, index) => index === 0 && row.badge !== 'Ambio' && row.badge !== 'Tool' ? withoutVerb(part, verb) : part)
-  const about = named.length > 1 ? named.slice(1).join(', ') : row.badge === 'Ambio' ? inputSummary(item.input) : ''
+  // A file is named by its name; the folder it is in follows, quieter, so a
+  // narrow panel still shows which file it was.
+  const file = named.length === 1 && FILE_STEPS.has(row.badge) ? splitPath(named[0]) : undefined
+  const name = file ? file.name : named[0] ?? row.tool
+  const about = file ? file.folder : named.length > 1 ? named.slice(1).join(', ') : row.badge === 'Ambio' ? inputSummary(item.input) : ''
   const failed = status === 'failed' || status === 'declined' || status === 'error' || (item.exitCode != null && item.exitCode !== 0)
   const state = failed ? (item.exitCode != null && item.exitCode !== 0 ? `failed, exit ${item.exitCode}` : status === 'declined' ? 'declined' : 'failed')
     : status === 'running' || status === 'waiting' ? status : ''
@@ -146,7 +161,7 @@ function ToolLine({ item, rootPath }: { item: WorkItem; rootPath?: string }) {
     <span className="ambio-turn__verb" data-badge={row.badge.toLowerCase()}>{verb}</span>
     <span className="ambio-turn__what">
       {row.subagent !== undefined && <span className="ambio-turn__subagent" title="Done by a subagent">{row.subagent || 'Subagent'}</span>}
-      <span className="ambio-turn__tool-name">{named[0] ?? row.tool}</span>
+      <span className="ambio-turn__tool-name" title={file ? named[0] : undefined}>{name}</span>
       {about && <span className="ambio-turn__target" title={about}>{about}</span>}
     </span>
     {state && <span className="ambio-turn__state" data-failed={failed || undefined}>{state}</span>}

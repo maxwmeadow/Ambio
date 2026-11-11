@@ -4371,7 +4371,8 @@ test('an agent reply reads as formatted Markdown, with project files as chips', 
     '## Analysis', '', `It re-exports \u0008uild_query. *Only* the **facade** changes.`, '',
     '`python', 'from .query_builder import build_query', '`', '',
     `- Consumer: [${file}](${href})`, `- Also see \`${file}\``, `- Written plainly: ${file}.`, '', '---', '',
-    '| Symbol | Breaks |', '| --- | --- |', '| build_query | executor |',
+    '| Symbol | Breaks |', '| --- | --- |', '| build_query | executor |', '',
+    `**The \`${file}\` entry point**`,
   ].join('\n')
   const reply = { id: 'md-1', workspaceId: 'demo', sheetId: null, note: 'What depends on this?', selection: '[]', changeSummary: '', sheetContext: '', buildSpec: '',
     status: 'answered', mode: 'ask', threadId: 'md-1', createdAt: 50, deliveredTo: null, answerAnnotationId: null, reply: { agent: 'antigravity', body, createdAt: 51 } }
@@ -4382,10 +4383,16 @@ test('an agent reply reads as formatted Markdown, with project files as chips', 
   await expect(prose).toContainText('It re-exports build_query.')
   await expect(prose).not.toContainText('\u0008')
   await expect(prose.locator('em')).toHaveText('Only')
-  await expect(prose.locator('strong')).toHaveText('facade')
+  await expect(prose.locator('strong').first()).toHaveText('facade')
   await expect(prose.locator('.ambio-inbox__code')).toContainText('from .query_builder import build_query')
   await expect(prose.locator('.ambio-inbox__code')).toContainText('python')
-  await expect(prose.locator('.ambio-inbox__file-link')).toHaveText([`${file}:5–9`, file, file])
+  await expect(prose.locator('.ambio-inbox__file-link')).toHaveText([`${file}:5–9`, file, file, file])
+  // A chip inside a bold phrase keeps the phrase's type and weight, so the title reads as one.
+  const titled = prose.locator('strong').last()
+  expect(await titled.locator('.ambio-inbox__file-link').evaluate(el => {
+    const own = getComputedStyle(el), parent = getComputedStyle(el.closest('strong')!)
+    return [own.fontFamily === parent.fontFamily, own.fontWeight === parent.fontWeight, own.fontSize === parent.fontSize]
+  })).toEqual([true, true, true])
   await expect(prose).not.toContainText('file:///')
   await expect(prose.locator('hr')).toHaveCount(1)
   await expect(prose.locator('table td')).toHaveText(['build_query', 'executor'])
