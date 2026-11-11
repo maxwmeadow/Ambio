@@ -47,24 +47,29 @@ pull makes Api depend on Storage".
 Git's usual symbols carry the meaning (`GitIcon.tsx`, drawn like the rest of
 Ambio's icons): ↓ pull, ↑ push, a cloud for the remote, a fork for a branch.
 
-1. **Header: the branch is the switcher.** The branch name with a ▾ opens
-   the branch list in place under it (see *Switching branches*); the header
-   does not change and the same button closes the list. Under the name, the
-   folder (home written as `~`), and "on the Floor" when other checkouts are
-   open. Reveal folder and Open in editor are icon buttons on the right.
-2. **The remote line:** the upstream (`origin/main`), ↓/↑ counters (lit when
-   non-zero), when it was last checked, and a ↻ Check for updates button that
-   spins while fetching.
-3. **The one action**, a normal-sized primary button with its symbol, on the working tree's row: **↓ Pull N commits**,
-   **↑ Push N commits** or **Publish to origin**. When there is an action,
-   the button is the status; a glyph tile and headline appear only when
-   there is nothing to press or it needs explaining: ✓ Up to date,
+It is drawn as a source control panel in the sheet rail's manner (Max,
+2026-11-10: the rail is the reference look): a dark *Source control* title
+bar, small-caps section labels with a rule and a count, and rail rows.
+
+1. **Title bar:** Source control, with ↻ Check for updates (spins while
+   fetching), Reveal folder and Open in editor as icon buttons on the right.
+2. **The branch is the switcher.** Under the title bar, the branch name with
+   a ▾ opens the branch list in place under it (see *Switching branches*);
+   the same button closes it. Under the name, the folder (home written as
+   `~`), and an ON THE FLOOR tag when other checkouts are open.
+3. **The one action**, a full-width primary button with its symbol, first:
+   **↓ Pull N commits**, **↑ Push N commits** or **Publish to origin**. When
+   there is an action, the button is the status; an icon and headline appear
+   only when there is nothing to press or it needs explaining: ✓ Up to date,
    ⚠ Diverged (needs a merge, so no button), Not published yet, No remote.
-4. **The working tree:** ✎ N uncommitted files, or ✓ No uncommitted changes
-   (stage 2 makes this the way into committing).
-5. **Agents working in this checkout.**
-6. **Other worktrees**, only when there are any: name, what it changes,
-   its agent, and a row of icon buttons (show on the Floor, review, apply,
+4. **Remote:** the upstream (`origin/main`), ↓/↑ counters (bold when
+   non-zero) and when it was last checked.
+5. **Changes:** ✎ N uncommitted files, or ✓ No uncommitted changes (stage 2
+   makes this the way into committing), then the agents working in this
+   checkout.
+6. **Worktrees**, only when there are any, with the Off / Agents only / All
+   lens beside the label: name, what it changes, its agent, and a row of
+   icon buttons that brightens while the row is hovered or focused (show on the Floor, review, apply,
    discard, folder, editor), each named in its tooltip. Discard asks inline
    before anything is removed.
 

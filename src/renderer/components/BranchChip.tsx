@@ -64,10 +64,21 @@ function ToolButton({ icon, label, hint, onClick, disabled, danger, spinning }: 
   )
 }
 
+/** A section heading in the sheet rail's manner: small caps, a rule, a count. */
+function SectionLabel({ children, count }: { children: React.ReactNode; count?: number }) {
+  return (
+    <h3 className="ambio-scm__section">
+      <span>{children}</span>
+      <span className="ambio-scm__rule" aria-hidden="true" />
+      {count !== undefined && <span className="ambio-scm__count">{count}</span>}
+    </h3>
+  )
+}
+
 const REFRESH_MS = 5000
 /** Opening the popover checks the remote unless it was checked this recently. */
 const FETCH_FRESH_MS = 60_000
-const MENU_WIDTH = 460
+const MENU_WIDTH = 380
 const VIEWPORT_GUTTER = 8
 
 /** Keeps the checkout snapshot current while a project is open. */
@@ -388,41 +399,44 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
             aria-label="Branches and worktrees"
             style={{ '--ambio-checkouts-left': `${position.left}px`, '--ambio-checkouts-top': `${position.top}px` } as React.CSSProperties}
           >
-            {mainView && floorRow ? (
-              <header className="ambio-checkouts__header ambio-checkouts__header--branch">
-                <div className="ambio-checkouts__heading">
-                  <h2>
-                    {floorRow.canSwitch ? (
-                      <button type="button" className="ambio-checkouts__branch" aria-label="Switch branch…" title={`On ${floorRow.name}. Switch branch…`}
-                        aria-expanded={picking} data-open={picking || undefined}
-                        disabled={busy === 'branches'} onClick={toggleBranches}>
-                        <GitIcon name="branch" size={16} /><span>{floorRow.name}</span><GitIcon name="chevronDown" size={14} />
-                      </button>
-                    ) : <span className="ambio-checkouts__branch"><GitIcon name="branch" size={16} /><span>{floorRow.name}</span></span>}
-                  </h2>
-                  {/* Left-to-right marks keep the path's own order while the
-                      ellipsis, set right-to-left, trims its start. */}
-                  <div className="ambio-checkouts__where">
-                    <p className="ambio-checkouts__path" title={floorRow.path}>{'\u200E'}{homePath(floorRow.path)}{'\u200E'}</p>
-                    {others.length > 0 && <span className="ambio-checkouts__floor-tag">on the Floor</span>}
-                  </div>
-                </div>
-                <div className="ambio-checkouts__head-tools">
+            <header className="ambio-checkouts__header">
+              <div className="ambio-scm__titlebar">
+                <span>Source control</span>
+                {mainView && floorRow && <div className="ambio-scm__title-tools">
+                  {sync.canCheck && (
+                    <ToolButton icon="refresh" label="Check for updates" hint="fetch from the remote; changes no files"
+                      disabled={checking || busy !== null} spinning={checking || busy === 'sync:fetch'} onClick={() => void runSync('fetch')} />
+                  )}
                   <ToolButton icon="folder" label="Reveal folder" onClick={() => void openCheckout(floorRow.rootId, 'reveal')} />
                   <ToolButton icon="code" label="Open in editor" onClick={() => void openCheckout(floorRow.rootId, 'editor')} />
+                </div>}
+              </div>
+              {mainView && floorRow ? (
+                <div className="ambio-scm__branch">
+                  {floorRow.canSwitch ? (
+                    <button type="button" className="ambio-checkouts__branch" aria-label="Switch branch…" title={`On ${floorRow.name}. Switch branch…`}
+                      aria-expanded={picking} data-open={picking || undefined}
+                      disabled={busy === 'branches'} onClick={toggleBranches}>
+                      <GitIcon name="branch" size={14} /><span>{floorRow.name}</span><GitIcon name="chevronDown" size={12} />
+                    </button>
+                  ) : <span className="ambio-checkouts__branch"><GitIcon name="branch" size={14} /><span>{floorRow.name}</span></span>}
+                  {/* Left-to-right marks keep the path's own order while the
+                      ellipsis, set right-to-left, trims its start. */}
+                  <p className="ambio-checkouts__path" title={floorRow.path}>{'‎'}{homePath(floorRow.path)}{'‎'}</p>
+                  {others.length > 0 && <span className="ambio-checkouts__floor-tag">on the Floor</span>}
                 </div>
-              </header>
-            ) : (
-              <header className="ambio-checkouts__header">
-                <div>
-                  <h2>{chip.repositories ? 'Repositories' : chip.plain ? 'No Git' : reviewing ? `Review ${reviewing.name}` : 'Branches and worktrees'}</h2>
-                  {chip.repositories ? <p>Each repository in this folder</p> : chip.plain ? <p>This folder is not a Git repository</p>
-                    : reviewing ? <p>{review ? `Against ${review.base || 'its base'}, ${review.files} file${review.files === 1 ? '' : 's'}` : 'Reading the branch…'}</p> : null}
+              ) : (
+                <div className="ambio-scm__view">
+                  <div>
+                    <h2>{chip.repositories ? 'Repositories' : chip.plain ? 'No Git' : reviewing ? `Review ${reviewing.name}` : 'Branches and worktrees'}</h2>
+                    {chip.repositories ? <p>Each repository in this folder</p> : chip.plain ? <p>This folder is not a Git repository</p>
+                      : reviewing ? <p>{review ? `Against ${review.base || 'its base'}, ${review.files} file${review.files === 1 ? '' : 's'}` : 'Reading the branch…'}</p> : null}
+                  </div>
+                  {chip.repositories > 0 && <output>{chip.repositories}</output>}
+                  {reviewing && <button type="button" className="ambio-checkouts__back" onClick={() => setReviewing(null)}>← Back</button>}
                 </div>
-                {chip.repositories > 0 && <output>{chip.repositories}</output>}
-                {reviewing && <button type="button" className="ambio-checkouts__back" onClick={() => setReviewing(null)}>← Back</button>}
-              </header>
-            )}
+              )}
+            </header>
             {picking && branches ? (
               <div className="ambio-checkouts__body ambio-branches" role="group" aria-label="Branches">
                 <label className="ambio-branches__find">
@@ -521,49 +535,46 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
             <div className="ambio-checkouts__body">
               {floorRow && (
                 <article className="ambio-checkout ambio-sync" data-focused data-state={sync.state}>
-                  {sync.remote && (
-                    <div className="ambio-sync__remote">
-                      <GitIcon name="cloud" size={15} />
-                      <span className="ambio-sync__upstream" title={sync.remote}>{sync.remote}</span>
-                      {sync.state !== 'unpublished' && (
-                        <span className="ambio-sync__counts" aria-label={`${sync.behind} to pull, ${sync.ahead} to push`}>
-                          <span data-some={sync.behind > 0 || undefined}><GitIcon name="pull" size={12} />{sync.behind}</span>
-                          <span data-some={sync.ahead > 0 || undefined}><GitIcon name="push" size={12} />{sync.ahead}</span>
-                        </span>
-                      )}
-                      <span className="ambio-sync__checked">{checking || busy === 'sync:fetch' ? 'Checking…' : checkError ? 'Check failed' : sync.checked}</span>
-                      {sync.canCheck && (
-                        <ToolButton icon="refresh" label="Check for updates" hint="fetch from the remote; changes no files"
-                          disabled={checking || busy !== null} spinning={checking || busy === 'sync:fetch'} onClick={() => void runSync('fetch')} />
-                      )}
-                    </div>
+                  {sync.action && (
+                    <button
+                      type="button"
+                      className="ambio-sync__action"
+                      disabled={busy !== null || checking}
+                      onClick={() => void runSync(sync.action!.kind)}
+                    >
+                      <GitIcon name={sync.action.kind} size={14} className={busy === `sync:${sync.action.kind}` ? 'ambio-tool__pulse' : undefined} />
+                      <span>{busy === `sync:${sync.action.kind}` ? SYNCING[sync.action.kind] : sync.action.label}</span>
+                    </button>
                   )}
                   {/* With an action, the button is the status; the situation is
                       spelled out only when there is nothing to press or it needs
                       explaining. */}
                   {(!sync.action || sync.state === 'unpublished') && <div className="ambio-sync__status">
-                    {STATE_ICON[sync.state] && <span className="ambio-sync__glyph"><GitIcon name={STATE_ICON[sync.state]!} size={20} /></span>}
+                    {STATE_ICON[sync.state] && <GitIcon name={STATE_ICON[sync.state]!} size={15} />}
                     <div>
                       <p className="ambio-sync__headline">{sync.headline}</p>
                       {sync.detail && <p className="ambio-sync__detail">{sync.detail}</p>}
                     </div>
                   </div>}
                   {checkError && !checking && <p className="ambio-sync__error" role="alert">{checkError}</p>}
-                  {/* The working tree and the one action share a row. */}
-                  <div className="ambio-sync__tree" data-dirty={sync.uncommitted > 0 || undefined}>
-                    <GitIcon name={sync.uncommitted > 0 ? 'edit' : 'clean'} size={15} />
+                  {sync.remote && <>
+                    <SectionLabel>Remote</SectionLabel>
+                    <div className="ambio-scm__row ambio-sync__remote">
+                      <GitIcon name="cloud" size={14} />
+                      <span className="ambio-sync__upstream" title={sync.remote}>{sync.remote}</span>
+                      {sync.state !== 'unpublished' && (
+                        <span className="ambio-sync__counts" aria-label={`${sync.behind} to pull, ${sync.ahead} to push`}>
+                          <span data-some={sync.behind > 0 || undefined}><GitIcon name="pull" size={11} />{sync.behind}</span>
+                          <span data-some={sync.ahead > 0 || undefined}><GitIcon name="push" size={11} />{sync.ahead}</span>
+                        </span>
+                      )}
+                      <span className="ambio-sync__checked">{checking || busy === 'sync:fetch' ? 'Checking…' : checkError ? 'Check failed' : sync.checked}</span>
+                    </div>
+                  </>}
+                  <SectionLabel count={sync.uncommitted || undefined}>Changes</SectionLabel>
+                  <div className="ambio-scm__row ambio-sync__tree" data-dirty={sync.uncommitted > 0 || undefined}>
+                    <GitIcon name={sync.uncommitted > 0 ? 'edit' : 'clean'} size={14} />
                     <span>{sync.uncommitted > 0 ? `${sync.uncommitted} uncommitted file${sync.uncommitted === 1 ? '' : 's'}` : 'No uncommitted changes'}</span>
-                    {sync.action && (
-                      <button
-                        type="button"
-                        className="ambio-sync__action"
-                        disabled={busy !== null || checking}
-                        onClick={() => void runSync(sync.action!.kind)}
-                      >
-                        <GitIcon name={sync.action.kind} size={16} className={busy === `sync:${sync.action.kind}` ? 'ambio-tool__pulse' : undefined} />
-                        <span>{busy === `sync:${sync.action.kind}` ? SYNCING[sync.action.kind] : sync.action.label}</span>
-                      </button>
-                    )}
                   </div>
                   {floorRow.agents.length > 0 && (
                     <ul className="ambio-checkout__agents">
@@ -577,7 +588,7 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
               {others.length > 0 && (
                 <section className="ambio-checkouts__others" aria-label="Other worktrees">
                   <div className="ambio-checkouts__lens">
-                    <h3>Other worktrees <span>{others.length}</span></h3>
+                    <SectionLabel count={others.length}>Worktrees</SectionLabel>
                     <div role="radiogroup" aria-label="Other branches on the Floor">
                       {LENSES.map(option => (
                         <button
@@ -632,7 +643,7 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
               )}
               {repositories.length > 0 && (
                 <section className="ambio-checkouts__repositories" aria-label="Repositories in this folder">
-                  {!chip.repositories && <h3>Inside this repository</h3>}
+                  {!chip.repositories && <SectionLabel count={repositories.length}>Inside this repository</SectionLabel>}
                   {repositories.map(repository => (
                     <article className="ambio-checkout" key={repository.folder}>
                       <div className="ambio-checkout__title">

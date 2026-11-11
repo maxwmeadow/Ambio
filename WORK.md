@@ -263,6 +263,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `e2e-preexisting-failures` On main at b299fe6 these e2e tests fail: canvas.spec "Delete on a sheet proposes removing live code", canvas.spec "the editor shows where you are...", and both sheet-authoring "keeps the layout after reopening" cases. Found while checking the toolbar change; not caused by it. (2026-11-10)
+- ⬜ `branch-chip-crowding` At ~1400px the toolbar's branch chip squeezes the branch name to "m…" beside "+1 worktree" and "1 shared". Needs Max's call since the toolbar is reference look. (2026-11-10)
 - ⬜ `sheet-bin-native-drop` The native drag payload handler in `AmbioCanvas` can call the Floor file-assignment path while a sheet is active. Check which bin drag sources still emit that payload. (2026-11-10)
 
 - ⬜ `server-run-flush-under-load` A run against a server can lose the server's evidence under load: `serverFlush` (1.2s, `internal/runtime/server.go`) assumes the recorder's 1s flusher has written after the command, but on a busy Windows runner `TestRunAgainstAServerRecordsTheServer` saw `price recorded 0 calls` 3 times in 80 runs (diagnostic CI run, 2026-11-09). Waiting for a flush newer than the command's end, with a cap, would fix it; uninstrumented servers must not pay the cap. (2026-11-09)
@@ -448,6 +450,7 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 
 ## Done log
 
+- 2026-11-10 `source-control-panel` Branch popover redrawn as a Source control panel in the sheet rail's style: title bar with fetch/folder/editor, branch switcher, full-width sync action, Remote/Changes/Worktrees sections, rail rows; 380px wide. (`main`)
 - 2026-11-10 `toolbar-layout` Toolbar reordered as where you are, Select | Lasso | Note tool switch, workflows, centred Search, Terminal | Message Agent; Fit moved under the minimap; Note places a note at the next canvas click. (`main`)
 - 2026-11-10 `scoped-sheet-selection` Sheets draw their members, descendants and proposal context. New sheets from selection preserve world spacing, size and nesting and frame the group on open. Schema v14 stores initial layout as presentation and keeps it out of structural comparison.
 - 2026-11-10 `bin-sheet-layer-isolation` The isolated bin reads its own scene while the main canvas has an active sheet.

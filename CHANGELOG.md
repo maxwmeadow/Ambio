@@ -7,6 +7,9 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- The branch menu is now a compact Source control panel that matches the
+  Drawings sidebar: the branch and its switcher at the top, one Push, Pull or
+  Publish button, then Remote, Changes and Worktrees sections.
 - The top bar is reorganised: your project and branch sit at the left above
   the sheet list, then a Select / Lasso / Note tool switch, Review Changes and
   Investigations, Search in the middle, and Terminal and Message Agent
