@@ -65,7 +65,7 @@ import { describeDropEdits, meaningEditsForDrop } from './floorMeaning.ts'
 import { commitMeaningEdits } from './meaningActions.ts'
 import { FloorEditContext, type FloorEdits } from './floorEditContext'
 import { NewSheetDialog } from '../components/NewSheetDialog'
-import { useCommandHandlers } from '../app/commands'
+import { emitCommand, useCommandHandlers } from '../app/commands'
 import { layoutUndoEntry } from './layoutUndo'
 import { pushUndo } from './undoStack'
 import { CanvasContextMenu, type CanvasContextTarget } from './CanvasContextMenu'
@@ -507,7 +507,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const {
     systems: liveSystems, files: liveFiles, infraNodes: liveInfraNodes,
     dependencies: liveDependencies, floorLayouts: liveFloorLayouts,
-    selectedNodeId: liveSelectedNodeId, infraPickerNodeId, selectionMode,
+    selectedNodeId: liveSelectedNodeId, infraPickerNodeId, selectionMode, placingNote,
     activeTrace: liveActiveTrace, runtimeNodes: liveRuntimeNodes,
     dataFlow: liveDataFlow, nodeFx: liveNodeFx, relationshipFx: liveRelationshipFx,
     delta: liveDelta, activeWorkSessions: liveActiveWorkSessions,
@@ -527,6 +527,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     selectedNodeId:  s.selectedNodeId,
     infraPickerNodeId: s.infraPickerNodeId,
     selectionMode:   s.selectionMode,
+    placingNote:     s.placingNote,
     activeTrace:     isolatedScene ? emptyReviewLiveState.activeTrace : s.activeTrace,
     runtimeNodes:    isolatedScene ? emptyReviewLiveState.runtimeNodes : s.runtimeNodes,
     dataFlow:        isolatedScene ? null : s.dataFlow,
@@ -3413,12 +3414,30 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     setContextMenu({ x: event.clientX, y: event.clientY, target: { kind: 'pane' } })
   }, [isolatedScene])
 
-  const onPaneClick = useCallback(() => {
+  const onPaneClick = useCallback((event: React.MouseEvent) => {
+    // The Note tool places one note where you click, then hands back Select.
+    if (useGraphStore.getState().placingNote) {
+      useGraphStore.getState().setPlacingNote(false)
+      if (!binMode && !reviewMode && !readOnly && !isolatedScene) {
+        holdCameraForGesture()
+        void canvasNotes.create(screenToFlowPosition({ x: event.clientX, y: event.clientY }))
+          .catch(reason => raiseFailure('canvas-note-create', 'Could not create note', reason instanceof Error ? reason.message : String(reason)))
+        return
+      }
+    }
     useSheetView.getState().focusRelationship(null)
     applySelection(emptySelection())
     setSelectedNode(null)
     setInspectedNode(null)
-  }, [applySelection, setSelectedNode, setInspectedNode])
+  }, [applySelection, setSelectedNode, setInspectedNode, binMode, reviewMode, readOnly, isolatedScene, holdCameraForGesture, canvasNotes, screenToFlowPosition])
+
+  // Escape puts the Note tool down without placing anything.
+  useEffect(() => {
+    if (!placingNote) return
+    const cancel = (event: KeyboardEvent) => { if (event.key === 'Escape') useGraphStore.getState().setPlacingNote(false) }
+    window.addEventListener('keydown', cancel)
+    return () => window.removeEventListener('keydown', cancel)
+  }, [placingNote])
 
   // ── Drag visibility override ─────────────────────────────────────────────
   const onNodeDragStart: OnNodeDrag = useCallback((event, node) => {
@@ -4250,7 +4269,8 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // Canvas commands (docs/INFRA.md, "Canvas chrome"): zoom, tidy and
   // the infrastructure sidebar live in the View and Map menus, the palette
   // and the keyboard (src/shared/appMenu.ts) rather than as buttons on the
-  // canvas. Fit is the toolbar's. Only the main canvas answers them.
+  // canvas; Fit is the one button, beside the minimap. Only the main canvas
+  // answers them.
   const tidyFrameRef = useRef(tidyFrame)
   tidyFrameRef.current = tidyFrame
   useCommandHandlers({
@@ -4383,6 +4403,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         reviewMode && reviewLayoutReady ? 'ambio-canvas-review-ready' : '',
         isTransitioningLayout ? 'layout-transition' : '',
         isDraggingScene ? 'ambio-dragging' : '',
+        placingNote && !reviewMode && !readOnly ? 'ambio-canvas-placing-note' : '',
         // Sheet mode is signalled by the SURFACE, not by degrading the nodes.
         // The architecture stays at full fidelity because a sheet is where you
         // work on it; the environment is what tells you edits are a proposal.
@@ -4486,6 +4507,17 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
                 <small>Building stable architecture before drawing the Floor</small>
               </div>
             </div>
+          </Panel>
+        )}
+        {!binMode && !isolatedScene && (
+          <Panel position="top-right" className="ambio-canvas-fit">
+            <button type="button" className="ambio-canvas-fit__button" onClick={() => emitCommand('view.fitView')}
+              title="Fit map to window (Ctrl+0)" aria-label="Fit view">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+              </svg>
+              Fit
+            </button>
           </Panel>
         )}
         <Panel position="top-left" className="ambio-canvas-toolbar">

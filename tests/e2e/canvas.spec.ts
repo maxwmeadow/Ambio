@@ -1754,7 +1754,7 @@ test('preserves tokenized app chrome geometry and toolbar interaction states', a
   })).toEqual({ background: 'rgb(238, 242, 236)', color: 'rgb(31, 57, 51)' })
 
   await lasso.click()
-  const active = page.getByRole('button', { name: 'Lasso Active' })
+  const active = page.getByRole('button', { name: 'Lasso Select', pressed: true })
   await expect.poll(() => active.evaluate(element => {
     const style = getComputedStyle(element)
     return { border: style.borderColor, color: style.color }
@@ -2409,7 +2409,7 @@ test('supports click, pane deselection, and partial lasso selection', async () =
   await expect(node).not.toHaveClass(/selected/)
 
   await page.getByRole('button', { name: 'Lasso Select' }).click()
-  await expect(page.getByRole('button', { name: 'Lasso Active' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Lasso Select', pressed: true })).toBeVisible()
   const box = await node.boundingBox()
   expect(box).not.toBeNull()
   if (!box) return
@@ -4172,9 +4172,9 @@ test('wheel zoom continues over revealed file content through 100x', async () =>
   const beforeToggle = await node.boundingBox()
   for (let cycle = 0; cycle < 3; cycle += 1) {
     await page.getByRole('button', { name: 'Lasso Select' }).click()
-    await expect(page.getByRole('button', { name: 'Lasso Active' })).toBeVisible()
-    await page.getByRole('button', { name: 'Lasso Active' }).click()
-    await expect(page.getByRole('button', { name: 'Lasso Select' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Lasso Select', pressed: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Lasso Select' }).click()
+    await expect(page.getByRole('button', { name: 'Lasso Select', pressed: false })).toBeVisible()
   }
   await expect(page.locator('.react-flow__node')).toHaveCount(nodeCount)
   await expect(node).toBeVisible()
@@ -5066,4 +5066,33 @@ test('source opened from a reply can be edited, saved, and never overwrites a ne
   await page.unroute(/\/api\/canvas\/history\?/)
   await page.unroute(/\/api\/files\/[^/]+\/source\?/)
   await page.unroute(/\/api\/files\/[^/]+\/source$/)
+})
+
+test('the Note tool places one note where the canvas is clicked, then hands back Select', async () => {
+  await page.setViewportSize({ width: 1400, height: 900 })
+  // Search stays clear of the buttons beside it.
+  const search = await page.getByRole('button', { name: 'Search', exact: true }).boundingBox()
+  const investigations = await page.locator('.ambio-command-strip__start').boundingBox()
+  expect(investigations!.x + investigations!.width).toBeLessThanOrEqual(search!.x)
+
+  let created: { positionX: number; positionY: number } | null = null
+  await page.route(/\/api\/annotations$/, async route => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    created = route.request().postDataJSON()
+    await route.fulfill({ json: { id: 'placed-note', workspaceId: 'demo', sheetId: null, kind: 'note', body: 'New note',
+      positionX: created!.positionX, positionY: created!.positionY, width: 260, height: 180, revision: 1, createdBy: 'human' } })
+  })
+  const note = page.getByRole('button', { name: /^Note/ })
+  await note.click()
+  await expect(note).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.ambio-canvas-placing-note')).toHaveCount(1)
+  await page.locator('.react-flow__pane').click({ position: { x: 700, y: 500 } })
+  await expect.poll(() => created).not.toBeNull()
+  await expect(page.getByRole('button', { name: 'Select', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.ambio-canvas-placing-note')).toHaveCount(0)
+
+  await note.click()
+  await page.keyboard.press('Escape')
+  await expect(note).toHaveAttribute('aria-pressed', 'false')
+  await page.unroute(/\/api\/annotations$/)
 })

@@ -7,6 +7,11 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- The top bar is reorganised: your project and branch sit at the left above
+  the sheet list, then a Select / Lasso / Note tool switch, Review Changes and
+  Investigations, Search in the middle, and Terminal and Message Agent
+  together on the right. Fit is now a button under the minimap.
+- New Note tool: choose Note, then click the canvas to put a note exactly there.
 - Find in project (Ctrl+K) now opens with your systems and infrastructure
   listed, so you can pick one without typing.
 - Review Changes shows Hide seen after you mark a change seen. Clear filters

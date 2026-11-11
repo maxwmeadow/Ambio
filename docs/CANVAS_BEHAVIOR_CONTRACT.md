@@ -371,7 +371,8 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - A contract gap (a topic published with no consumer, or the reverse) marks
   the sidebar row and heads the inspector.
 - Fit, zoom and Tidy Layout are View-menu and keyboard commands; the canvas
-  shows no zoom buttons or zoom readout.
+  shows no zoom buttons or zoom readout. Fit also has its button under the
+  minimap (Project chrome).
 
 ### Planned UML elements
 
@@ -853,8 +854,15 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 
 - Routine index activity, daemon health and passive graph counts take no
   permanent screen space. The canvas and chat extend to the bottom edge.
-- Selection, Review Changes, Investigations, the active sheet name, Search,
-  Fit and Message Agent remain in the toolbar. Investigations opens the saved
+- The toolbar reads left to right as the screen is laid out (Max, November
+  10): where you are (project, branch, open sheet name), as wide as the sheet
+  rail under it; the canvas tool switch Select | Lasso | Note; Review Changes
+  and Investigations; Search centred in the window while both sides fit; and
+  Terminal | Message Agent, the one right-hand panel slot, last. A one-choice
+  row is drawn as one joined control. Fit is a button under the minimap.
+- Note arms placement: the next click on empty canvas places a note there and
+  returns to Select; Escape, Select or Lasso puts it down. Map ▸ Add Note
+  still places one in the middle of the view. Investigations opens the saved
   investigations popover under its button (also Tools ▸ Saved
   Investigations…). Recording lives in Tools; an active recording retains a
   visible Stop control.

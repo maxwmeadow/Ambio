@@ -238,6 +238,8 @@ interface GraphState {
   isIndexing: boolean
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
   selectionMode: boolean
+  /** The Note tool: the next click on empty canvas places a note there. */
+  placingNote: boolean
   agentActivities: { message: string; level: 'info' | 'warn' | 'success' | 'error'; timestamp: number }[]
   addAgentActivity: (activity: { message: string; level: 'info' | 'warn' | 'success' | 'error' }) => void
   clearAgentActivities: () => void
@@ -360,6 +362,7 @@ interface GraphState {
   setIndexingComplete: () => void
   setConnectionStatus: (s: 'disconnected' | 'connecting' | 'connected') => void
   setSelectionMode: (active: boolean) => void
+  setPlacingNote: (active: boolean) => void
   /**
    * The documents browser is reachable from two places - the toolbar and the
    * documents bin on the canvas - so the flag lives here rather than in either
@@ -516,6 +519,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   isIndexing: false,
   connectionStatus: 'disconnected',
   selectionMode: false,
+  placingNote: false,
   agentActivities: [],
   addAgentActivity: (act) => set((state) => ({
     agentActivities: [...state.agentActivities, { ...act, timestamp: Date.now() }].slice(-100),
@@ -1393,7 +1397,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   setConnectionStatus: (s) => set({ connectionStatus: s }),
 
-  setSelectionMode: (active) => set({ selectionMode: active }),
+  // Select, Lasso and Note are one tool switch: choosing one leaves the others.
+  setSelectionMode: (active) => set(active ? { selectionMode: true, placingNote: false } : { selectionMode: false }),
+  setPlacingNote: (active) => set(active ? { placingNote: true, selectionMode: false } : { placingNote: false }),
   documentsOpen: false,
   setDocumentsOpen: (open) => set({ documentsOpen: open }),
   infraSidebarOpen: false,

@@ -2239,10 +2239,13 @@ a { color: var(--accent); text-decoration: none; }
 
 .ambio-title-strip__identity svg { flex: 0 0 auto; }
 
+/* Start, search, end: search sits in the middle of the window while both
+   sides fit, and gives way rather than overlap when they do not. */
 .ambio-command-strip {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 5px;
+  gap: 10px;
   width: 100%;
   height: 48px;
   flex: 0 0 48px;
@@ -2259,7 +2262,33 @@ a { color: var(--accent); text-decoration: none; }
   flex: 0 0 auto;
 }
 
-.ambio-command-spacer { flex: 1 1 auto; min-width: 8px; }
+.ambio-command-strip__start,
+.ambio-command-strip__end {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ambio-command-strip__end { justify-content: flex-end; }
+
+/* Project, branch and open sheet, as wide as the sheet rail below them. */
+.ambio-location {
+  display: flex;
+  align-items: center;
+  min-width: calc(var(--chrome-rail-width) - 13px);
+  max-width: 44vw;
+  min-height: 32px;
+}
+
+.ambio-location > :first-child { border-left: 0; padding-left: 2px; }
+
+/* A row of buttons where one choice is made: joined into one control. */
+.ambio-segmented { gap: 0; }
+.ambio-segmented > .ambio-chrome-button { border-radius: 0; }
+.ambio-segmented > .ambio-chrome-button:first-child { border-radius: 2px 0 0 2px; }
+.ambio-segmented > .ambio-chrome-button:last-child { border-radius: 0 2px 2px 0; }
+.ambio-segmented > .ambio-chrome-button + .ambio-chrome-button { margin-left: -1px; }
+.ambio-segmented > .ambio-chrome-button--active { z-index: 1; }
 
 .ambio-command-separator {
   width: 1px;
@@ -2407,22 +2436,22 @@ a { color: var(--accent); text-decoration: none; }
   white-space: nowrap;
 }
 
-.ambio-command-group--navigation .ambio-chrome-button:first-child {
-  min-width: 238px;
+.ambio-command-group--search .ambio-chrome-button {
+  width: clamp(220px, 26vw, 400px);
   justify-content: flex-start;
 }
 
-.ambio-command-group--navigation .ambio-chrome-button:first-child .ambio-chrome-button__shortcut {
+.ambio-command-group--search .ambio-chrome-button__shortcut {
   margin-left: auto;
 }
 
 @media (max-width: 1240px) {
-  .ambio-command-group:first-child .ambio-chrome-button__label {
+  .ambio-segmented[aria-label='Canvas tool'] .ambio-chrome-button__label {
     display: none;
   }
 
-  .ambio-command-group--navigation .ambio-chrome-button:first-child {
-    min-width: 190px;
+  .ambio-command-group--search .ambio-chrome-button {
+    width: 190px;
   }
 
   .ambio-surface-readout { min-width: 120px; }
@@ -2434,9 +2463,12 @@ a { color: var(--accent); text-decoration: none; }
     display: none;
   }
 
-  .ambio-command-group--navigation .ambio-chrome-button:first-child {
+  .ambio-command-group--search .ambio-chrome-button {
+    width: auto;
     min-width: 32px;
   }
+
+  .ambio-location { min-width: 0; }
 
   .ambio-surface-readout {
     min-width: 100px;
@@ -3223,6 +3255,34 @@ select.ambio-inspector-input {
   font-family: var(--font-mono);
   font-size: 8px;
 }
+
+/* Fit sits under the minimap, the canvas's other view control. */
+.ambio-canvas-fit {
+  margin-top: 128px !important;
+}
+
+.ambio-canvas-fit__button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid #737d78;
+  border-radius: 2px;
+  background: linear-gradient(#f4f2eb, #d8d7cf);
+  box-shadow: 3px 3px 0 rgba(29, 35, 32, 0.38), inset 1px 1px #fff, inset -1px -1px #b9bdb8;
+  color: #315e58;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.ambio-canvas-fit__button:hover { border-color: #5c716b; background: #eef2ec; color: #1f3933; }
+.ambio-canvas-fit__button:focus-visible { outline: 2px solid var(--workbench-accent-strong); outline-offset: 2px; }
+
+.ambio-canvas-placing-note .react-flow__pane { cursor: crosshair !important; }
 
 .ambio-canvas-toolbar {
   display: flex !important;

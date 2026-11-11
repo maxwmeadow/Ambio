@@ -100,6 +100,7 @@
 /* The bin canvas is a waiting room, not the Floor: no minimap, no zoom
    readout, no toolbar. Those belong to the surface that owns the workspace. */
 .ambio-bin-window .ambio-canvas-toolbar,
+.ambio-bin-window .ambio-canvas-fit,
 .ambio-bin-window .ambio-canvas-bins-panel,
 .ambio-bin-window .react-flow__minimap { display: none !important; }
 

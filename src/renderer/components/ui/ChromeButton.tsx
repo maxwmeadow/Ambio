@@ -8,6 +8,7 @@ type ChromeButtonProps = PropsWithChildren<{
   active?: boolean
   ariaControls?: string
   ariaExpanded?: boolean
+  ariaPressed?: boolean
   ariaHasPopup?: AriaAttributes['aria-haspopup']
 }>
 
@@ -19,6 +20,7 @@ export function ChromeButton({
   active = false,
   ariaControls,
   ariaExpanded,
+  ariaPressed,
   ariaHasPopup,
   children,
 }: ChromeButtonProps) {
@@ -31,6 +33,7 @@ export function ChromeButton({
       aria-label={label}
       aria-controls={ariaControls}
       aria-expanded={ariaExpanded}
+      aria-pressed={ariaPressed}
       aria-haspopup={ariaHasPopup}
     >
       {children}

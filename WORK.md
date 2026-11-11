@@ -448,6 +448,7 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 
 ## Done log
 
+- 2026-11-10 `toolbar-layout` Toolbar reordered as where you are, Select | Lasso | Note tool switch, workflows, centred Search, Terminal | Message Agent; Fit moved under the minimap; Note places a note at the next canvas click. (`main`)
 - 2026-11-10 `scoped-sheet-selection` Sheets draw their members, descendants and proposal context. New sheets from selection preserve world spacing, size and nesting and frame the group on open. Schema v14 stores initial layout as presentation and keeps it out of structural comparison.
 - 2026-11-10 `bin-sheet-layer-isolation` The isolated bin reads its own scene while the main canvas has an active sheet.
 - 2026-11-10 `review-seen-controls` Labeled the row action Mark seen, hid Hide seen until a change is marked, and showed Clear filters only when a filter is applied. (`main`)

@@ -198,7 +198,7 @@ good automatic place for a database on a map of code, so it is not on the map.
 - **Canvas chrome.** Fit (Cmd+0), zoom (Cmd+= / Cmd+-) and Tidy Layout
   (Shift+Cmd+L) moved to the View and Map menus, the command palette and the
   keyboard (all in `src/shared/appMenu.ts`); the zoom buttons and zoom readout
-  are gone. The toolbar's Fit stays. Interface zoom moved to Alt+Cmd+= / -.
+  are gone. Fit keeps a button, now under the minimap (2026-11-10). Interface zoom moved to Alt+Cmd+= / -.
 
 Still to do here: a Local / Production switch for hosting, and colouring
 systems by kind (backend, frontend, microservice), assigned by agents when
