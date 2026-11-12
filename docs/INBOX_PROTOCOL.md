@@ -409,6 +409,15 @@ every requirement. Reopening does not stop an external agent already editing fil
   that the images are included; get_inbox still lists every attachment by path.
   Print-mode agents, Copilot, Cursor, Muse, Ambio chat and agents in other apps
   read images by path.
+- A message that starts with one of the chosen agent's own commands (`/name args`,
+  `src/shared/agentCommands.ts`) has the agent run it first, then take Ambio's
+  request in the same session: Claude Code as a stream message followed by the
+  handoff once that turn ends (`DriverPlan.followUp`); Codex as `$name args` with a
+  `skill` input item; an ACP agent as a `/name args` prompt before the request
+  prompt. The commands are found by `electron/agentCommands.ts`: Claude Code's
+  `.claude/commands` and `.claude/skills` (it lists them only once sent a message),
+  Codex's `skills/list`, and the `available_commands_update` an ACP agent sends when
+  an empty scratch session opens.
 - `get_inbox({messageHandle, contextOffset: 0})` fetches original context in pages of at most
   12,000 Unicode characters. Continue from `nextOffset`; `-1` means complete. Fetching
   context does not claim another instruction. The handle must still own the message.

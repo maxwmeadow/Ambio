@@ -117,7 +117,7 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
     return () => { active = false; clearTimeout(timer) }
   }, [workspaceId, isOpen, rootPath])
   // `place` is the turn's own: only a conversation's first Build can ask for a worktree.
-  const deliver = async (messageId: string, destination = hostId, model?: string, place: 'here' | 'worktree' = 'here', options: { thinking?: string; access?: AgentAccess } & Pick<DeliveryRequest, 'codexTransport' | 'codexReview'> = {}) => {
+  const deliver = async (messageId: string, destination = hostId, model?: string, place: 'here' | 'worktree' = 'here', options: { thinking?: string; access?: AgentAccess } & Pick<DeliveryRequest, 'codexTransport' | 'codexReview' | 'command'> = {}) => {
     if (!destination || lock.current) return
     lock.current = true; setBusy(messageId)
     try {

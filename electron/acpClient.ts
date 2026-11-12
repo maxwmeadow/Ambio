@@ -3,6 +3,7 @@ import type { DeliveryEvent, DeliveryUsage } from '../src/shared/agentDelivery.t
 import { prose, thinkingEvents, type TurnMode } from './agentDrivers.ts'
 import { attachedImagesNote, fileUri, inlineImage } from './attachments.ts'
 import type { Attachment } from '../src/shared/attachments.ts'
+import { commandLine, type AgentCommand, type CommandCall } from '../src/shared/agentCommands.ts'
 
 /**
  * One turn of a conversation with an agent that speaks the Agent Client
@@ -50,6 +51,10 @@ export interface AcpTurn {
   steering?: boolean
   /** What the person attached from outside the map, sent with the opening prompt. */
   attachments?: Attachment[]
+  /** One of the agent's own commands, run before Ambio's request in the same session. */
+  command?: CommandCall
+  /** The agent's commands, as it advertises them (available_commands_update). */
+  onCommands?: (commands: AgentCommand[]) => void
   /** Optional human permission desk; without it the host's existing policy applies. */
   onPermission?: (question: { title: string; detail: string; kind?: string }, signal: AbortSignal) => Promise<boolean>
   /** Sends one line to the agent. */
@@ -295,7 +300,10 @@ export class AcpClient {
       return
     }
     if (message.method === 'session/update') {
-      if (message.params?.sessionId === this.sessionId) this.update(message.params?.update)
+      // An agent sends its commands in the same breath as the session it opened,
+      // before this client has recorded that session's ID; it has only one.
+      const commands = message.params?.update?.sessionUpdate === 'available_commands_update' && !this.sessionId
+      if (message.params?.sessionId === this.sessionId || commands) this.update(message.params?.update)
       return
     }
     if (message.id === undefined) return
@@ -376,6 +384,12 @@ export class AcpClient {
   }
 
   private update(update: any): void {
+    // The agent's commands come right after a session opens, replayed or not.
+    if (update?.sessionUpdate === 'available_commands_update' && Array.isArray(update.availableCommands)) {
+      this.turn.onCommands?.(update.availableCommands.flatMap((command: any) => typeof command?.name === 'string' && command.name
+        ? [{ name: command.name, description: typeof command.description === 'string' ? command.description : '' }] : []))
+      return
+    }
     if (!update || this.replaying) return
     if (update.sessionUpdate === 'agent_thought_chunk') {
       if (update.content?.type === 'text' && typeof update.content.text === 'string') this.thoughtText += update.content.text
@@ -509,6 +523,12 @@ export class AcpClient {
     this.prompting = true
     let result: any
     try {
+      // The person's command runs first ("/plan the cache"), then Ambio's request in the same session.
+      if (turn.command) {
+        const ran = await this.request('session/prompt', { sessionId: this.sessionId, prompt: [{ type: 'text', text: commandLine(turn.command) }] })
+        this.addUsage(ran.usage)
+        if (this.cancelled || this.closed) throw new Error('The turn was stopped before it began.')
+      }
       result = await this.request('session/prompt', { sessionId: this.sessionId, prompt: acpPrompt(turn.prompt, turn.attachments ?? [], this.promptCapabilities) })
       this.addUsage(result.usage)
       // agy resolves the original request before its steered replacement ends.

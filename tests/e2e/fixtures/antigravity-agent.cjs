@@ -31,7 +31,10 @@ reader.on('line', line => {
   if (method === 'session/new' || method === 'session/resume') {
     if (params.mcpServers.length) capture({ transport: 'acp', resumed: method === 'session/resume', mcpServers: params.mcpServers, cwd: params.cwd })
     currentModel = 'gemini-fixture'
-    return send({ id, result: { sessionId, configOptions: optionsFor(currentModel), models: { availableModels: [{ modelId: 'gemini-fixture-high', name: 'Gemini Fixture High' }, { modelId: 'gemini-fixture-low', name: 'Gemini Fixture Low' }] }, modes: { currentModeId: 'default', availableModes: [{ id: 'default', name: 'Default' }, { id: 'plan', name: 'Plan' }] } } })
+    send({ id, result: { sessionId, configOptions: optionsFor(currentModel), models: { availableModels: [{ modelId: 'gemini-fixture-high', name: 'Gemini Fixture High' }, { modelId: 'gemini-fixture-low', name: 'Gemini Fixture Low' }] }, modes: { currentModeId: 'default', availableModes: [{ id: 'default', name: 'Default' }, { id: 'plan', name: 'Plan' }] } } })
+    // agy sends its commands as soon as a session opens.
+    update({ sessionUpdate: 'available_commands_update', availableCommands: [{ name: 'plan', description: 'Plan carefully before executing a task.' }, { name: 'goal', description: 'Run until the specified goal is completely finished.' }] })
+    return
   }
   if (method === 'session/close') return send({ id, result: {} })
   if (method === 'session/set_config_option') {
@@ -41,6 +44,8 @@ reader.on('line', line => {
   }
   if (method === 'session/set_mode') return send({ id, result: {} })
   if (method === 'session/prompt') {
+    // A command the person called arrives first, on its own; it just finishes.
+    if (params.prompt[0].text.startsWith('/')) { capture({ command: params.prompt[0].text }); send({ id, result: { stopReason: 'end_turn', usage } }); return }
     if (promptId) {
       capture({ steering: params.prompt[0].text })
       // Match agy's lifecycle: original returns before the replacement reply.

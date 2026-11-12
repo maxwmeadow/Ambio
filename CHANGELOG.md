@@ -7,6 +7,9 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Type / in the message box for commands: /ask, /propose and /build switch the
+  turn, /new starts a conversation, /attach adds context, and the chosen agent's
+  own commands and skills are listed too; the agent runs one before your request.
 - Claude Code, Codex and Antigravity see attached images directly instead of
   opening them from a file. Hover an attached image to see how the chosen agent
   will get it.

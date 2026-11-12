@@ -6,6 +6,7 @@ import type { AgentAccess, MappingBinding } from '../src/shared/agentDelivery.ts
 import { followCodexTranscript } from './codexTranscript.ts'
 import { attachedImagesNote, inlineImage } from './attachments.ts'
 import type { Attachment } from '../src/shared/attachments.ts'
+import { commandLine, type CommandCall } from '../src/shared/agentCommands.ts'
 
 /**
  * How Ambio drives each agent CLI for one turn of a conversation.
@@ -47,6 +48,8 @@ export interface DriverTurn {
   access?: AgentAccess
   /** What the person attached from outside the map; a driver that takes images inline sends them with the turn. */
   attachments?: Attachment[]
+  /** One of the agent's own commands, run before Ambio's request. */
+  command?: CommandCall
 }
 
 /** The usual flag for choosing a model, for hosts that take one. */
@@ -54,6 +57,8 @@ const modelFlag = (turn: DriverTurn): string[] => turn.model ? ['--model', turn.
 
 export interface DriverPlan {
   args: string[]
+  /** Sent to a streaming host once its first turn ends: the request that follows a command the person ran. */
+  followUp?: string
   /** Written to the process's stdin, for hosts that read the prompt there. */
   stdin?: string
   /** A session ID Ambio chose, for hosts that let the caller name the session. */
@@ -335,7 +340,11 @@ const claudeCode: AgentDriver = {
     const building = turn.mode === 'build'
     return {
       sessionId,
-      stdin: `${claudeStream.opening(turn.prompt, randomUUID(), turn.attachments)}\n`,
+      // A command the person called runs first (Claude Code reads "/name args"
+      // only at the start of a message); Ambio's request follows once it ends.
+      ...(turn.command
+        ? { stdin: `${claudeStream.message(commandLine(turn.command), randomUUID())}\n`, followUp: `${claudeStream.opening(turn.prompt, randomUUID(), turn.attachments)}\n` }
+        : { stdin: `${claudeStream.opening(turn.prompt, randomUUID(), turn.attachments)}\n` }),
       args: [
         '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--replay-user-messages',
         ...(turn.resume ? ['--resume', turn.resume] : ['--session-id', sessionId!]),

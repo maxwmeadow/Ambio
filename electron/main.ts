@@ -35,6 +35,8 @@ import { completeSourceBoundaries, mergePersistedProjectConfig } from '../src/sh
 import { buildHosts, detectHosts, inspectHostConfiguration, installFamily } from './agentInstallers'
 import { CLI_CLIENTS, RUN_NEEDS_INSTALL, SHARED_APP_CLIENTS, installerHostId, isAgentAccess } from '../src/shared/agentDelivery'
 import { attachmentsDirectory, describePaths, imagePreview, messageAttachments, saveAttachment } from './attachments'
+import { listAgentCommands } from './agentCommands'
+import { validCommandCall } from '../src/shared/agentCommands'
 import { discoverAppClients } from './agentClientDiscovery'
 import { readExecutableOverrides, setExecutableOverride, clearExecutableOverride } from './agentExecutableOverrides'
 import { removeLegacyServer, uninstallAll, uninstallHost } from './agentUninstall'
@@ -1605,6 +1607,12 @@ function setupIPC(): void {
   // What an agent Ambio runs is asked to do to map a project: the same brief the installed workflow carries.
   ipcMain.handle('agent:mapping-brief', () => NAME_ARCHITECTURE_COMMAND)
   // The models an agent Ambio runs can be asked to use; empty when it publishes none.
+  // The chosen agent's own slash commands in a project (electron/agentCommands.ts).
+  ipcMain.handle('agent:commands', (_event, workspaceId: string, hostId: string) => {
+    const project = loadRecentProjects().find(item => item.id === workspaceId)
+    const target = availableTargets().find(host => host.id === hostId && host.route === 'run' && host.available)
+    return project && target ? listAgentCommands(hostId, target.launcher, project.rootPath, os.homedir()) : []
+  })
   ipcMain.handle('agent:models', (_event, hostId: string) => {
     const target = availableTargets().find(host => host.id === hostId && host.route === 'run' && host.available)
     return target ? listModels(hostId, target.launcher, os.homedir()) : []
@@ -1781,7 +1789,9 @@ function setupIPC(): void {
       if (request.access !== undefined && (!isAgentAccess(request.access) || !honoured?.includes(request.access))) throw new Error(`${target.label} cannot be run at this access level.`)
       // Attached images go with the turn natively where the agent takes them; get_inbox gives every attachment by path.
       const attachments = mapping ? [] : messageAttachments(body.selection)
-      const turn = { mode, messageId: request.messageId, cwd: workPath, mapping, ...(attachments.length ? { attachments } : {}), ...(chosen?.model ? { model: chosen.model } : validModel(request.model) ? { model: request.model } : {}), ...(effort ? { effort } : {}), ...(request.access ? { access: request.access } : {}) }
+      // One of the agent's own commands the message starts with runs before the request.
+      const command = mapping ? undefined : validCommandCall(request.command)
+      const turn = { mode, messageId: request.messageId, cwd: workPath, mapping, ...(attachments.length ? { attachments } : {}), ...(command ? { command } : {}), ...(chosen?.model ? { model: chosen.model } : validModel(request.model) ? { model: request.model } : {}), ...(effort ? { effort } : {}), ...(request.access ? { access: request.access } : {}) }
       if (request.codexTransport !== undefined && !['app-server', 'exec'].includes(request.codexTransport)) throw new Error('Invalid Codex transport.')
       const pinnedCodex = request.hostId === 'codex' ? deliveryRunner.codexTransport(project.id, threadId) : undefined
       if (pinnedCodex && request.codexTransport && pinnedCodex !== request.codexTransport) throw new Error('This conversation keeps its Codex connection. Start a new conversation to change it.')
@@ -1807,6 +1817,7 @@ function setupIPC(): void {
           } }),
         } : {}),
         ...(attachments.length ? { attachments } : {}),
+        ...(command ? { command } : {}),
         mcpServers: [(spec => ({ name: 'ambio', command: spec.command, args: [...spec.args, `--ambio-host=${request.hostId}`], env: Object.entries(mcpEnvironment(request.hostId, project.id, request.messageId, mapping)).map(([name, value]) => ({ name, value })) }))(mcpLaunchSpec())],
       } : undefined
       // A host with both ways in is tried as a session first; print mode is the
@@ -1817,10 +1828,10 @@ function setupIPC(): void {
         : driver?.acpArgs ? { args: driver.acpArgs(driverTurn), stdin: undefined, sessionId: undefined } : deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, { ...turn, resume: session ? undefined : resume })
       const run = await deliveryRunner.start({
         ...request, rootPath: workPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, prompt,
-        args: plan.args, stdin: plan.stdin, threadId, mode, driver, mapping, sessionId: resume ?? plan.sessionId, resumed: !!resume,
+        args: plan.args, stdin: plan.stdin, ...('followUp' in plan && plan.followUp ? { followUp: plan.followUp } : {}), threadId, mode, driver, mapping, sessionId: resume ?? plan.sessionId, resumed: !!resume,
         codexTransport,
         ...(chosen ? { transport: chosen.transport, model: turn.model, thinking: chosen.thinking } : effort ? { thinking: effort } : {}),
-        ...(nativeCodex ? { codex: { resume, model: turn.model, effort, images: attachments.filter(item => item.kind === 'image').map(item => item.path), approval: request.access === 'ask' || request.access === 'auto' ? 'on-request' : 'never', reviewer: request.access === 'auto' ? 'auto_review' : 'user', review: request.codexReview } } : {}),
+        ...(nativeCodex ? { codex: { resume, model: turn.model, effort, images: attachments.filter(item => item.kind === 'image').map(item => item.path), ...(command?.path ? { skill: command } : {}), approval: request.access === 'ask' || request.access === 'auto' ? 'on-request' : 'never', reviewer: request.access === 'auto' ? 'auto_review' : 'user', review: request.codexReview } } : {}),
         ...(acp ? driver?.muse ? { muse: { ...acp, model: turn.model } } : { acp } : {}),
         ...(antigravity || nativeCodex || driver?.acp || driver?.muse ? {} : { fresh: printPlan }),
       })

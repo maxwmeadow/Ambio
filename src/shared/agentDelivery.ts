@@ -169,6 +169,8 @@ export interface DeliveryRequest {
   where?: 'here' | 'worktree'
   /** How much the agent may do without asking, for an agent that offers levels (DeliveryHost.access). */
   access?: AgentAccess
+  /** One of the agent's own commands the message starts with; the agent runs it before the request (src/shared/agentCommands.ts). */
+  command?: { name: string; args: string; path?: string }
 }
 
 /** A model an agent can be asked to use. */

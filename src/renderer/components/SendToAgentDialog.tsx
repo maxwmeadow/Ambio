@@ -29,6 +29,7 @@ import { conversationKey, useConversationPreferences } from '../store/conversati
 import { ConversationMenu, type ConversationEntry } from './ConversationMenu'
 import { attachesPaste, attachmentOf, attachmentReference, imageDeliveryHint, type Attachment } from '../../shared/attachments'
 import { AttachmentThumbnail, ImageLightbox } from './AttachmentImage'
+import { AMBIO_COMMANDS, commandCall, matchCommands, typedCommand, type AgentCommand, type AmbioCommandName, type CommandCall } from '../../shared/agentCommands'
 import '../styles/inbox.css'
 
 export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResize }: { isOpen: boolean; onClose: () => void; onManageConnections?: () => void; onResize: (width: number) => void }) {
@@ -87,6 +88,11 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   }, [isOpen, graph.workspaceId, requestedConversation])
   const [mode, setMode] = useState<WorkOrderMode>('build')
   const [pickerOpen, setPickerOpen] = useState(false)
+  // The / menu: the highlighted row, and whether Escape put it away for this command.
+  const [commandIndex, setCommandIndex] = useState(0)
+  const [commandsDismissed, setCommandsDismissed] = useState(false)
+  // The chosen agent's own commands (electron/agentCommands.ts).
+  const [agentCommands, setAgentCommands] = useState<AgentCommand[]>([])
   // Files being dragged over the message box.
   const [dropping, setDropping] = useState(false)
   // An attached image shown large.
@@ -113,7 +119,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   const [attachedSheetId, setAttachedSheetId] = useState<string | null>(() => { try { const saved = JSON.parse(localStorage.getItem(`${draftKey}:sheet`) ?? 'null'); return typeof saved === 'string' ? saved : null } catch { return null } })
   const attachmentChosen = useRef((() => { try { return localStorage.getItem(`${draftKey}:sheet`) !== null } catch { return false } })())
   const sendLock = useRef(false)
-  const retry = useRef<{ id: string; note: string; selection: string[]; sheetId: string | null; hostId?: string; codeFitFileIds?: string[]; threadId?: string; mode?: WorkOrderMode; model?: string; thinking?: string; where?: 'here' | 'worktree'; access?: AgentAccess; codexTransport?: 'app-server' | 'exec'; codexReview?: boolean }>(undefined)
+  const retry = useRef<{ id: string; note: string; selection: string[]; sheetId: string | null; hostId?: string; codeFitFileIds?: string[]; threadId?: string; mode?: WorkOrderMode; model?: string; thinking?: string; where?: 'here' | 'worktree'; access?: AgentAccess; codexTransport?: 'app-server' | 'exec'; codexReview?: boolean; command?: CommandCall }>(undefined)
   const restored = useRef(false)
   if (!restored.current) {
     restored.current = true
@@ -125,6 +131,14 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   const { getNode } = useReactFlow()
   const flowStore = useStoreApi()
   const showOnMap = useShowOnMap(true, { duration: 300, maxZoom: 1.2, padding: .5 })
+  const commandHost = delivery.hosts.find(host => host.id === delivery.hostId && host.route === 'run')
+  useEffect(() => {
+    setAgentCommands([])
+    if (!isOpen || !commandHost) return
+    let active = true
+    void window.ambio.listAgentCommands(graph.workspaceId, commandHost.id).then(list => { if (active) setAgentCommands(list) }, () => {})
+    return () => { active = false }
+  }, [isOpen, graph.workspaceId, commandHost?.id])
   // What agents did through Ambio's tools. An agent Ambio runs shows it in its
   // own turn; the record fills in turns and work that no Ambio run shows.
   const agentActions = useGraphStore(s => s.agentActions)
@@ -373,6 +387,28 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
     </span>
   })}</div>
   }
+  // The / menu (src/shared/agentCommands.ts): Ambio's own commands act here; the
+  // agent's go with the message and run before the request.
+  const typed = caseTarget ? null : typedCommand(note)
+  const agentMenu: AgentCommand[] = commandHost?.id === 'codex' ? [{ name: 'review', description: 'Review the uncommitted changes with Codex' }, ...agentCommands] : agentCommands
+  const rowsBy = (by: 'name' | 'description') => typed === null ? [] : [
+    ...matchCommands(typed, AMBIO_COMMANDS, by).map(command => ({ ...command, ambio: true })),
+    ...matchCommands(typed, agentMenu, by).map(command => ({ ...command, ambio: false })),
+  ]
+  // Names first, in every group; descriptions only when no name matches.
+  const byName = rowsBy('name')
+  const commandRows = byName.length ? byName : rowsBy('description')
+  const commandsOpen = typed !== null && !commandsDismissed && commandRows.length > 0
+  const chooseCommand = (row: typeof commandRows[number]) => {
+    setCommandIndex(0)
+    if (!row.ambio) { setNote(`/${row.name} `); textarea.current?.focus(); return }
+    setNote('')
+    const name = row.name as AmbioCommandName
+    if (name === 'ask' || name === 'propose' || name === 'build') setMode(name)
+    else if (name === 'new') { setCaseTarget(null); setThreadId(null); setError(null) }
+    else if (name === 'attach') setPickerOpen(true)
+    textarea.current?.focus()
+  }
   const copy = (text: string, id: string) => { void navigator.clipboard.writeText(text).then(() => setCopied(id), () => setError('Clipboard unavailable. Select the visible work order ID and tell your agent to call get_inbox with that messageId.')) }
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -417,8 +453,10 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       const id = crypto.randomUUID()
       const review = runHost?.id === 'codex' && selectedCodexTransport === 'app-server' && note.trim() === '/review'
       const turnMode = review ? 'ask' : mode
+      // A message that starts with one of the agent's commands runs it first.
+      const command = review ? null : commandCall(note.trim(), agentCommands)
       retry.current = { id, note: workOrderNote(turnMode, review ? 'Review the current uncommitted changes. Report actionable findings without editing files.' : note.trim()), selection: outgoing, sheetId: attachedSheetId, hostId: delivery.hostId, codeFitFileIds, threadId: currentThreadId ?? id, mode: turnMode, model: agentModel.value || undefined, thinking: agentModel.thinking, where, access: agentAccess.value,
-        ...(runHost?.id === 'codex' ? { codexTransport: selectedCodexTransport, codexReview: review } : {}) }
+        ...(runHost?.id === 'codex' ? { codexTransport: selectedCodexTransport, codexReview: review } : {}), ...(command ? { command } : {}) }
     }
     try { localStorage.setItem(pendingKey, JSON.stringify(retry.current)) } catch { /* in-memory retries still work */ }
     try {
@@ -432,7 +470,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       setNote(''); setCodeFitFileIds([]); setAttachedCode(() => []); retry.current = undefined; nearBottom.current = true
       setThreadId(pending.threadId ?? pending.id)
       try { localStorage.removeItem(pendingKey) } catch { /* already acknowledged */ }
-      if (pending.hostId && !watching) await delivery.deliver(pending.id, pending.hostId, pending.model, pending.where, { thinking: pending.thinking, access: pending.access, codexTransport: pending.codexTransport, codexReview: pending.codexReview })
+      if (pending.hostId && !watching) await delivery.deliver(pending.id, pending.hostId, pending.model, pending.where, { thinking: pending.thinking, access: pending.access, codexTransport: pending.codexTransport, codexReview: pending.codexReview, ...(pending.command ? { command: pending.command } : {}) })
     } catch (err) {
       const status = (err as { status?: number }).status
       if (status && status >= 400 && status < 500) {
@@ -515,7 +553,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
             // The agent's turn, from its first step to its answer, in one card.
             if (message.reply || (run && unanswered)) return <AgentRunTurn run={run} hosts={delivery.hosts} events={run ? delivery.events[run.key] : undefined} reply={message.reply}
               onCopy={message.reply ? () => copy(message.reply!.body, message.id) : undefined} copied={copied === message.id}
-              onRetry={run && !runWorking(run) ? () => { void delivery.deliver(message.id, run.hostId, agentModel.value || undefined, 'here', run.hostId === runHost?.id ? { thinking: agentModel.thinking, access: agentAccess.value } : undefined) } : undefined} />
+              onRetry={run && !runWorking(run) ? () => { void delivery.deliver(message.id, run.hostId, agentModel.value || undefined, 'here', run.hostId === runHost?.id ? { thinking: agentModel.thinking, access: agentAccess.value, ...(commandCall(turnRequest(message).text, agentCommands) ? { command: commandCall(turnRequest(message).text, agentCommands)! } : {}) } : undefined) } : undefined} />
             // Nothing Ambio started: the turn waits for an agent outside it, which takes the handoff.
             return unanswered && <div className="ambio-inbox__turn-status" data-state="waiting" role="status">
               <p><span className="ambio-inbox__turn-pulse" aria-hidden="true" />{inboxStatus(message)}.</p>
@@ -565,7 +603,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           {effectiveSheetId && <div className="ambio-inbox__attachment" title={attachedSheet ? `${attachedSheet.name}, revision ${attachedSheet.revision}, snapshot and structural comparison included` : 'This sheet is no longer available'}><span className="ambio-inbox__sheet-icon"><InboxIcon name="sheet" size={16} /></span><span><strong>{attachedSheet?.name ?? 'Sheet unavailable'}</strong><small>{attachedSheet?.resolvedAt ? 'Resolved sheet' : attachedSheet ? 'Sheet' : 'Remove attachment'}</small></span><button className="ambio-inbox__icon" type="button" disabled={locked} aria-label="Remove attached sheet" onClick={() => attachSheet(null)}><InboxIcon name="close" size={13} /></button></div>}
           {chips(effectiveSelection, true)}
         </div>}
-        <textarea ref={textarea} id="ambio-inbox-note" aria-label="Instruction for your agent" value={inProgress && !steering && !caseTarget ? '' : retry.current?.note ?? note} disabled={locked || (caseTarget ? !caseAvailable : inProgress && !steering)} onChange={event => setNote(event.target.value)}
+        <textarea ref={textarea} id="ambio-inbox-note" aria-label="Instruction for your agent" value={inProgress && !steering && !caseTarget ? '' : retry.current?.note ?? note} disabled={locked || (caseTarget ? !caseAvailable : inProgress && !steering)} onChange={event => { setNote(event.target.value); setCommandIndex(0); if (typedCommand(event.target.value) === null) setCommandsDismissed(false) }}
           // A pasted screenshot or copied files attach; so does a long block of
           // text, which would otherwise bury what the person is asking.
           onPaste={event => {
@@ -579,12 +617,31 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           }}
           maxLength={16000} rows={2} placeholder={caseTarget ? (caseAvailable ? 'A question, correction or hint for this investigation…' : 'Your draft is preserved. Return to conversation to continue.') : steering ? `Send a correction while ${workingLabel} works…` : inProgress ? (workingLabel ? `${workingLabel} is working on your request…` : 'Waiting for your agent to pick up your request…') : shown.length || chat.snapshot?.messages.length ? 'Reply, or ask for the next step…' : 'Describe a change or ask a question…'} onKeyDown={event => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return
+          if (commandsOpen) {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault()
+              setCommandIndex(index => (Math.min(index, commandRows.length - 1) + (event.key === 'ArrowDown' ? 1 : -1) + commandRows.length) % commandRows.length)
+              return
+            }
+            if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); chooseCommand(commandRows[Math.min(commandIndex, commandRows.length - 1)]); return }
+            if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setCommandsDismissed(true); return }
+          }
           if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit() }
           if (!caseTarget && event.key === '@' && (event.currentTarget.selectionStart === 0 || /\s/.test(note[event.currentTarget.selectionStart - 1]))) { event.preventDefault(); setPickerOpen(true) }
         }} />
         {!caseTarget && toChat && chatProvider?.auth === 'chatgpt' && <div className="ambio-chat__plan">Using ChatGPT plan, <button type="button" onClick={() => void window.ambio.manageChatGPTUsage()}>Manage usage</button></div>}
         <div className={`ambio-inbox__compose-tools${caseTarget ? ' ambio-inbox__compose-tools--case' : ''}`}>{!caseTarget && <><div ref={attachmentArea} className="ambio-inbox__attach-anchor">
           <button type="button" className="ambio-inbox__icon" disabled={locked} aria-label="Attach context" aria-haspopup="dialog" aria-expanded={pickerOpen} title="Attach a sheet, system, file or function (@)" onClick={() => setPickerOpen(!pickerOpen)}><InboxIcon name="attach" size={19} /></button>
+          {commandsOpen && <div className="ambio-inbox__picker ambio-inbox__commands" role="listbox" aria-label="Commands">
+            {commandRows.map((row, index) => <div key={`${row.ambio ? 'ambio' : 'agent'}:${row.name}`} role="presentation">
+              {(index === 0 || commandRows[index - 1].ambio !== row.ambio) && <div className="ambio-inbox__picker-label" role="presentation">{row.ambio ? 'Ambio' : commandHost?.label ?? 'Agent'}</div>}
+              <button type="button" role="option" aria-selected={index === Math.min(commandIndex, commandRows.length - 1)} tabIndex={-1}
+                onMouseMove={() => { if (commandIndex !== index) setCommandIndex(index) }} onMouseDown={event => event.preventDefault()} onClick={() => chooseCommand(row)}>
+                <span className="ambio-inbox__command-name">/{row.name}</span>
+                <span><small>{row.description}</small></span>
+              </button>
+            </div>)}
+          </div>}
           {pickerOpen && <InboxSheetPicker sheets={sheet.sheets} attachedId={effectiveSheetId} attachedRefs={outgoing} onClose={dismissPicker} onSelect={id => { attachSheet(id); dismissPicker() }}
             onAttach={reference => { setExcluded(current => current.filter(item => item !== reference)); setAttachedCode(current => [...new Set([...current, reference])]); dismissPicker() }}
             onFromComputer={fromComputer} />}

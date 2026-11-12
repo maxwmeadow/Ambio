@@ -594,3 +594,15 @@ test('what an agent says and thinks reaches the conversation whole', () => {
   assert.match(thought, /then its tests\.\n\nNext, the migrations\.$/)
   assert.doesNotMatch(thought, /…/)
 })
+
+test("a command the person called runs first; when its turn ends, Ambio's request follows in the same session", async t => {
+  const root = fixture(t)
+  const runner = new DeliveryRunner(path.join(root, 'runs'), testSpawn)
+  const plan = deliveryPlan('claude-code', mcp, 'ws', 'handoff', { messageId: 'turn-command', command: { name: 'deploy', args: 'staging' } })
+  const started = await runner.start({ ...streamingTurn(root, 'turn-command'), stdin: plan.stdin, followUp: plan.followUp, sessionId: plan.sessionId })
+  await said(runner, started.key, 'heard /deploy staging')
+  // The command's turn ended; the request went next instead of the stream closing.
+  await said(runner, started.key, 'heard handoff')
+  const run = await settled(runner, 'ws', started.key)
+  assert.equal(run.state, 'completed')
+})

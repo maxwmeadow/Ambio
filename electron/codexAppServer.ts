@@ -2,6 +2,7 @@ import type { DeliveryEvent, DeliveryUsage, ModelOption } from '../src/shared/ag
 import type { AgentAccess } from '../src/shared/agentDelivery.ts'
 import { codexSandbox, type DriverTurn } from './agentDrivers.ts'
 import { attachedImagesNote } from './attachments.ts'
+import type { AgentCommand, CommandCall } from '../src/shared/agentCommands.ts'
 
 type Activity = Omit<DeliveryEvent, 'at'>
 type Pending = { resolve: (value: any) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
@@ -77,6 +78,8 @@ export interface CodexAppServerTurn {
   review?: boolean
   /** Attached images, sent with the turn as local image paths. */
   images?: string[]
+  /** A skill the person called ("/name args"), sent with the turn so Codex loads it. */
+  skill?: CommandCall
   send: (line: string) => void
   onSession: (id: string) => void
   onEvent: (event: Activity) => void
@@ -132,6 +135,14 @@ export class CodexAppServer {
     })()
   }
 
+  /** The skills Codex offers in a folder, enabled ones only. */
+  async skills(cwd: string): Promise<AgentCommand[]> {
+    await this.initialize()
+    const result = await this.request('skills/list', { cwds: [cwd] })
+    return (result.data ?? []).flatMap((entry: any) => entry.skills ?? []).flatMap((skill: any) => skill?.enabled === false || typeof skill?.name !== 'string' || typeof skill?.path !== 'string' ? []
+      : [{ name: skill.name, description: typeof skill.description === 'string' ? skill.description : '', path: skill.path }])
+  }
+
   async models(): Promise<ModelOption[]> {
     await this.initialize()
     const models: ModelOption[] = []
@@ -166,7 +177,10 @@ export class CodexAppServer {
     }
     const text = this.turn.prompt + (this.turn.review ? `\n\nCodex's native review has finished. Use the following review as evidence, claim this Ambio request and return the review through Ambio's normal reply workflow. Do not change files.\n\n${this.reviewText || 'The reviewer returned no written findings.'}` : '')
     const images = this.turn.images ?? []
-    const input = [{ type: 'text', text: images.length ? text + attachedImagesNote(images.length) : text }, ...images.map(path => ({ type: 'localImage', path }))]
+    // A called skill is named in the text ($name) and sent beside it, as Codex documents.
+    const skill = this.turn.skill?.path ? this.turn.skill : undefined
+    const opening = (skill ? `$${skill.name}${skill.args ? ` ${skill.args}` : ''}\n\n` : '') + (images.length ? text + attachedImagesNote(images.length) : text)
+    const input = [{ type: 'text', text: opening }, ...(skill ? [{ type: 'skill', name: skill.name, path: skill.path }] : []), ...images.map(path => ({ type: 'localImage', path }))]
     const status = await this.startTurn('turn/start', { threadId: this.threadId, input, summary: 'auto', ...(this.turn.effort ? { effort: this.turn.effort } : {}) })
     return { stopReason: status, resumed: !!this.turn.resume }
   }

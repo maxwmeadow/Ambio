@@ -5,6 +5,7 @@ import type { CommandId, SystemRole } from '../src/shared/appMenu'
 import type { TerminalBridge, TerminalEvent, TerminalStart } from '../src/shared/terminal'
 import type { DeliveryEvent, DeliveryHost, DeliveryRequest, DeliveryResult, DeliveryRun, ModelOption } from '../src/shared/agentDelivery'
 import type { Attachment } from '../src/shared/attachments'
+import type { AgentCommand } from '../src/shared/agentCommands'
 import type { ConnectionTestResult } from './agentConnectionTest'
 
 export type { ConnectionCheck, ConnectionTestResult } from './agentConnectionTest'
@@ -219,6 +220,7 @@ contextBridge.exposeInMainWorld('ambio', {
   pickAttachments: (kind: 'files' | 'folder'): Promise<Attachment[]> => ipcRenderer.invoke('attachments:pick', kind),
   openAttachment: (path: string): Promise<void> => ipcRenderer.invoke('attachments:open', path),
   previewAttachment: (path: string): Promise<string> => ipcRenderer.invoke('attachments:preview', path),
+  listAgentCommands: (workspaceId: string, hostId: string): Promise<AgentCommand[]> => ipcRenderer.invoke('agent:commands', workspaceId, hostId),
   installCli: (): Promise<{ ok: boolean; path?: string; manual?: string; detail: string }> => ipcRenderer.invoke('cli:install'),
   takeWhatsNew: (): Promise<{ version: string; notes: string } | null> => ipcRenderer.invoke('app:take-whats-new'),
   whatsNew: (): Promise<{ version: string; notes: string } | null> => ipcRenderer.invoke('app:whats-new'),
@@ -465,6 +467,7 @@ declare global {
       pickAttachments: (kind: 'files' | 'folder') => Promise<Attachment[]>
       openAttachment: (path: string) => Promise<void>
       previewAttachment: (path: string) => Promise<string>
+      listAgentCommands: (workspaceId: string, hostId: string) => Promise<AgentCommand[]>
       installCli: () => Promise<{ ok: boolean; path?: string; manual?: string; detail: string }>
       takeWhatsNew: () => Promise<{ version: string; notes: string } | null>
       whatsNew: () => Promise<{ version: string; notes: string } | null>
