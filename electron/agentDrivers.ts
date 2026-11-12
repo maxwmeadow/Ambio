@@ -4,6 +4,8 @@ import { delimiter, join } from 'node:path'
 import type { DeliveryEvent, DeliveryUsage } from '../src/shared/agentDelivery.ts'
 import type { AgentAccess, MappingBinding } from '../src/shared/agentDelivery.ts'
 import { followCodexTranscript } from './codexTranscript.ts'
+import { attachedImagesNote, inlineImage } from './attachments.ts'
+import type { Attachment } from '../src/shared/attachments.ts'
 
 /**
  * How Ambio drives each agent CLI for one turn of a conversation.
@@ -43,6 +45,8 @@ export interface DriverTurn {
   mapping?: MappingBinding
   /** How much the agent may do without asking, for a driver that offers levels (AgentDriver.access). */
   access?: AgentAccess
+  /** What the person attached from outside the map; a driver that takes images inline sends them with the turn. */
+  attachments?: Attachment[]
 }
 
 /** The usual flag for choosing a model, for hosts that take one. */
@@ -284,8 +288,19 @@ export function claudeUsage(usage: any): DeliveryUsage | undefined {
   return { inputTokens: input, cachedInputTokens: cached, outputTokens: output, reasoningOutputTokens: 0, totalTokens: input + output }
 }
 
-const claudeStream: DriverStream = {
+const claudeStream: DriverStream & { opening: (text: string, id: string, attachments?: Attachment[]) => string } = {
   message: (text, id) => JSON.stringify({ type: 'user', message: { role: 'user', content: text }, parent_tool_use_id: null, session_id: '', uuid: id }),
+  // The opening message carries attached images as image blocks (Claude Code
+  // 2.1 stream-json); one too large or of a kind it cannot read stays a path.
+  opening: (text, id, attachments = []) => {
+    const images = attachments.filter(item => item.kind === 'image').flatMap(item => { const image = inlineImage(item.path); return image ? [image] : [] })
+    if (!images.length) return claudeStream.message(text, id)
+    const content = [
+      { type: 'text', text: text + attachedImagesNote(images.length) },
+      ...images.map(image => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.data } })),
+    ]
+    return JSON.stringify({ type: 'user', message: { role: 'user', content }, parent_tool_use_id: null, session_id: '', uuid: id })
+  },
   interrupt: () => JSON.stringify({ type: 'control_request', request_id: randomUUID(), request: { subtype: 'interrupt' } }),
 }
 
@@ -320,7 +335,7 @@ const claudeCode: AgentDriver = {
     const building = turn.mode === 'build'
     return {
       sessionId,
-      stdin: `${claudeStream.message(turn.prompt, randomUUID())}\n`,
+      stdin: `${claudeStream.opening(turn.prompt, randomUUID(), turn.attachments)}\n`,
       args: [
         '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--replay-user-messages',
         ...(turn.resume ? ['--resume', turn.resume] : ['--session-id', sessionId!]),

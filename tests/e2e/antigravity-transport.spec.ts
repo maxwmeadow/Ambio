@@ -62,10 +62,18 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     expect(await setAgentAccess(panel, 'Antigravity CLI', 'Ask me')).toEqual(['ask', 'full'])
     // The message box says nothing about the connection or its access.
     await expect(panel.locator('.ambio-inbox__transport')).toHaveCount(0)
+    // An attached image goes to Antigravity with its turn: it says it takes images.
+    const shot = path.join(home, 'shot.png')
+    fs.writeFileSync(shot, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAEUlEQVR4nGP4z8DwHwqZYRwAU7QG/i/m3WkAAAAASUVORK5CYII=', 'base64'))
+    await app.evaluate(({ dialog }, file) => { (dialog as any).showOpenDialog = async () => ({ canceled: false, filePaths: [file] }) }, shot)
+    await panel.getByRole('button', { name: 'Attach context' }).click()
+    await panel.getByRole('dialog', { name: 'Attach context' }).getByRole('button', { name: 'Files…' }).click()
+    await expect(panel.locator('.ambio-inbox__compose .ambio-inbox__chip', { hasText: 'shot.png' })).toHaveCount(1)
     const textbox = panel.getByRole('textbox', { name: 'Instruction for your agent' })
     await textbox.fill('Fix the fixture')
     await panel.getByRole('button', { name: 'Start Antigravity CLI', exact: true }).click()
     await expect.poll(() => captured().some(item => item.transport === 'acp')).toBe(true)
+    await expect.poll(() => captured().find(item => item.blocks)?.blocks).toEqual(['text', 'image'])
     await expect.poll(() => app.evaluate(() => !!(globalThis as any).agyPermission)).toBe(true)
     expect(await app.evaluate(() => (globalThis as any).agyPermission.messageId)).toBe(orders[0].id)
     expect(fs.existsSync(path.join(root, 'fixture.txt'))).toBe(false)

@@ -1,6 +1,7 @@
 import type { DeliveryEvent, DeliveryUsage, ModelOption } from '../src/shared/agentDelivery.ts'
 import type { AgentAccess } from '../src/shared/agentDelivery.ts'
 import { codexSandbox, type DriverTurn } from './agentDrivers.ts'
+import { attachedImagesNote } from './attachments.ts'
 
 type Activity = Omit<DeliveryEvent, 'at'>
 type Pending = { resolve: (value: any) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
@@ -74,6 +75,8 @@ export interface CodexAppServerTurn {
   approval?: 'never' | 'on-request'
   reviewer?: 'user' | 'auto_review'
   review?: boolean
+  /** Attached images, sent with the turn as local image paths. */
+  images?: string[]
   send: (line: string) => void
   onSession: (id: string) => void
   onEvent: (event: Activity) => void
@@ -162,7 +165,9 @@ export class CodexAppServer {
       if (status !== 'completed') return { stopReason: status, resumed: !!this.turn.resume }
     }
     const text = this.turn.prompt + (this.turn.review ? `\n\nCodex's native review has finished. Use the following review as evidence, claim this Ambio request and return the review through Ambio's normal reply workflow. Do not change files.\n\n${this.reviewText || 'The reviewer returned no written findings.'}` : '')
-    const status = await this.startTurn('turn/start', { threadId: this.threadId, input: [{ type: 'text', text }], summary: 'auto', ...(this.turn.effort ? { effort: this.turn.effort } : {}) })
+    const images = this.turn.images ?? []
+    const input = [{ type: 'text', text: images.length ? text + attachedImagesNote(images.length) : text }, ...images.map(path => ({ type: 'localImage', path }))]
+    const status = await this.startTurn('turn/start', { threadId: this.threadId, input, summary: 'auto', ...(this.turn.effort ? { effort: this.turn.effort } : {}) })
     return { stopReason: status, resumed: !!this.turn.resume }
   }
 

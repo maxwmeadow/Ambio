@@ -1,6 +1,8 @@
 import os from 'node:os'
 import type { DeliveryEvent, DeliveryUsage } from '../src/shared/agentDelivery.ts'
 import { prose, thinkingEvents, type TurnMode } from './agentDrivers.ts'
+import { attachedImagesNote, fileUri, inlineImage } from './attachments.ts'
+import type { Attachment } from '../src/shared/attachments.ts'
 
 /**
  * One turn of a conversation with an agent that speaks the Agent Client
@@ -16,6 +18,23 @@ import { prose, thinkingEvents, type TurnMode } from './agentDrivers.ts'
 
 export interface AcpMcpServer { name: string; command: string; args: string[]; env: Array<{ name: string; value: string }> }
 
+/**
+ * The opening prompt with what the person attached: images inline when the
+ * agent says it takes them (promptCapabilities.image), and everything else, or
+ * every image when it does not, as a link to the file (always allowed).
+ */
+export function acpPrompt(text: string, attachments: readonly Attachment[], capabilities: { image?: boolean }): unknown[] {
+  const inline = capabilities.image === true
+  const images = inline ? attachments.filter(item => item.kind === 'image').flatMap(item => { const image = inlineImage(item.path); return image ? [{ item, image }] : [] }) : []
+  const sentInline = new Set(images.map(entry => entry.item.path))
+  const links = attachments.filter(item => !sentInline.has(item.path)).map(item => ({ type: 'resource_link', uri: fileUri(item.path), name: item.label }))
+  return [
+    { type: 'text', text: images.length ? text + attachedImagesNote(images.length) : text },
+    ...images.map(({ image }) => ({ type: 'image', mimeType: image.mimeType, data: image.data })),
+    ...links,
+  ]
+}
+
 export interface AcpTurn {
   cwd: string
   prompt: string
@@ -29,6 +48,8 @@ export interface AcpTurn {
   /** Antigravity cannot silently replace a retained session. */
   strictResume?: boolean
   steering?: boolean
+  /** What the person attached from outside the map, sent with the opening prompt. */
+  attachments?: Attachment[]
   /** Optional human permission desk; without it the host's existing policy applies. */
   onPermission?: (question: { title: string; detail: string; kind?: string }, signal: AbortSignal) => Promise<boolean>
   /** Sends one line to the agent. */
@@ -201,6 +222,8 @@ export class AcpClient {
   private closed = false
   private cancelled = false
   private prompting = false
+  /** What the agent said, when it connected, it takes in a prompt. */
+  private promptCapabilities: { image?: boolean } = {}
   private steeringWork: Array<Promise<void>> = []
   private steeredOutcome: any
   private permissionWaits = new Set<AbortController>()
@@ -398,6 +421,7 @@ export class AcpClient {
       catch { throw new Error('Grok is not signed in. Run grok login in a terminal, then send again.') }
     }
     const capabilities = initialized.agentCapabilities ?? {}
+    this.promptCapabilities = capabilities.promptCapabilities ?? {}
     let resumed = false
     let session: any
     const setup = { cwd: turn.cwd, mcpServers: turn.mcpServers }
@@ -485,7 +509,7 @@ export class AcpClient {
     this.prompting = true
     let result: any
     try {
-      result = await this.request('session/prompt', { sessionId: this.sessionId, prompt: [{ type: 'text', text: turn.prompt }] })
+      result = await this.request('session/prompt', { sessionId: this.sessionId, prompt: acpPrompt(turn.prompt, turn.attachments ?? [], this.promptCapabilities) })
       this.addUsage(result.usage)
       // agy resolves the original request before its steered replacement ends.
       // Keep the process alive until every accepted correction has completed.

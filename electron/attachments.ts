@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { fileName, isImagePath, pastedTextLabel, type Attachment } from '../src/shared/attachments.ts'
+import { pathToFileURL } from 'node:url'
+import { attachmentOf, fileName, isImagePath, pastedTextLabel, type Attachment } from '../src/shared/attachments.ts'
 
 /**
  * Where Ambio keeps what a message brings that has no file of its own: pasted
@@ -70,3 +71,36 @@ export function describePaths(paths: readonly string[]): Attachment[] {
     } catch { return [] }
   })
 }
+
+/** What a message brings from outside the map, from its stored selection; ones no longer on disk are left out. */
+export function messageAttachments(selection: unknown): Attachment[] {
+  let references: unknown = selection
+  if (typeof selection === 'string') { try { references = JSON.parse(selection) } catch { return [] } }
+  if (!Array.isArray(references)) return []
+  return references.flatMap(reference => {
+    const attachment = typeof reference === 'string' ? attachmentOf(reference) : null
+    return attachment && fs.existsSync(attachment.path) ? [attachment] : []
+  })
+}
+
+/** Largest image sent to an agent inline; a larger one stays a path to read. */
+export const INLINE_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+
+/** An attached image as base64 for an agent that takes images inline, or null when it cannot be. */
+export function inlineImage(target: string): { mimeType: string; data: string } | null {
+  const mimeType = PREVIEW_TYPES[fileName(target).split('.').pop()?.toLowerCase() ?? '']
+  if (!mimeType || mimeType === 'image/svg+xml') return null
+  try {
+    const stat = fs.statSync(target)
+    if (!stat.isFile() || stat.size > INLINE_IMAGE_MAX_BYTES) return null
+    return { mimeType, data: fs.readFileSync(target).toString('base64') }
+  } catch { return null }
+}
+
+/** The line added to an agent's turn when its attached images come with it. */
+export function attachedImagesNote(count: number): string {
+  return `\n\nThe ${count === 1 ? 'image' : `${count} images`} the person attached to this request ${count === 1 ? 'is' : 'are'} included with this message; get_inbox also lists ${count === 1 ? 'it' : 'them'} by path.`
+}
+
+/** A file URI for a path on this computer, as agent protocols name files. */
+export const fileUri = (target: string) => pathToFileURL(target).href

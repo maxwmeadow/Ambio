@@ -26,7 +26,8 @@ const usage = { inputTokens: 100, outputTokens: 7, cachedReadTokens: 0, thoughtT
 const reader = lines.createInterface({ input: process.stdin })
 reader.on('line', line => {
   const { id, method, params, result } = JSON.parse(line)
-  if (method === 'initialize') return send({ id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { resume: {} } } } })
+  // What agy 1.5.6 declares: it takes images and embedded resources in a prompt.
+  if (method === 'initialize') return send({ id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { resume: {} }, promptCapabilities: { image: true, audio: false, embeddedContext: true } } } })
   if (method === 'session/new' || method === 'session/resume') {
     if (params.mcpServers.length) capture({ transport: 'acp', resumed: method === 'session/resume', mcpServers: params.mcpServers, cwd: params.cwd })
     currentModel = 'gemini-fixture'
@@ -52,7 +53,7 @@ reader.on('line', line => {
       return
     }
     promptId = id
-    capture({ prompt: params.prompt[0].text })
+    capture({ prompt: params.prompt[0].text, blocks: params.prompt.map(block => block.type) })
     // What agy 1.5 sends before it edits, as it sends it: thinking, a skill
     // read titled "File <relative path>" with the same file as an absolute
     // location, an Ambio call titled "Run mcp_ambio_…", and a read that fails.

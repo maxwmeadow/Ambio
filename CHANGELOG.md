@@ -7,6 +7,9 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Claude Code, Codex and Antigravity see attached images directly instead of
+  opening them from a file. Hover an attached image to see how the chosen agent
+  will get it.
 - Attachments: the remove button shows on hover. With images attached, the other
   attachments stack three high beside them. The full-size view has arrows (and
   the arrow keys) to step through every attached image.

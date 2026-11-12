@@ -67,3 +67,24 @@ export function pastedTextLabel(text: string): string {
   const lines = lineCount(text.trimEnd())
   return lines > 1 ? `Pasted text, ${lines} lines` : `Pasted text, ${text.length.toLocaleString('en-US')} characters`
 }
+
+/**
+ * Whether the agent Ambio starts for a turn sees attached images directly
+ * (electron/agentDrivers.ts, codexAppServer.ts, acpClient.ts): Claude Code
+ * and Codex always; an ACP agent when it says it takes images; any other
+ * agent gets each image as a file to open.
+ */
+export function imageDelivery(hostId: string): 'direct' | 'if-supported' | 'path' {
+  if (hostId === 'claude-code' || hostId === 'codex') return 'direct'
+  if (hostId === 'antigravity-cli' || hostId === 'grok' || hostId === 'devin-cli') return 'if-supported'
+  return 'path'
+}
+
+/** The part of an image chip's tooltip that says how the chosen agent receives it. */
+export function imageDeliveryHint(hostId: string, agent: string): string {
+  switch (imageDelivery(hostId)) {
+    case 'direct': return `${agent} sees this image directly.`
+    case 'if-supported': return `${agent} sees this image directly when it takes images; otherwise it opens the file.`
+    case 'path': return hostId ? `${agent} opens this image from its file.` : 'The agent opens this image from its file.'
+  }
+}

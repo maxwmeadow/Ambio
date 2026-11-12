@@ -34,7 +34,7 @@ import type { ProjectConfig, WsMessage } from '../src/shared/types'
 import { completeSourceBoundaries, mergePersistedProjectConfig } from '../src/shared/projectLifecycle'
 import { buildHosts, detectHosts, inspectHostConfiguration, installFamily } from './agentInstallers'
 import { CLI_CLIENTS, RUN_NEEDS_INSTALL, SHARED_APP_CLIENTS, installerHostId, isAgentAccess } from '../src/shared/agentDelivery'
-import { attachmentsDirectory, describePaths, imagePreview, saveAttachment } from './attachments'
+import { attachmentsDirectory, describePaths, imagePreview, messageAttachments, saveAttachment } from './attachments'
 import { discoverAppClients } from './agentClientDiscovery'
 import { readExecutableOverrides, setExecutableOverride, clearExecutableOverride } from './agentExecutableOverrides'
 import { removeLegacyServer, uninstallAll, uninstallHost } from './agentUninstall'
@@ -1779,7 +1779,9 @@ function setupIPC(): void {
       // Antigravity's print route always runs with full access, so only that level is honoured there.
       const honoured = driver?.access ?? (antigravity ? ['full'] : undefined)
       if (request.access !== undefined && (!isAgentAccess(request.access) || !honoured?.includes(request.access))) throw new Error(`${target.label} cannot be run at this access level.`)
-      const turn = { mode, messageId: request.messageId, cwd: workPath, mapping, ...(chosen?.model ? { model: chosen.model } : validModel(request.model) ? { model: request.model } : {}), ...(effort ? { effort } : {}), ...(request.access ? { access: request.access } : {}) }
+      // Attached images go with the turn natively where the agent takes them; get_inbox gives every attachment by path.
+      const attachments = mapping ? [] : messageAttachments(body.selection)
+      const turn = { mode, messageId: request.messageId, cwd: workPath, mapping, ...(attachments.length ? { attachments } : {}), ...(chosen?.model ? { model: chosen.model } : validModel(request.model) ? { model: request.model } : {}), ...(effort ? { effort } : {}), ...(request.access ? { access: request.access } : {}) }
       if (request.codexTransport !== undefined && !['app-server', 'exec'].includes(request.codexTransport)) throw new Error('Invalid Codex transport.')
       const pinnedCodex = request.hostId === 'codex' ? deliveryRunner.codexTransport(project.id, threadId) : undefined
       if (pinnedCodex && request.codexTransport && pinnedCodex !== request.codexTransport) throw new Error('This conversation keeps its Codex connection. Start a new conversation to change it.')
@@ -1804,6 +1806,7 @@ function setupIPC(): void {
             return response.status === 200 && response.body?.decision === 'allow'
           } }),
         } : {}),
+        ...(attachments.length ? { attachments } : {}),
         mcpServers: [(spec => ({ name: 'ambio', command: spec.command, args: [...spec.args, `--ambio-host=${request.hostId}`], env: Object.entries(mcpEnvironment(request.hostId, project.id, request.messageId, mapping)).map(([name, value]) => ({ name, value })) }))(mcpLaunchSpec())],
       } : undefined
       // A host with both ways in is tried as a session first; print mode is the
@@ -1817,7 +1820,7 @@ function setupIPC(): void {
         args: plan.args, stdin: plan.stdin, threadId, mode, driver, mapping, sessionId: resume ?? plan.sessionId, resumed: !!resume,
         codexTransport,
         ...(chosen ? { transport: chosen.transport, model: turn.model, thinking: chosen.thinking } : effort ? { thinking: effort } : {}),
-        ...(nativeCodex ? { codex: { resume, model: turn.model, effort, approval: request.access === 'ask' || request.access === 'auto' ? 'on-request' : 'never', reviewer: request.access === 'auto' ? 'auto_review' : 'user', review: request.codexReview } } : {}),
+        ...(nativeCodex ? { codex: { resume, model: turn.model, effort, images: attachments.filter(item => item.kind === 'image').map(item => item.path), approval: request.access === 'ask' || request.access === 'auto' ? 'on-request' : 'never', reviewer: request.access === 'auto' ? 'auto_review' : 'user', review: request.codexReview } } : {}),
         ...(acp ? driver?.muse ? { muse: { ...acp, model: turn.model } } : { acp } : {}),
         ...(antigravity || nativeCodex || driver?.acp || driver?.muse ? {} : { fresh: printPlan }),
       })

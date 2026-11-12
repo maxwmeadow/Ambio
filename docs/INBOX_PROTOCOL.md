@@ -400,6 +400,15 @@ every requirement. Reopening does not stop an external agent already editing fil
   they are; pasted text and pasted images are kept in Ambio's app-data folder
   (`attachments/<workspace>`), not in `~/.ambio`, which agents must not read. archd
   accepts `ambio://path/...` references in a selection without a map lookup.
+- An agent Ambio starts also gets attached images with its opening turn, natively,
+  where it takes them (`electron/attachments.ts`): Claude Code as stream-json image
+  blocks, Codex App Server as `localImage` paths, an ACP agent as `image` blocks when
+  its `promptCapabilities.image` is true (Antigravity 1.5.6 declares it). An ACP
+  agent gets every other attachment, and images it cannot take, as `resource_link`
+  file URIs. Images over 5 MB, and SVGs, stay paths. Each such turn says one line
+  that the images are included; get_inbox still lists every attachment by path.
+  Print-mode agents, Copilot, Cursor, Muse, Ambio chat and agents in other apps
+  read images by path.
 - `get_inbox({messageHandle, contextOffset: 0})` fetches original context in pages of at most
   12,000 Unicode characters. Continue from `nextOffset`; `-1` means complete. Fetching
   context does not claim another instruction. The handle must still own the message.

@@ -188,6 +188,15 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
         await setup.close()
         await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-claude.png' })
       }
+      if (host === 'claude-code') {
+        // An attached image goes to Claude Code with its turn, as an image block.
+        const shot = path.join(home, 'shot.png')
+        fs.writeFileSync(shot, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAEUlEQVR4nGP4z8DwHwqZYRwAU7QG/i/m3WkAAAAASUVORK5CYII=', 'base64'))
+        await app.evaluate(({ dialog }, file) => { (dialog as any).showOpenDialog = async () => ({ canceled: false, filePaths: [file] }) }, shot)
+        await inbox.getByRole('button', { name: 'Attach context' }).click()
+        await inbox.getByRole('dialog', { name: 'Attach context' }).getByRole('button', { name: 'Files…' }).click()
+        await expect(inbox.locator('.ambio-inbox__compose .ambio-inbox__chip', { hasText: 'shot.png' })).toHaveCount(1)
+      }
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill(`Handle only the ${host} fixture.`)
       const sentBefore = orders.length
       await inbox.locator('form').getByRole('button', { name: `Start ${label}` }).click()
@@ -196,8 +205,16 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       const captured = path.join(root, `captured-${host}.json`)
       // Copilot is first tried as an agent session; the stand-in cannot hold one,
       // so the same turn then runs in print mode. Wait for the run that got the prompt.
-      await expect.poll(() => { try { return String(JSON.parse(fs.readFileSync(captured, 'utf8')).prompt) } catch { return '' } }).toContain(orders.at(-1).id)
+      // A prompt is text, or text and images where the agent takes images.
+      const promptText = (prompt: unknown) => typeof prompt === 'string' ? prompt : Array.isArray(prompt) ? String(prompt.find((block: any) => block?.type === 'text')?.text ?? '') : String(prompt)
+      await expect.poll(() => { try { return promptText(JSON.parse(fs.readFileSync(captured, 'utf8')).prompt) } catch { return '' } }).toContain(orders.at(-1).id)
       const actual = JSON.parse(fs.readFileSync(captured, 'utf8'))
+      if (host === 'claude-code') {
+        expect(actual.prompt.map((block: any) => block.type)).toEqual(['text', 'image'])
+        expect(actual.prompt[1].source.media_type).toBe('image/png')
+        expect(actual.prompt[0].text).toContain('The image the person attached to this request is included with this message')
+      }
+      actual.prompt = promptText(actual.prompt)
       expect(actual.workspace).toBe('demo'); expect(actual.cwd).toBe(fs.realpathSync(root))
       if (host === 'grok' || host === 'muse') {
         expect(actual.permissionHook).toBeUndefined()

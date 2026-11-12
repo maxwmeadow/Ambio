@@ -27,7 +27,7 @@ import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
 import { ChatTranscript, chatAgentLabel, chatThreadId, OPEN_MODEL_SERVICES, useAgentChat } from './AgentChatPanel'
 import { conversationKey, useConversationPreferences } from '../store/conversationPreferences'
 import { ConversationMenu, type ConversationEntry } from './ConversationMenu'
-import { attachesPaste, attachmentOf, attachmentReference, type Attachment } from '../../shared/attachments'
+import { attachesPaste, attachmentOf, attachmentReference, imageDeliveryHint, type Attachment } from '../../shared/attachments'
 import { AttachmentThumbnail, ImageLightbox } from './AttachmentImage'
 import '../styles/inbox.css'
 
@@ -364,7 +364,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       : focus(ref)
     return <span key={ref} className="ambio-inbox__chip" data-kind={outside?.kind}>
       <button type="button" className="ambio-inbox__chip-open" onClick={open}
-        title={image ? `View ${label}` : outside ? `Open ${outside.path}` : referenceLines(ref) ? 'Open these lines' : 'Show on canvas'}>
+        title={image ? `View ${label}${editable ? `. ${imageDeliveryHint(delivery.hostId, delivery.hosts.find(host => host.id === delivery.hostId)?.label ?? 'The agent')}` : ''}` : outside ? `Open ${outside.path}` : referenceLines(ref) ? 'Open these lines' : 'Show on canvas'}>
         {image ? <AttachmentThumbnail path={outside!.path} /> : <InboxIcon name={icon} size={12} />}<span>{label}</span>
       </button>
       {editable && <button type="button" className="ambio-inbox__chip-remove" disabled={locked} aria-label={`Remove ${label} from message`} title={`Remove ${label} from message`} onClick={() => removeFromMessage(ref)}>

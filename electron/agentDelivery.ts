@@ -13,6 +13,7 @@ import { MuseClient, type MuseTurn } from './museClient.ts'
 import { CodexAppServer, type CodexAppServerTurn } from './codexAppServer.ts'
 import { daemonFetch, mappingAttemptState } from './daemonAuth.ts'
 import type { MappingBinding } from '../src/shared/agentDelivery.ts'
+import type { Attachment } from '../src/shared/attachments.ts'
 
 export interface DeliveryLauncher { command: string; args: string[]; bundledNode?: boolean }
 export interface DeliveryTarget extends DeliveryHost { launcher?: DeliveryLauncher }
@@ -208,10 +209,10 @@ export function chatDeepLink(hostId: string, prompt: string, mode: TurnMode = 'b
 }
 
 /** How one turn is started in a host: its arguments, stdin and session. */
-export function deliveryPlan(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string; effort?: string; mapping?: MappingBinding; access?: AgentAccess } = {}): DriverPlan {
+export function deliveryPlan(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string; effort?: string; mapping?: MappingBinding; access?: AgentAccess; attachments?: Attachment[] } = {}): DriverPlan {
   const driver = agentDriver(hostId)
   if (!driver) throw new Error('This host has no direct delivery route.')
-  return driver.plan({ hostId, mcp, workspaceId, prompt, mode: turn.mode ?? 'build', resume: turn.resume, messageId: turn.messageId, cwd: turn.cwd, model: turn.model, effort: turn.effort, mapping: turn.mapping, access: turn.access })
+  return driver.plan({ hostId, mcp, workspaceId, prompt, mode: turn.mode ?? 'build', resume: turn.resume, messageId: turn.messageId, cwd: turn.cwd, model: turn.model, effort: turn.effort, mapping: turn.mapping, access: turn.access, ...(turn.attachments?.length ? { attachments: turn.attachments } : {}) })
 }
 
 export function deliveryArguments(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string; effort?: string; mapping?: MappingBinding; access?: AgentAccess } = {}): string[] {
@@ -219,7 +220,7 @@ export function deliveryArguments(hostId: string, mcp: DeliveryLauncher, workspa
 }
 
 export interface RunInput {
-  codex?: Pick<CodexAppServerTurn, 'resume' | 'model' | 'effort' | 'approval' | 'reviewer' | 'review'>
+  codex?: Pick<CodexAppServerTurn, 'resume' | 'model' | 'effort' | 'approval' | 'reviewer' | 'review' | 'images'>
   codexTransport?: DeliveryRun['codexTransport']
   workspaceId: string; messageId: string; hostId: string; rootPath: string; revision: string; launcher: DeliveryLauncher; args: string[]; prompt: string
   /** The conversation and kind of turn, when the request carries them. */
@@ -233,7 +234,7 @@ export interface RunInput {
   /** Started instead when a continued session will not start: the same turn, fresh. */
   fresh?: () => { args: string[]; stdin?: string; sessionId?: string }
   /** Run the turn as an Agent Client Protocol session with these MCP servers. */
-  acp?: Pick<AcpTurn, 'mcpServers' | 'resume' | 'model' | 'thinking' | 'strictResume' | 'steering' | 'onPermission'>
+  acp?: Pick<AcpTurn, 'mcpServers' | 'resume' | 'model' | 'thinking' | 'strictResume' | 'steering' | 'onPermission' | 'attachments'>
   transport?: 'acp' | 'print'
   model?: string
   thinking?: string
